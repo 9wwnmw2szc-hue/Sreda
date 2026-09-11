@@ -10,12 +10,14 @@ export function useCurrentBusiness() {
     isLoading,
     setCurrentBusinessId,
     businesses,
+    error,
   } = useBusinessContext();
 
   return {
     business: currentBusiness,
     businessId: currentBusinessId,
     businesses,
+    error,
     isLoading,
     setBusinessId: setCurrentBusinessId,
   };

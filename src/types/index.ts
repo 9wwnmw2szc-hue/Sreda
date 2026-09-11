@@ -1,17 +1,10 @@
 export type Platform = "telegram" | "vk" | "max";
 
 export type ConnectionStatus =
-  | "connected"
-  | "disconnected"
-  | "pending"
-  | "error";
+  "connected" | "disconnected" | "pending" | "error";
 
 export type SolutionStatus =
-  | "available"
-  | "active"
-  | "setup_required"
-  | "paused"
-  | "unavailable";
+  "available" | "active" | "setup_required" | "paused" | "unavailable";
 
 export type LeadStatus = "new" | "processing" | "closed";
 
@@ -71,6 +64,7 @@ export interface Post {
   businessId: string;
   text: string;
   imageUrl?: string;
+  excerpt?: string;
   platforms: Platform[];
   status: PostStatus;
   publishAt?: string;

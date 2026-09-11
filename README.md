@@ -2,7 +2,7 @@
 
 SaaS для малого бизнеса: готовые решения в Telegram и ВКонтакте.
 
-## Этап 1 — фундамент веб-приложения
+## Dashboard — утверждённое визуальное направление
 
 Frontend на Next.js (App Router) + TypeScript + Tailwind CSS.
 Данные пока из mock-слоя через services. Backend / Telegram / VK API не подключены.
@@ -10,7 +10,7 @@ Frontend на Next.js (App Router) + TypeScript + Tailwind CSS.
 ## Запуск
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -49,3 +49,13 @@ src/
   config/        # навигация и design-конфиг
   lib/           # утилиты
 ```
+
+## Дизайн и проверка
+
+[Реализация, координаты, ограничения и acceptance](docs/design/IMPLEMENTATION.md).
+
+[Утверждённый референс](docs/design/sreda-approved-desktop-mobile.png).
+
+Скриншоты реального интерфейса: [1440](docs/design/review/desktop-1440.jpg), [1280](docs/design/review/desktop-1280.jpg), [900](docs/design/review/tablet-900.jpg), [390](docs/design/review/mobile-390.jpg).
+
+Основной законченный визуальный экран — `/dashboard`. Остальные страницы пока демонстрируют структуру будущих разделов.

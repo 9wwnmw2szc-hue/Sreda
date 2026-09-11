@@ -1,6 +1,7 @@
 /**
- * Пути к production-ассетам «Среды».
- * Источник истины: public/assets/sreda/decor/APPROVED-DESIGN-REFERENCE.jpeg
+ * Архивные ассеты первоначального Dashboard.
+ * Новый утверждённый референс: docs/design/sreda-approved-desktop-mobile.png.
+ * Актуальная сцена использует public/assets/sreda/v2 и config/scene.ts.
  */
 
 export const SREDA_ASSETS = {

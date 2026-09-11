@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local visual review
+/review-out/
+/public/__qa.html
+/public/__review/
+/.sites-runtime/

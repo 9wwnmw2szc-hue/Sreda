@@ -1,6 +1,5 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { WORKSPACE_SOLUTION_ORDER, SOLUTION_VISUALS } from "@/config/solutions";
 import type { SolutionAccentCode } from "@/config/design";
 import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
@@ -21,112 +20,117 @@ import type {
   Solution,
   SolutionStatus,
 } from "@/types";
-
 export interface WorkspaceSolutionItem {
   solution: Solution;
   code: SolutionAccentCode;
   status: SolutionStatus;
   visual: (typeof SOLUTION_VISUALS)[SolutionAccentCode];
 }
-
+interface DashboardSnapshot {
+  businessId: string;
+  workspaceItems: WorkspaceSolutionItem[];
+  connections: Connection[];
+  billing: BillingInfo | null;
+  leads: Lead[];
+  posts: Post[];
+}
 export function useDashboardData() {
-  const { user, isLoading: userLoading } = useCurrentUser();
+  const { user, isLoading: userLoading, error: userError } = useCurrentUser();
   const {
     business,
     businessId,
     businesses,
     isLoading: businessLoading,
     setBusinessId,
+    error: businessError,
   } = useCurrentBusiness();
-
-  const [solutions, setSolutions] = useState<Solution[]>([]);
-  const [workspaceItems, setWorkspaceItems] = useState<WorkspaceSolutionItem[]>(
-    [],
-  );
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [billing, setBilling] = useState<BillingInfo | null>(null);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [failure, setFailure] = useState<{
+    businessId: string;
+    message: string;
+  } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    if (businessLoading || !business) return;
     let cancelled = false;
-
     async function load() {
-      setIsLoading(true);
-
-      const [
-        catalog,
-        businessSolutions,
-        nextConnections,
-        nextBilling,
-        nextLeads,
-        nextPosts,
-      ] = await Promise.all([
-        getSolutions(),
-        getBusinessSolutions(businessId),
-        getConnections(businessId),
-        getBilling(businessId),
-        getRecentLeads(businessId, 4),
-        getScheduledPosts(businessId, 3),
-      ]);
-
-      if (cancelled) return;
-
-      const statusBySolutionId = new Map(
-        businessSolutions.map((item) => [item.solutionId, item.status]),
-      );
-
-      const items: WorkspaceSolutionItem[] = WORKSPACE_SOLUTION_ORDER.flatMap(
-        (code) => {
+      try {
+        const [catalog, installed, connections, billing, leads, posts] =
+          await Promise.all([
+            getSolutions(),
+            getBusinessSolutions(businessId),
+            getConnections(businessId),
+            getBilling(businessId),
+            getRecentLeads(businessId, 4),
+            getScheduledPosts(businessId, 2),
+          ]);
+        if (cancelled) return;
+        const statuses = new Map(
+          installed.map((item) => [item.solutionId, item.status]),
+        );
+        const workspaceItems = WORKSPACE_SOLUTION_ORDER.flatMap((code) => {
           const solution = catalog.find((item) => item.code === code);
-          if (!solution) return [];
-          const visual = SOLUTION_VISUALS[code];
-          return [
-            {
-              solution,
-              code,
-              status: statusBySolutionId.get(solution.id) ?? "available",
-              visual,
-            },
-          ];
-        },
-      );
-
-      setSolutions(catalog);
-      setWorkspaceItems(items);
-      setConnections(nextConnections);
-      setBilling(nextBilling);
-      setLeads(nextLeads);
-      setPosts(nextPosts);
-      setIsLoading(false);
+          return solution
+            ? [
+                {
+                  solution,
+                  code,
+                  status:
+                    statuses.get(solution.id) ??
+                    ("available" as SolutionStatus),
+                  visual: SOLUTION_VISUALS[code],
+                },
+              ]
+            : [];
+        });
+        setSnapshot({
+          businessId,
+          workspaceItems,
+          connections,
+          billing,
+          leads,
+          posts,
+        });
+        setFailure(null);
+      } catch {
+        if (!cancelled)
+          setFailure({
+            businessId,
+            message:
+              "Не удалось загрузить рабочее пространство. Попробуйте ещё раз.",
+          });
+      }
     }
-
     void load();
-
     return () => {
       cancelled = true;
     };
-  }, [businessId]);
-
-  const activeSolutionsCount = useMemo(
-    () => workspaceItems.filter((item) => item.status === "active").length,
-    [workspaceItems],
-  );
-
+  }, [businessId, business, businessLoading, attempt]);
+  const current = snapshot?.businessId === businessId ? snapshot : null;
+  const error =
+    businessError ||
+    userError ||
+    (failure?.businessId === businessId ? failure.message : null);
+  const workspaceItems = current?.workspaceItems ?? [];
   return {
     user,
     business,
     businessId,
     businesses,
     setBusinessId,
-    solutions,
     workspaceItems,
-    connections,
-    billing,
-    leads,
-    posts,
-    activeSolutionsCount,
-    isLoading: isLoading || userLoading || businessLoading,
+    connections: current?.connections ?? [],
+    billing: current?.billing ?? null,
+    leads: current?.leads ?? [],
+    posts: current?.posts ?? [],
+    activeSolutionsCount: workspaceItems.filter(
+      (item) => item.status === "active",
+    ).length,
+    isLoading: !error && (userLoading || businessLoading || !current),
+    error,
+    retry: () => {
+      setFailure(null);
+      setAttempt((value) => value + 1);
+    },
   };
 }

@@ -1,71 +1,63 @@
+"use client";
 import Link from "next/link";
-import { PlatformBadge } from "@/components/ui/PlatformBadge";
-import { LeadStatusPill } from "@/components/ui/StatusPill";
+import { ChevronRight, Inbox } from "lucide-react";
 import { formatRelativeDateTime, initialsFromName } from "@/lib/format";
-import { leadStatusLabel } from "@/lib/labels";
 import type { Lead } from "@/types";
-
-interface RecentLeadsProps {
+export function RecentLeads({
+  leads,
+  onSelect,
+}: {
   leads: Lead[];
-}
-
-export function RecentLeads({ leads }: RecentLeadsProps) {
+  onSelect?: (lead: Lead) => void;
+}) {
+  const newCount = leads.filter((lead) => lead.status === "new").length;
   return (
-    <section className="dashboard-lower-card rounded-[24px] border border-[var(--border-light)] bg-[var(--surface)] p-5 md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-          Последние заявки
+    <section className="panel leads-panel">
+      <div className="panel-heading">
+        <h2>
+          <span className="desktop-only">Последние заявки</span>
+          <span className="mobile-only">Новые заявки</span>
+          {newCount > 0 && <span className="count-badge">{newCount}</span>}
         </h2>
-        <Link
-          href="/leads"
-          className="text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
-        >
-          Все заявки →
+        <Link href="/leads" className="text-link">
+          Все заявки
+          <ChevronRight size={16} />
         </Link>
       </div>
-
-      <ul className="divide-y divide-[var(--border-light)]">
-        {leads.length === 0 ? (
-          <li className="py-6 text-sm text-[var(--text-muted)]">
-            Пока нет заявок
-          </li>
-        ) : (
-          leads.map((lead) => (
-            <li
-              key={lead.id}
-              className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:gap-4"
-            >
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-xs font-semibold text-[var(--text-secondary)]"
-                  aria-hidden
-                >
+      {leads.length ? (
+        <ul className="lead-list">
+          {leads.slice(0, 3).map((lead, index) => (
+            <li key={lead.id}>
+              <button className="lead-row" onClick={() => onSelect?.(lead)}>
+                <span className={`initial-avatar initial-avatar--${index % 3}`}>
                   {initialsFromName(lead.name)}
                 </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                    {lead.name}
-                  </p>
-                  <p className="truncate text-sm text-[var(--text-secondary)]">
-                    {lead.message ?? "Без сообщения"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <PlatformBadge platform={lead.source} />
-                <span className="text-xs text-[var(--text-muted)]">
-                  {formatRelativeDateTime(lead.createdAt)}
+                <span className="lead-row__body">
+                  <strong>{lead.name}</strong>
+                  <span>{lead.message}</span>
                 </span>
-                <LeadStatusPill
-                  label={leadStatusLabel(lead.status)}
-                  status={lead.status}
-                />
-              </div>
+                <span className="lead-row__meta">
+                  <time dateTime={lead.createdAt}>
+                    {formatRelativeDateTime(lead.createdAt)}
+                  </time>
+                  <span className={`status-chip status-chip--${lead.status}`}>
+                    {lead.status === "new"
+                      ? "Новая"
+                      : lead.status === "processing"
+                        ? "В работе"
+                        : "Закрыта"}
+                  </span>
+                </span>
+              </button>
             </li>
-          ))
-        )}
-      </ul>
+          ))}
+        </ul>
+      ) : (
+        <div className="empty-state">
+          <Inbox size={26} />
+          <p>Новые обращения появятся здесь.</p>
+        </div>
+      )}
     </section>
   );
 }

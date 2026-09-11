@@ -1,89 +1,102 @@
 "use client";
-
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { Menu, Home, Layers2, Inbox, Ellipsis } from "lucide-react";
 import { BusinessProvider } from "@/hooks/useBusinessContext";
-import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { cn } from "@/lib/cn";
-
+import { Brand } from "@/components/ui/Brand";
 function AppShellInner({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { business } = useCurrentBusiness();
+  const [open, setOpen] = useState(false);
+  const menu = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
-  const isDashboard = pathname === "/dashboard";
-
+  useEffect(() => {
+    const dialog = menu.current;
+    if (!dialog) return;
+    if (open) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+    const old = document.body.style.overflow;
+    if (open) document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = old;
+    };
+  }, [open]);
   return (
-    <div className="flex min-h-screen bg-[var(--background)]">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header
-          className={cn(
-            "sticky top-0 z-30 flex h-16 items-center gap-3 px-4 backdrop-blur-md lg:hidden",
-            isDashboard
-              ? "border-b border-white/10 bg-[#1c1713]/55 text-white"
-              : "border-b border-[var(--border-light)] bg-[var(--surface)]/90",
-          )}
-        >
+    <div className="app-shell">
+      <div className="desktop-sidebar">
+        <Sidebar />
+      </div>
+      <dialog
+        ref={menu}
+        className="mobile-menu"
+        onCancel={() => setOpen(false)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setOpen(false);
+        }}
+      >
+        <Sidebar mobile onClose={() => setOpen(false)} />
+      </dialog>
+      <div className="app-main">
+        <header className="mobile-header">
           <button
-            type="button"
-            className={cn(
-              "rounded-xl p-2 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]",
-              isDashboard
-                ? "text-white/90 hover:bg-white/10"
-                : "text-[var(--text-primary)] hover:bg-[var(--surface-elevated)]",
-            )}
-            onClick={() => setSidebarOpen(true)}
+            className="icon-button"
+            onClick={() => setOpen(true)}
             aria-label="Открыть меню"
-            aria-controls="app-sidebar"
-            aria-expanded={sidebarOpen}
+            aria-expanded={open}
           >
-            <Menu className="h-5 w-5" aria-hidden />
+            <Menu size={23} />
           </button>
-          <div className="min-w-0">
-            <p
-              className={cn(
-                "truncate text-sm font-semibold",
-                isDashboard ? "text-white" : "text-[var(--text-primary)]",
-              )}
-            >
-              {business?.name ?? "Среда"}
-            </p>
-            <p
-              className={cn(
-                "text-xs",
-                isDashboard ? "text-white/55" : "text-[var(--text-muted)]",
-              )}
-            >
-              {business?.planName
-                ? `Тариф: ${business.planName}`
-                : "Ваш бизнес"}
-            </p>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto">
-          <div
-            className={cn(
-              "w-full",
-              isDashboard
-                ? "max-w-none"
-                : "mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-8",
-            )}
+          <Brand compact />
+          <Link
+            href="/settings"
+            className="profile-avatar"
+            aria-label="Профиль"
           >
-            {children}
-          </div>
+            А
+          </Link>
+        </header>
+        <main
+          id="main-content"
+          className={pathname === "/dashboard" ? "" : "secondary-page"}
+        >
+          {children}
         </main>
       </div>
+      <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
+        {[
+          { href: "/dashboard", label: "Главная", icon: Home },
+          { href: "/solutions", label: "Решения", icon: Layers2 },
+          { href: "/leads", label: "Заявки", icon: Inbox },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
+            >
+              <Icon size={22} strokeWidth={1.7} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+        <button onClick={() => setOpen(true)} aria-expanded={open}>
+          <Ellipsis size={24} />
+          <span>Ещё</span>
+        </button>
+      </nav>
     </div>
   );
 }
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <BusinessProvider>
+      <a href="#main-content" className="skip-link">
+        К содержимому
+      </a>
       <AppShellInner>{children}</AppShellInner>
     </BusinessProvider>
   );

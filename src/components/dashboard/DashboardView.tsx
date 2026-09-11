@@ -1,115 +1,355 @@
 "use client";
-
-import { Suspense } from "react";
-import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { SolutionWorkspace } from "@/components/dashboard/SolutionWorkspace";
-import { TariffCard } from "@/components/dashboard/TariffCard";
-import { ConnectionsCard } from "@/components/dashboard/ConnectionsCard";
-import { PromoCard } from "@/components/dashboard/PromoCard";
-import { RecentLeads } from "@/components/dashboard/RecentLeads";
-import { ScheduledPosts } from "@/components/dashboard/ScheduledPosts";
-import { QuickActions } from "@/components/dashboard/QuickActions";
-import { BrandBlock } from "@/components/dashboard/BrandBlock";
-import { useDashboardData } from "@/hooks/useDashboardData";
-
-function RightColumn({
-  billing,
-  activeSolutionsCount,
-  connections,
-}: {
-  billing: ReturnType<typeof useDashboardData>["billing"];
-  activeSolutionsCount: number;
-  connections: ReturnType<typeof useDashboardData>["connections"];
-}) {
-  return (
-    <>
-      <TariffCard billing={billing} activeSolutionsCount={activeSolutionsCount} />
-      <ConnectionsCard connections={connections} />
-      <PromoCard />
-    </>
-  );
-}
-
+import { Suspense, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Plus, ArrowUpRight, Search, RefreshCw } from "lucide-react";
+import { DashboardHeader } from "./DashboardHeader";
+import { SolutionWorkspace } from "./SolutionWorkspace";
+import { TariffCard } from "./TariffCard";
+import { ConnectionsCard } from "./ConnectionsCard";
+import { RecentLeads } from "./RecentLeads";
+import { ScheduledPosts } from "./ScheduledPosts";
+import { QuickActions } from "./QuickActions";
+import { SearchField } from "./SearchField";
+import { BusinessSwitcher } from "./BusinessSwitcher";
+import { DetailDialog } from "./DetailDialog";
+import { SolutionModule, solutionState } from "./SolutionModule";
+import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import {
+  useDashboardData,
+  type WorkspaceSolutionItem,
+} from "@/hooks/useDashboardData";
+import { formatRelativeDateTime } from "@/lib/format";
+import type { Lead, Post } from "@/types";
+type Selection =
+  | { type: "catalog" }
+  | { type: "solution"; item: WorkspaceSolutionItem }
+  | { type: "lead"; item: Lead }
+  | { type: "post"; item: Post };
 export function DashboardView() {
-  const {
-    user,
-    business,
-    businesses,
-    setBusinessId,
-    workspaceItems,
-    connections,
-    billing,
-    leads,
-    posts,
-    activeSolutionsCount,
-    isLoading,
-  } = useDashboardData();
-
-  const rightProps = {
-    billing,
-    activeSolutionsCount,
-    connections,
+  const data = useDashboardData();
+  const [query, setQuery] = useState("");
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [selectionBusiness, setSelectionBusiness] = useState("");
+  const show = (value: Selection) => {
+    setSelectionBusiness(data.businessId);
+    setSelection(value);
   };
-
+  const selectSolution = (item: WorkspaceSolutionItem) =>
+    show({ type: "solution", item });
+  const catalog = () => show({ type: "catalog" });
+  const term = query.trim().toLocaleLowerCase("ru-RU");
+  const matchingSolutions = term
+    ? data.workspaceItems.filter((item) =>
+        `${item.solution.name} ${item.solution.description}`
+          .toLocaleLowerCase("ru-RU")
+          .includes(term),
+      )
+    : [];
+  const matchingLeads = term
+    ? data.leads.filter((item) =>
+        `${item.name} ${item.message ?? ""}`
+          .toLocaleLowerCase("ru-RU")
+          .includes(term),
+      )
+    : [];
+  const matchingPosts = term
+    ? data.posts.filter((item) =>
+        item.text.toLocaleLowerCase("ru-RU").includes(term),
+      )
+    : [];
+  const resultCount =
+    matchingSolutions.length + matchingLeads.length + matchingPosts.length;
+  const visibleSelection =
+    selectionBusiness === data.businessId ? selection : null;
+  const dialogTitle =
+    visibleSelection?.type === "catalog"
+      ? "Что поручим Среде?"
+      : visibleSelection?.type === "solution"
+        ? visibleSelection.item.solution.name
+        : visibleSelection?.type === "lead"
+          ? "Заявка клиента"
+          : "Предпросмотр публикации";
   return (
     <div className="dashboard-root">
-      <section className="dashboard-hero">
-        <div className="dashboard-hero__atmosphere" aria-hidden />
-        <div className="dashboard-hero__content relative z-10 flex flex-col gap-6 px-4 pt-5 pb-6 md:gap-6 md:px-5 md:pt-6 md:pb-7 min-[1360px]:px-6 min-[1360px]:pt-7 min-[1360px]:pb-8">
-          {/*
-            ≥1360: right 280 / gap 24
-            1100–1359: right 248 / gap 20
-            Center column is minmax(0,1fr) — platform width follows it.
-          */}
-          <div className="dashboard-hero-grid mx-auto grid w-full max-w-[1440px] items-start gap-5 min-[1100px]:grid-cols-[minmax(0,1fr)_248px] min-[1100px]:gap-5 min-[1360px]:grid-cols-[minmax(0,1fr)_280px] min-[1360px]:gap-6">
-            <div className="flex min-w-0 flex-col gap-6">
+      <div className="dashboard-topbar">
+        <SearchField value={query} onChange={setQuery} />
+        <BusinessSwitcher
+          businesses={data.businesses}
+          currentBusiness={data.business}
+          onSelect={data.setBusinessId}
+        />
+        <Link
+          className="profile-avatar desktop-profile"
+          href="/settings"
+          aria-label="Профиль пользователя"
+        >
+          {data.user?.name.slice(0, 1) ?? "А"}
+        </Link>
+      </div>
+      {term ? (
+        <section
+          className="search-results panel"
+          aria-label="Результаты поиска"
+          aria-live="polite"
+        >
+          <div className="panel-heading">
+            <h2>Результаты поиска</h2>
+            <span>{resultCount}</span>
+          </div>
+          {!resultCount && (
+            <p className="empty-copy">
+              Ничего не найдено в текущем рабочем пространстве.
+            </p>
+          )}
+          {matchingSolutions.map((item) => (
+            <button
+              key={item.solution.id}
+              onClick={() => {
+                selectSolution(item);
+                setQuery("");
+              }}
+            >
+              <Search size={17} />
+              <span>
+                {item.solution.name}
+                <small>Решение</small>
+              </span>
+              <ArrowUpRight size={17} />
+            </button>
+          ))}
+          {matchingLeads.map((item) => (
+            <button key={item.id} onClick={() => show({ type: "lead", item })}>
+              <Search size={17} />
+              <span>
+                {item.name}
+                <small>{item.message}</small>
+              </span>
+              <ArrowUpRight size={17} />
+            </button>
+          ))}
+          {matchingPosts.map((item) => (
+            <button key={item.id} onClick={() => show({ type: "post", item })}>
+              <Search size={17} />
+              <span>
+                {item.text}
+                <small>Публикация</small>
+              </span>
+              <ArrowUpRight size={17} />
+            </button>
+          ))}
+        </section>
+      ) : null}
+      {data.error ? (
+        <section role="alert" className="panel load-error">
+          <h1>Не получилось загрузить данные</h1>
+          <p>{data.error}</p>
+          <button
+            className="button button--primary"
+            onClick={() => {
+              if (!data.business || !data.user) window.location.reload();
+              else data.retry();
+            }}
+          >
+            <RefreshCw size={18} />
+            Попробовать ещё раз
+          </button>
+        </section>
+      ) : (
+        <>
+          <div className="dashboard-hero-grid">
+            <div className="dashboard-workspace">
               <DashboardHeader
-                user={user}
-                businesses={businesses}
-                currentBusiness={business}
-                onSelectBusiness={setBusinessId}
+                user={data.user}
+                connections={data.connections}
+                loading={data.isLoading}
               />
-
-              {isLoading && workspaceItems.length === 0 ? (
-                <div className="flex min-h-[320px] items-center justify-center rounded-[20px] border border-white/10 bg-white/5 text-sm text-white/60 backdrop-blur-sm">
-                  Загружаем рабочее пространство…
+              {data.isLoading ? (
+                <div className="workspace-loading" role="status">
+                  <span className="loading-orbit" />
+                  Готовим рабочее пространство…
                 </div>
               ) : (
-                <Suspense fallback={null}>
-                  <SolutionWorkspace items={workspaceItems} />
+                <Suspense
+                  fallback={
+                    <div className="workspace-loading">Загружаем решения…</div>
+                  }
+                >
+                  <SolutionWorkspace
+                    items={data.workspaceItems}
+                    onSelect={selectSolution}
+                    onCatalog={catalog}
+                  />
                 </Suspense>
               )}
-
-              {/* Tablet 768–1099: tariff / connections under the scene */}
-              <aside className="dashboard-right-panel hidden flex-col gap-4 md:flex min-[1100px]:hidden">
-                <RightColumn {...rightProps} />
-              </aside>
             </div>
-
-            {/* Desktop ≥1100: sticky right column */}
-            <aside className="dashboard-right-panel mt-2 hidden flex-col gap-4 min-[1100px]:flex min-[1100px]:mt-0 min-[1100px]:sticky min-[1100px]:top-6">
-              <RightColumn {...rightProps} />
+            <aside
+              className="dashboard-right-panel"
+              aria-label="Подключения и подписка"
+            >
+              {data.isLoading ? (
+                <div className="panel skeleton-panel" />
+              ) : (
+                <>
+                  <ConnectionsCard connections={data.connections} />
+                  <TariffCard
+                    billing={data.billing}
+                    activeSolutionsCount={data.activeSolutionsCount}
+                  />
+                  <button
+                    className="button button--primary button--full"
+                    onClick={catalog}
+                  >
+                    <Plus size={20} />
+                    Добавить решение
+                  </button>
+                </>
+              )}
             </aside>
           </div>
-        </div>
-      </section>
-
-      <section className="dashboard-lower bg-[var(--background)] px-4 py-8 md:px-5 md:py-10 min-[1360px]:px-6">
-        <div className="mx-auto grid max-w-[1440px] gap-5 min-[1100px]:grid-cols-2 min-[1100px]:gap-6">
-          <RecentLeads leads={leads} />
-          <ScheduledPosts posts={posts} />
-        </div>
-
-        {/* Mobile <768: tariff after requests / posts */}
-        <aside className="dashboard-right-panel mx-auto mt-6 flex max-w-[1440px] flex-col gap-4 md:hidden">
-          <RightColumn {...rightProps} />
-        </aside>
-
-        <div className="mx-auto mt-6 grid max-w-[1440px] gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <QuickActions />
-          <BrandBlock />
-        </div>
-      </section>
+          <section
+            className="dashboard-operations"
+            aria-label="События бизнеса"
+          >
+            <div className="operations-grid">
+              <RecentLeads
+                leads={data.leads}
+                onSelect={(item) => show({ type: "lead", item })}
+              />
+              <ScheduledPosts
+                posts={data.posts}
+                onSelect={(item) => show({ type: "post", item })}
+              />
+            </div>
+            <QuickActions onCatalog={catalog} />
+          </section>
+          <aside className="mobile-account-panels">
+            <ConnectionsCard connections={data.connections} />
+            <TariffCard
+              billing={data.billing}
+              activeSolutionsCount={data.activeSolutionsCount}
+            />
+          </aside>
+        </>
+      )}
+      {visibleSelection && (
+        <DetailDialog title={dialogTitle} onClose={() => setSelection(null)}>
+          {visibleSelection.type === "catalog" && (
+            <>
+              <p className="dialog-intro">
+                Готовые инструменты для ваших ежедневных задач. Выберите то, что
+                нужно вашему бизнесу.
+              </p>
+              <div className="catalog-grid">
+                {data.workspaceItems.map((item) => (
+                  <SolutionModule
+                    key={item.solution.id}
+                    item={item}
+                    onSelect={selectSolution}
+                  />
+                ))}
+              </div>
+              <p className="demo-note">
+                Демонстрация: подключение площадок и оплата пока недоступны.
+              </p>
+            </>
+          )}
+          {visibleSelection.type === "solution" && (
+            <>
+              <div
+                className={`solution-detail solution-detail--${visibleSelection.item.code}`}
+              >
+                <Image
+                  src={visibleSelection.item.visual.assetSrc}
+                  alt=""
+                  width={1024}
+                  height={1024}
+                  sizes="180px"
+                />
+                <span
+                  className={`solution-state tone-${solutionState(visibleSelection.item).tone}`}
+                >
+                  <i />
+                  {solutionState(visibleSelection.item).label}
+                </span>
+              </div>
+              <p className="dialog-intro">
+                {visibleSelection.item.solution.description}
+              </p>
+              <div className="detail-facts">
+                <span>Стоимость</span>
+                <strong>{visibleSelection.item.solution.price} ₽/мес.</strong>
+              </div>
+              <p className="demo-note">
+                Это демонстрация решения. Реальное подключение появится после
+                запуска сервиса.
+              </p>
+              <Link
+                className="button button--primary button--full"
+                href="/solutions"
+              >
+                Подробнее о решениях
+                <ArrowUpRight size={18} />
+              </Link>
+            </>
+          )}
+          {visibleSelection.type === "lead" && (
+            <>
+              <div className="detail-facts">
+                <span>Клиент</span>
+                <strong>{visibleSelection.item.name}</strong>
+              </div>
+              <div className="detail-facts">
+                <span>Площадка</span>
+                <PlatformBadge platform={visibleSelection.item.source} />
+              </div>
+              <p className="message-preview">{visibleSelection.item.message}</p>
+              <p className="demo-note">
+                {formatRelativeDateTime(visibleSelection.item.createdAt)} ·
+                Демонстрационная заявка
+              </p>
+              <Link
+                href="/leads"
+                className="button button--outline button--full"
+              >
+                Все заявки
+                <ArrowUpRight size={18} />
+              </Link>
+            </>
+          )}
+          {visibleSelection.type === "post" && (
+            <>
+              <Image
+                className="post-detail-photo"
+                src={
+                  visibleSelection.item.imageUrl ?? "/assets/sreda/v2/cafe.webp"
+                }
+                width={768}
+                height={512}
+                alt="Кофе и свежая выпечка"
+              />
+              <h3 className="post-detail-title">
+                {visibleSelection.item.text}
+              </h3>
+              <div className="detail-facts">
+                <span>
+                  {visibleSelection.item.publishAt
+                    ? formatRelativeDateTime(visibleSelection.item.publishAt)
+                    : "Дата не выбрана"}
+                </span>
+                <span className="post-row__platforms">
+                  {visibleSelection.item.platforms.map((platform) => (
+                    <PlatformBadge key={platform} platform={platform} compact />
+                  ))}
+                </span>
+              </div>
+              <p className="demo-note">
+                Демонстрационная публикация. На площадки ничего не отправляется.
+              </p>
+            </>
+          )}
+        </DetailDialog>
+      )}
     </div>
   );
 }

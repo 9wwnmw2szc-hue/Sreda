@@ -13,9 +13,7 @@ export async function getScheduledPosts(
 ): Promise<Post[]> {
   const posts = await getPosts(businessId);
   return posts
-    .filter(
-      (post) => post.status === "scheduled" || post.status === "published",
-    )
+    .filter((post) => post.status === "scheduled")
     .sort((a, b) => {
       const aTime = a.publishAt ? new Date(a.publishAt).getTime() : 0;
       const bTime = b.publishAt ? new Date(b.publishAt).getTime() : 0;
