@@ -56,6 +56,8 @@ src/
 
 [Утверждённый референс](docs/design/sreda-approved-desktop-mobile.png).
 
-Скриншоты реального интерфейса: [1440](docs/design/review/desktop-decor-1440.jpg), [1280](docs/design/review/desktop-decor-1280.jpg), [900](docs/design/review/tablet-decor-900.jpg), [390](docs/design/review/mobile-390.jpg).
+Скриншоты реального интерфейса: [1440](docs/design/review/desktop-decor-1440.jpg), [1280](docs/design/review/desktop-decor-1280.jpg), [900](docs/design/review/tablet-decor-900.jpg), [390](docs/design/review/mobile-baseline-390.jpg).
 
 Основной законченный визуальный экран — `/dashboard`. Остальные страницы пока демонстрируют структуру будущих разделов.
+
+[Визуальный стандарт и состояния интерфейса — этап 1](docs/design/UI-BASELINE.md).

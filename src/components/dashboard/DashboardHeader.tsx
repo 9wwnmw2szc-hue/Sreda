@@ -1,6 +1,6 @@
 "use client";
 import { getFirstName, getGreeting } from "@/lib/format";
-import { Check, AlertCircle } from "lucide-react";
+import { Check, AlertCircle, LoaderCircle } from "lucide-react";
 import type { Connection, User } from "@/types";
 export function DashboardHeader({
   user,
@@ -17,7 +17,8 @@ export function DashboardHeader({
   return (
     <header className="dashboard-greeting">
       <h1>
-        {getGreeting()}, {user ? getFirstName(user.name) : "друг"}!
+        {getGreeting()}
+        {user ? `, ${getFirstName(user.name)}` : ""}!
       </h1>
       <p className="desktop-greeting-copy">
         {loading
@@ -29,7 +30,13 @@ export function DashboardHeader({
               : "Выберите решение. Остальное возьмёт на себя Среда."}
       </p>
       <p className={`mobile-health ${healthy ? "tone-success" : "tone-muted"}`}>
-        {healthy ? <Check size={16} /> : <AlertCircle size={16} />}
+        {loading ? (
+          <LoaderCircle size={16} />
+        ) : healthy ? (
+          <Check size={16} />
+        ) : (
+          <AlertCircle size={16} />
+        )}
         {loading
           ? "Загружаем подключения…"
           : healthy

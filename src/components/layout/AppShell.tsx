@@ -32,6 +32,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <dialog
         ref={menu}
         className="mobile-menu"
+        aria-label="Меню навигации"
         onCancel={() => setOpen(false)}
         onClick={(event) => {
           if (event.target === event.currentTarget) setOpen(false);

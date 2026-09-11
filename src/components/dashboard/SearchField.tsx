@@ -19,6 +19,9 @@ export function SearchField({
         placeholder="Поиск по заявкам, решениям, постам…"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onChange("");
+        }}
         autoComplete="off"
       />
       {value ? (

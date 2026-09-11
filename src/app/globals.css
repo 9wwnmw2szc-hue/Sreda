@@ -1814,3 +1814,21 @@ ul {
     scroll-behavior: auto !important;
   }
 }
+
+/* Loading is distinct from an empty workspace. No decorative animation. */
+.loading-panel {
+  min-height: 210px;
+}
+.loading-panel__title {
+  height: 18px;
+  width: 52%;
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  margin-bottom: 26px;
+}
+.loading-panel__row {
+  height: 48px;
+  border-radius: 10px;
+  background: var(--surface-elevated);
+  margin-top: 14px;
+}

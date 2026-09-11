@@ -12,6 +12,7 @@ import { ScheduledPosts } from "./ScheduledPosts";
 import { QuickActions } from "./QuickActions";
 import { SearchField } from "./SearchField";
 import { BusinessSwitcher } from "./BusinessSwitcher";
+import { LoadingPanel } from "./LoadingPanel";
 import { DetailDialog } from "./DetailDialog";
 import { SolutionModule, solutionState } from "./SolutionModule";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
@@ -32,6 +33,7 @@ export function DashboardView() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [selectionBusiness, setSelectionBusiness] = useState("");
   const show = (value: Selection) => {
+    setQuery("");
     setSelectionBusiness(data.businessId);
     setSelection(value);
   };
@@ -77,7 +79,11 @@ export function DashboardView() {
         <BusinessSwitcher
           businesses={data.businesses}
           currentBusiness={data.business}
-          onSelect={data.setBusinessId}
+          onSelect={(id) => {
+            setQuery("");
+            setSelection(null);
+            data.setBusinessId(id);
+          }}
         />
         <Link
           className="profile-avatar desktop-profile"
@@ -87,7 +93,7 @@ export function DashboardView() {
           {data.user?.name.slice(0, 1) ?? "А"}
         </Link>
       </div>
-      {term ? (
+      {term && !data.isLoading && !data.error ? (
         <section
           className="search-results panel"
           aria-label="Результаты поиска"
@@ -188,7 +194,7 @@ export function DashboardView() {
               aria-label="Подключения и подписка"
             >
               {data.isLoading ? (
-                <div className="panel skeleton-panel" />
+                <LoadingPanel label="Загружаем подключения и подписку" />
               ) : (
                 <>
                   <ConnectionsCard connections={data.connections} />
@@ -212,23 +218,38 @@ export function DashboardView() {
             aria-label="События бизнеса"
           >
             <div className="operations-grid">
-              <RecentLeads
-                leads={data.leads}
-                onSelect={(item) => show({ type: "lead", item })}
-              />
-              <ScheduledPosts
-                posts={data.posts}
-                onSelect={(item) => show({ type: "post", item })}
-              />
+              {data.isLoading ? (
+                <>
+                  <LoadingPanel label="Загружаем заявки" />
+                  <LoadingPanel label="Загружаем публикации" />
+                </>
+              ) : (
+                <>
+                  <RecentLeads
+                    leads={data.leads}
+                    onSelect={(item) => show({ type: "lead", item })}
+                  />
+                  <ScheduledPosts
+                    posts={data.posts}
+                    onSelect={(item) => show({ type: "post", item })}
+                  />
+                </>
+              )}
             </div>
-            <QuickActions onCatalog={catalog} />
+            {!data.isLoading && <QuickActions onCatalog={catalog} />}
           </section>
           <aside className="mobile-account-panels">
-            <ConnectionsCard connections={data.connections} />
-            <TariffCard
-              billing={data.billing}
-              activeSolutionsCount={data.activeSolutionsCount}
-            />
+            {data.isLoading ? (
+              <LoadingPanel label="Загружаем подключения и подписку" />
+            ) : (
+              <>
+                <ConnectionsCard connections={data.connections} />
+                <TariffCard
+                  billing={data.billing}
+                  activeSolutionsCount={data.activeSolutionsCount}
+                />
+              </>
+            )}
           </aside>
         </>
       )}
@@ -331,6 +352,9 @@ export function DashboardView() {
               <h3 className="post-detail-title">
                 {visibleSelection.item.text}
               </h3>
+              {visibleSelection.item.excerpt && (
+                <p className="dialog-intro">{visibleSelection.item.excerpt}</p>
+              )}
               <div className="detail-facts">
                 <span>
                   {visibleSelection.item.publishAt

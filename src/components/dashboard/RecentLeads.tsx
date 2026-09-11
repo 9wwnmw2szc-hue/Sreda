@@ -16,8 +16,15 @@ export function RecentLeads({
       <div className="panel-heading">
         <h2>
           <span className="desktop-only">Последние заявки</span>
-          <span className="mobile-only">Новые заявки</span>
-          {newCount > 0 && <span className="count-badge">{newCount}</span>}
+          <span className="mobile-only">Последние заявки</span>
+          {newCount > 0 && (
+            <span
+              className="count-badge"
+              aria-label={`Новых среди последних заявок: ${newCount}`}
+            >
+              {newCount}
+            </span>
+          )}
         </h2>
         <Link href="/leads" className="text-link">
           Все заявки
