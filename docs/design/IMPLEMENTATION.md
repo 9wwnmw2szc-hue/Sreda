@@ -23,12 +23,12 @@
 
 | Модуль | X, % | Y стопы, % | Ширина кадра модуля, % | X подписи, % | Y подписи, % |
 |---|---:|---:|---:|---:|---:|
-| Заявки | 46.7 | 40.5 | 21 | 35 | 22 |
+| Заявки | 46.7 | 40.5 | 21 | 38 | 22 |
 | Продажи | 66.4 | 40.5 | 20 | 77 | 22 |
-| Автопостинг | 45.7 | 63 | 22 | 35 | 53 |
-| Запись | 67.1 | 63 | 22 | 77 | 53 |
+| Автопостинг | 45.7 | 63 | 22 | 36.5 | 44 |
+| Запись | 67.1 | 63 | 22 | 77 | 44 |
 
-Для левых подписей X задаёт правый край карточки (translateX(-100%)): он расположен на 35% ширины frame, рядом с модулем. Это удерживает небольшой зазор при изменении ширины сцены.
+Для левых подписей X задаёт правый край карточки (translateX(-100%)): он расположен на 38% для заявок и 36.5% для автопостинга, непосредственно рядом с модулем. Это удерживает небольшой зазор при изменении ширины сцены.
 
 Изображения имеют прозрачные поля, стопа привязана через translate(-50%, -88%). Не менять export/прозрачные поля без повторной настройки якоря. Задний ряд z=2, передний z=3, подписи z=10, фон z=0. ?debugScene=1 показывает якоря.
 
@@ -55,3 +55,11 @@
 Другие маршруты пока заглушки исходного этапа. Нет реальной регистрации, подключения Telegram/VK, оплаты, изменения данных или публикации. Не выдавать эти действия за готовые. Не внедрять backend и не переделывать текущую визуальную систему под видом продолжения этой задачи.
 
 Для любого изменения композиции снова предоставить 1440/1280/900/390, lint/typecheck/build и визуальное сравнение. Не заменять ассеты CSS-кубами. Не раскладывать координаты по JSX/CSS. Не объединять данные разных бизнесов и не сохранять секреты на frontend.
+
+## Дополнительный 3D-декор
+
+По запросу владельца добавлены чашка с блюдцем, открытый блокнот с ручкой и небольшое растение справа. Они предварительно отрендерены в новом background public/assets/sreda/v2/desk-platform-decor.webp. Старый background сохранён для истории. Геометрия платформы и координаты модулей сохранены; подписи придвинуты к модулям, нижние подняты до Y=44%, чтобы освободить предметы.
+
+Актуальные снимки: review/desktop-decor-1440.jpg, review/desktop-decor-1280.jpg, review/tablet-decor-900.jpg. Предыдущие снимки сохранены для сравнения. Mobile сохраняет отдельную карточную композицию.
+
+Графика создана встроенным image_gen (режим precise-object-edit), затем преобразована в WebP. Финальный prompt правки: “Keep the entire image, dimensions, camera, EMPTY platform and all four slot locations absolutely unchanged. Two small layout corrections only: the small right-side potted plant must be about 65% of its current size and be placed LOWER on the desk, with its entire silhouette inside x85–98%, y62–84% of the image, so the area above y60% on the right stays unobstructed for a UI label. Slide the cup and saucer 5% of the full image width to the LEFT, same vertical location and same size. Preserve notebook and brass pen exactly. Preserve left large plant, oak desk, ivory tiered platform, shadows, sunlight, wall, framing. Do not add UI/text/modules or any new object. Same 1536x1024.”

@@ -26,7 +26,7 @@ export function SolutionWorkspace({ items, onSelect, onCatalog }: Props) {
       >
         <div className="scene-frame">
           <Image
-            src="/assets/sreda/v2/desk-platform.webp"
+            src="/assets/sreda/v2/desk-platform-decor.webp"
             alt=""
             width={1536}
             height={1024}
