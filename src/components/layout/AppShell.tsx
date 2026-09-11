@@ -77,7 +77,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
-              aria-current={pathname === item.href ? "page" : undefined}
+              aria-current={
+                pathname === item.href || pathname.startsWith(`${item.href}/`)
+                  ? "page"
+                  : undefined
+              }
             >
               <Icon size={22} strokeWidth={1.7} />
               <span>{item.label}</span>

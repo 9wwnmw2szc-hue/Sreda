@@ -307,9 +307,15 @@ export function DashboardView() {
               </p>
               <Link
                 className="button button--primary button--full"
-                href="/solutions"
+                href={
+                  visibleSelection.item.code === "leads"
+                    ? "/solutions/leads/setup"
+                    : "/solutions"
+                }
               >
-                Подробнее о решениях
+                {visibleSelection.item.code === "leads"
+                  ? "Посмотреть настройку"
+                  : "Подробнее о решениях"}
                 <ArrowUpRight size={18} />
               </Link>
             </>
