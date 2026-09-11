@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { CircleHelp, X, ArrowUpRight } from "lucide-react";
 import { NAV_ITEMS } from "@/config/navigation";
 import { Brand } from "@/components/ui/Brand";
+import { isDemoMode } from "@/lib/dataMode";
 export function Sidebar({
   onClose,
   mobile = false,
@@ -59,7 +60,7 @@ export function Sidebar({
         </Link>
         <p>
           <span className="demo-mark" />
-          Демонстрация интерфейса
+          {isDemoMode ? "Демонстрация интерфейса" : "Ваше рабочее пространство"}
         </p>
         <small>Среда © 2026</small>
       </div>

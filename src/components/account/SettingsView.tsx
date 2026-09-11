@@ -1,0 +1,30 @@
+"use client";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { useBusinessContext } from "@/hooks/useBusinessContext";
+import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
+import { SignOutButton } from "./SignOutButton";
+import { isDemoMode } from "@/lib/dataMode";
+
+export function SettingsView() {
+  const { user, currentBusiness, businesses, setCurrentBusinessId } = useBusinessContext();
+  return <div className="settings-page">
+    <header><span className="eyebrow">Ваше пространство</span><h1>Настройки</h1></header>
+    <section className="panel"><h2>Аккаунт</h2><dl>
+      <div><dt>Имя</dt><dd>{user.name}</dd></div>
+      <div><dt>Электронная почта</dt><dd>{user.email}</dd></div>
+    </dl>{!isDemoMode && <SignOutButton />}</section>
+    <section className="panel"><h2>Бизнесы</h2>
+      <div className="settings-business">
+        <BusinessSwitcher businesses={businesses} currentBusiness={currentBusiness} onSelect={setCurrentBusinessId} />
+        {!isDemoMode && <Link href="/business/new" className="button button--outline"><Plus size={18} />Добавить бизнес</Link>}
+      </div>
+      <dl className="account-footnote">
+        <div><dt>Часовой пояс</dt><dd>{currentBusiness?.timezone ?? "Не задан"}</dd></div>
+        <div><dt>Ваша роль</dt><dd>{currentBusiness?.role === "owner" ? "Владелец"
+          : currentBusiness?.role === "admin" ? "Администратор"
+          : currentBusiness?.role === "operator" ? "Оператор" : "Демонстрация"}</dd></div>
+      </dl>
+    </section>
+  </div>;
+}

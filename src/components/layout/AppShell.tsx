@@ -3,13 +3,22 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Home, Layers2, Inbox, Ellipsis } from "lucide-react";
-import { BusinessProvider } from "@/hooks/useBusinessContext";
+import { BusinessProvider, useBusinessContext } from "@/hooks/useBusinessContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Brand } from "@/components/ui/Brand";
+import type { User } from "@/types";
 function AppShellInner({ children }: { children: React.ReactNode }) {
+  const { user } = useBusinessContext();
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
+  useEffect(() => {
+    const restore = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", restore);
+    return () => window.removeEventListener("pageshow", restore);
+  }, []);
   useEffect(() => {
     const dialog = menu.current;
     if (!dialog) return;
@@ -56,7 +65,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             className="profile-avatar"
             aria-label="Профиль"
           >
-            А
+            {user.name.slice(0, 1)}
           </Link>
         </header>
         <main
@@ -96,9 +105,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, user }: { children: React.ReactNode; user: User }) {
   return (
-    <BusinessProvider>
+    <BusinessProvider user={user}>
       <a href="#main-content" className="skip-link">
         К содержимому
       </a>

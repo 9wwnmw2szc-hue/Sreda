@@ -1,9 +1,17 @@
 import { AppShell } from "@/components/layout/AppShell";
+import { redirect } from "next/navigation";
+import { pageUser } from "@/server/identity/page-user";
+import { getRuntime } from "@/server/runtime";
+import { isDemoMode } from "@/lib/dataMode";
+import { mockUser } from "@/mocks/user";
 
-export default function AppLayout({
+export const dynamic = "force-dynamic";
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  const user = isDemoMode ? mockUser : await pageUser();
+  if (!isDemoMode && !(await getRuntime().workspaces.list(user.id)).length) redirect("/business/new");
+  return <AppShell user={user}>{children}</AppShell>;
 }

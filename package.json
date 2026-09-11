@@ -8,23 +8,33 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --import tsx --test tests/*.test.mjs",
+    "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/db-migrate.mts"
   },
   "dependencies": {
+    "better-auth": "1.7.4",
+    "kysely": "0.29.5",
     "lucide-react": "^1.44.0",
     "next": "16.3.4",
+    "nodemailer": "10.0.6",
+    "pg": "8.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/nodemailer": "8.0.1",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "playwright": "^1.63.0",
     "tailwindcss": "^4",
+    "tsx": "4.23.13",
     "typescript": "^5"
   },
   "engines": {

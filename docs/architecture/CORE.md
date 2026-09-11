@@ -1,6 +1,6 @@
 # Этап 3 — проект ядра Среды
 
-Статус: спецификация для review. Runtime, миграции и интеграции здесь не реализуются.
+Статус: архитектурная спецификация. Реализация Identity/Workspace описана в STAGE4.md; остальные модули остаются планом.
 
 ## Цель и границы
 Дать этапу 4 конкретную основу аккаунтов и бизнесов, а следующим этапам — единый контракт приёма заявок.
@@ -28,7 +28,7 @@ UUID для внутренних ID, UTC для времени. Часовой �
 | Сущность | Основные поля | Ограничения |
 |---|---|---|
 | User | id, email_normalized, name, created_at | Уникальный подтверждённый email |
-| Session | id, user_id, token_hash, expires_at, revoked_at | Только hash session token, FK User |
+| Session | Схема Better Auth: id, userId, token, expiresAt | Подписанная HttpOnly cookie; токен в БД чувствителен, cookie-cache выключен; отзыв удаляет сессию (A09) |
 | Business | id, name, timezone, created_at, archived_at | Архив не удаляет заявки |
 | BusinessMember | business_id, user_id, role, status | UNIQUE(business_id,user_id); максимум один активный owner |
 | SolutionDefinition | code, availability, config_version | Код leads; глобальный каталог |
@@ -66,7 +66,7 @@ Worker не использует browser businessId: бизнес выводит
 Кеши включают business_id и не кешируют общедоступно приватные ответы.
 
 ## API v1
-Префикс /api/v1. JSON, даты ISO 8601 UTC; суммы в целых копейках с currency.
+Бизнес-API: /api/v1. Auth в этапе 4 использует ограниченный набор /api/auth (см. STAGE4.md), вместо предварительных трёх маршрутов ниже. JSON, даты ISO 8601 UTC; суммы в целых копейках с currency.
 Ошибки: {error:{code,message,fieldErrors?,requestId}}. Стектрейсы и секреты не возвращаются.
 Все session-mutating запросы защищены от CSRF, включая проверку Origin. Cookie: HttpOnly, Secure, SameSite.
 GET не изменяет данные. Сервер задаёт лимиты тела, пагинации и частоты запросов.

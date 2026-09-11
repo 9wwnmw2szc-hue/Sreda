@@ -25,8 +25,10 @@ import {
   type SetupChannel,
 } from "@/lib/leadSetupDraft";
 import type { Business } from "@/types";
+import { isDemoMode } from "@/lib/dataMode";
 const STEPS = ["Площадки", "Поля заявки", "Проверка", "Итог"];
 function loadDraft(businessId: string) {
+  if (!isDemoMode) return newLeadSetupDraft();
   try {
     return parseLeadSetupDraft(
       localStorage.getItem(leadSetupStorageKey(businessId)),
@@ -102,6 +104,7 @@ function LeadsWizard({
     setDraft(next);
     setError("");
     setTestSent(false);
+    if (!isDemoMode) return;
     try {
       localStorage.setItem(
         leadSetupStorageKey(business.id),
@@ -424,7 +427,9 @@ function LeadsWizard({
             )}
           </div>
           <p className="draft-status" role="status">
-            {storage === "unavailable"
+            {!isDemoMode
+              ? "Это предпросмотр. Выбор действует до закрытия страницы; серверное сохранение появится на следующем этапе."
+              : storage === "unavailable"
               ? "Браузер не позволяет сохранить черновик. Не закрывайте страницу, чтобы не потерять выбор."
               : storage === "saved"
                 ? "Черновик сохранён в этом браузере для выбранного бизнеса."
