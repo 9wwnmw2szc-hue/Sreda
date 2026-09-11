@@ -529,6 +529,9 @@ ul {
     background 0.2s,
     box-shadow 0.2s;
 }
+.scene-label--left {
+  transform: translateX(-100%);
+}
 .scene-label:hover {
   background: #fff;
   box-shadow: 0 5px 20px #5c402519;

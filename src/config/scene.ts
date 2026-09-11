@@ -12,6 +12,7 @@ export interface SceneModuleDock {
   x: number;
   y: number;
   width: number;
+  /** Left-side labels use their right edge as the horizontal anchor. */
   labelX: number;
   labelY: number;
   side: "left" | "right";
@@ -22,7 +23,7 @@ export const MODULE_DOCKS: Record<SceneModuleCode, SceneModuleDock> = {
     x: 46.7,
     y: 40.5,
     width: 21,
-    labelX: 4,
+    labelX: 35,
     labelY: 22,
     side: "left",
     zIndex: 2,
@@ -40,7 +41,7 @@ export const MODULE_DOCKS: Record<SceneModuleCode, SceneModuleDock> = {
     x: 45.7,
     y: 63,
     width: 22,
-    labelX: 4,
+    labelX: 35,
     labelY: 53,
     side: "left",
     zIndex: 3,
