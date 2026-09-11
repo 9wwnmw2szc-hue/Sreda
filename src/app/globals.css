@@ -1,0 +1,551 @@
+@import "tailwindcss";
+
+:root {
+  /* Surfaces */
+  --background: #f7f8fa;
+  --background-dark: #16181d;
+  --surface: #ffffff;
+  --surface-elevated: #f3f4f7;
+  --surface-glass: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --text-primary: #16181d;
+  --text-secondary: #5c6370;
+  --text-muted: #8b929e;
+
+  /* Borders */
+  --border: #e4e7ec;
+  --border-light: #eef0f4;
+
+  /* Brand / status */
+  --accent: #3d8bfd;
+  --success: #2f9e6b;
+  --warning: #d9a441;
+  --danger: #e25555;
+
+  /* Sidebar */
+  --sidebar-bg: #12141a;
+  --sidebar-active: #242830;
+  --sidebar-text: #ffffff;
+  --sidebar-muted: #8f96a3;
+  --sidebar-icon: #747b88;
+
+  /* Solution accents */
+  --solution-leads: #3ecf8e;
+  --solution-sales: #f472b6;
+  --solution-autopost: #60a5fa;
+  --solution-booking: #fbbf24;
+
+  /* Desk atmosphere */
+  --desk-photo: none;
+  --desk-base: #2c211a;
+  --desk-wood: #4a3426;
+
+  /* Effects / shadow system */
+  --shadow-s: 0 4px 12px rgba(20, 12, 6, 0.12);
+  --shadow-m: 0 12px 28px rgba(20, 12, 6, 0.16);
+  --shadow-l: 0 22px 48px rgba(18, 10, 4, 0.28);
+  --shadow-xl: 0 40px 80px rgba(14, 8, 4, 0.22);
+  --shadow-soft: 0 12px 40px rgba(22, 24, 29, 0.06);
+  --shadow-platform: 0 28px 56px rgba(18, 10, 4, 0.34);
+  --shadow-module: 0 14px 24px rgba(12, 8, 4, 0.28);
+  --shadow-card: 0 14px 32px rgba(22, 24, 29, 0.08);
+
+  /* Radius system */
+  --radius-sidebar: 18px;
+  --radius-glass: 22px;
+  --radius-card: 24px;
+  --radius-mobile-card: 30px;
+  --radius-button: 20px;
+  --radius-pill: 9999px;
+  --radius-lg: 24px;
+  --radius-xl: 28px;
+
+  /* Layout tokens (desktop 1440 defaults) */
+  --sidebar-width: 216px;
+  --right-panel-width: 280px;
+  --right-panel-gap: 16px;
+  --hero-height-desktop: 700px;
+  --hero-height-laptop: 640px;
+  --hero-height-tablet: 580px;
+  --flow-nav-height: 44px;
+  --label-title-size: 14px;
+  --label-meta-size: 12px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-dark: var(--background-dark);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-glass: var(--surface-glass);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-sidebar: var(--sidebar-bg);
+  --color-solution-leads: var(--solution-leads);
+  --color-solution-sales: var(--solution-sales);
+  --color-solution-autopost: var(--solution-autopost);
+  --color-solution-booking: var(--solution-booking);
+
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-soft: var(--shadow-soft);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, white);
+}
+
+/* ===== Dashboard hero: physical desk workstation ===== */
+
+.dashboard-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: min(72vh, var(--hero-height-desktop));
+  max-height: none;
+  color: white;
+}
+
+.dashboard-hero__content {
+  min-height: inherit;
+}
+
+.dashboard-hero__atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* Warm desk — no striped grain, no heavy dark band */
+  background-color: #2a2118;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 78% 0%, rgba(255, 214, 160, 0.42), transparent 58%),
+    radial-gradient(ellipse 50% 40% at 48% 42%, rgba(255, 196, 130, 0.1), transparent 70%),
+    radial-gradient(ellipse 40% 55% at 6% 60%, rgba(70, 100, 70, 0.22), transparent 65%),
+    linear-gradient(
+      180deg,
+      #3d2f22 0%,
+      #34271c 38%,
+      #2c2118 62%,
+      #241a14 100%
+    );
+}
+
+.dashboard-hero__atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 70% 4%, rgba(255, 236, 200, 0.22), transparent 36%),
+    radial-gradient(ellipse 80% 70% at 50% 40%, transparent 42%, rgba(10, 8, 6, 0.35) 100%);
+}
+
+.dashboard-hero__atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 48px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--background));
+}
+
+.glass-panel {
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(22, 24, 30, 0.48) 48%,
+    rgba(16, 18, 24, 0.58)
+  );
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* ===== Scene: tray frame is the only positioning context ===== */
+
+.solution-scene {
+  --scene-max-width: 100%;
+  --platform-width: min(560px, 100%);
+  --platform-max-width: 560px;
+  --scene-bottom-gap: 18px;
+  --hint-card-width: 140px;
+  --hint-card-padding: 12px;
+  --plus-size: 30px;
+  --flow-nav-width: 360px;
+}
+
+.solution-scene__stage {
+  z-index: 10;
+  max-width: var(--scene-max-width);
+  margin-inline: auto;
+}
+
+.solution-scene__decor-back {
+  z-index: 2;
+}
+
+.solution-scene__modules {
+  z-index: 20;
+  overflow: visible;
+}
+
+.solution-scene__decor-front {
+  z-index: 30;
+}
+
+.solution-scene__glass {
+  z-index: 18;
+}
+
+.solution-scene__flow {
+  margin-top: var(--scene-bottom-gap);
+  padding-bottom: 2px;
+}
+
+.solution-scene__platform-root {
+  /* Width follows center column — never a fixed 620 in a narrower column */
+  width: min(var(--platform-max-width), 100%);
+  position: relative;
+  margin-top: 4px;
+}
+
+.solution-scene__platform-frame {
+  position: relative;
+  width: 100%;
+  /* Room for HTML labels under the tray + side labels */
+  padding-bottom: 88px;
+  overflow: visible;
+}
+
+.solution-scene__platform-board {
+  position: relative;
+  width: 100%;
+  /* aspect-ratio set inline from SCENE_FRAME */
+}
+
+.solution-scene__platform-crop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.solution-scene__platform {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  /* Natural proportions — no 128% scale / translate crop */
+  filter: drop-shadow(var(--shadow-platform));
+}
+
+.solution-module__title {
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+}
+
+.solution-module__status {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+
+.solution-module__label-zone {
+  min-height: 2.6rem;
+}
+
+.solution-scene__contact-shadow {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 6%;
+  height: 22%;
+  border-radius: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(18, 10, 4, 0.48) 0%,
+    rgba(28, 14, 8, 0.22) 44%,
+    transparent 78%
+  );
+  filter: blur(26px);
+  pointer-events: none;
+  z-index: 9;
+}
+
+.solution-scene__desk-plane {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  bottom: 0%;
+  height: 34%;
+  border-radius: 50% / 36%;
+  /* Soft warm contact pool — no striped grain */
+  background: linear-gradient(
+    180deg,
+    rgba(188, 132, 84, 0.16) 0%,
+    rgba(128, 84, 52, 0.38) 40%,
+    rgba(72, 46, 28, 0.26) 100%
+  );
+  filter: blur(2.5px);
+  pointer-events: none;
+  z-index: 8;
+  box-shadow: var(--shadow-xl);
+}
+
+/* Module slots — per-solution CSS size tokens */
+.solution-module--slot {
+  width: var(--module-size-lg);
+}
+
+.solution-module--leads {
+  width: var(--module-size-leads);
+}
+
+.solution-module--sales {
+  width: var(--module-size-sales);
+}
+
+.solution-module--autopost {
+  width: var(--module-size-autopost);
+}
+
+.solution-module--booking {
+  width: var(--module-size-booking);
+}
+
+.solution-module--slot .solution-module__asset-wrap {
+  transition: transform 280ms ease;
+  transform-origin: center bottom;
+}
+
+.solution-module--slot .solution-module__asset {
+  filter: drop-shadow(var(--shadow-module));
+}
+
+.solution-module--slot:hover .solution-module__asset-wrap {
+  transform: translateY(-4px) scale(1.025) rotate(-0.25deg);
+}
+
+.solution-module--slot:hover {
+  z-index: 30;
+}
+
+.solution-module__plus {
+  width: var(--plus-size);
+  height: var(--plus-size);
+  transition: transform 220ms ease;
+}
+
+.solution-module:hover .solution-module__plus {
+  transform: scale(1.08);
+}
+
+.solution-module:focus-visible {
+  outline: none;
+}
+
+.solution-module:focus-visible .solution-module__asset {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: 4px;
+  border-radius: 18px;
+}
+
+.solution-module__title {
+  font-size: var(--label-title-size, 14px);
+  font-weight: 600;
+  line-height: 1.2;
+  color: #fff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.85),
+    0 2px 12px rgba(0, 0, 0, 0.75),
+    0 0 18px rgba(0, 0, 0, 0.45);
+}
+
+.solution-module__meta {
+  margin-top: var(--label-offset, 9px);
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(12, 8, 6, 0.22),
+    rgba(12, 8, 6, 0.04)
+  );
+}
+
+.solution-module__status-text {
+  font-size: var(--label-meta-size, 12px);
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.75),
+    0 2px 10px rgba(0, 0, 0, 0.55);
+}
+
+/* Glass hint cards */
+.solution-hint-card {
+  width: var(--hint-card-width, 144px);
+  padding: var(--hint-card-padding, 13px);
+  border-radius: var(--radius-glass);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 248, 238, 0.16),
+    rgba(30, 22, 16, 0.32)
+  );
+  box-shadow: var(--shadow-m);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fff;
+}
+
+/* Flow nav pill */
+.hero-flow-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(var(--flow-nav-width, 380px), 100%);
+  height: var(--flow-nav-height, 44px);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+/* Mobile premium cards */
+/* Mobile solution cards — compact horizontal, not full-bleed vitrines */
+.mobile-solution-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 112px;
+  padding: 16px;
+  border-radius: 20px;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(20, 18, 16, 0.24)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-m);
+}
+
+.solution-module--mobile {
+  width: 100%;
+}
+
+.solution-module--mobile .solution-module__asset {
+  max-width: 80px;
+  max-height: 80px;
+}
+
+/* Right panel cards — shared rhythm.
+   Do NOT set `display` here: it would override Tailwind `hidden`
+   (unlayered CSS beats @layer utilities). Visibility is controlled
+   by `hidden` / `flex` classes on each aside. */
+.dashboard-right-panel {
+  flex-direction: column;
+  gap: var(--right-panel-gap);
+  width: 100%;
+  max-width: var(--right-panel-width);
+}
+
+.dashboard-right-panel > * {
+  border-radius: var(--radius-glass);
+}
+
+/* Lower section shared card language */
+.dashboard-lower-card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+@media (max-width: 1359px) {
+  .solution-scene {
+    --platform-max-width: 520px;
+    --flow-nav-width: 340px;
+    --hint-card-width: 128px;
+  }
+
+  .dashboard-hero {
+    min-height: min(64vh, var(--hero-height-laptop));
+  }
+}
+
+@media (max-width: 1359px) and (min-width: 1100px) {
+  .dashboard-right-panel {
+    max-width: 248px;
+  }
+}
+
+@media (max-width: 1099px) {
+  .solution-scene {
+    --platform-max-width: min(520px, 100%);
+    --flow-nav-width: 320px;
+  }
+
+  .dashboard-hero {
+    min-height: auto;
+  }
+
+  .dashboard-right-panel {
+    max-width: none;
+    width: 100%;
+  }
+
+  .solution-scene__platform-frame {
+    padding-bottom: 48px;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-hero {
+    min-height: auto;
+  }
+
+  .mobile-solution-card {
+    min-height: 112px;
+  }
+}
+
+@media (min-width: 1360px) {
+  .solution-scene {
+    --platform-max-width: 560px;
+  }
+}
