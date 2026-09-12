@@ -5,7 +5,7 @@ SaaS для малого бизнеса: готовые решения в Telegr
 ## Dashboard — утверждённое визуальное направление
 
 Frontend на Next.js (App Router) + TypeScript + Tailwind CSS.
-Данные пока из mock-слоя через services. Backend / Telegram / VK API не подключены.
+Этап 4: серверные аккаунты и бизнесы на PostgreSQL, регистрация по логину и паролю с повтором пароля, вход по логину и паролю. Telegram/VK, заявки и платежи ещё не подключены. Инструкция запуска и границы проверки: [STAGE4.md](docs/architecture/STAGE4.md).
 
 ## Запуск
 

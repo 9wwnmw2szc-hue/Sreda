@@ -1,8 +1,10 @@
+import { isDemoMode } from "@/lib/dataMode";
 import { delay } from "@/lib/delay";
 import { mockLeads } from "@/mocks/leads";
 import type { Lead, LeadStatus } from "@/types";
 
 export async function getLeads(businessId: string): Promise<Lead[]> {
+  if (!isDemoMode) return [];
   await delay();
   return mockLeads.filter((lead) => lead.businessId === businessId);
 }

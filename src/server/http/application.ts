@@ -1,0 +1,81 @@
+import type { Identity } from "../identity/auth.ts";
+import type { WorkspaceService } from "../workspaces/service.ts";
+import type { Kysely } from "kysely";
+import type { Database } from "../db/schema.ts";
+import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
+
+export function createApplication(options: { auth: Identity; workspaces: WorkspaceService; leads?: import("../leads/service.ts").LeadService; invitations?: import("../invitations/service.ts").InvitationService; connections?: import("../connections/service.ts").ConnectionService; db?: Kysely<Database>; origin: string }) {
+  async function requireUser(headers: Headers) {
+    const session = await options.auth.api.getSession({ headers });
+    if (!session || !session.user.username) throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
+    return session.user;
+  }
+  return {
+    requireUser,
+    me: (request: Request) => respond(async () => {
+      const user = await requireUser(request.headers);
+      const publicUser = options.db ? await options.db.selectFrom("user").select(["public_id", "name", "username"]).where("id", "=", user.id).executeTakeFirst() : undefined;
+      if (!publicUser) throw new AppError(503, "UNAVAILABLE", "Профиль временно недоступен.");
+      return json({ id: publicUser.public_id, name: publicUser.name, username: publicUser.username });
+    }),
+    businesses: (request: Request) => respond(async () => {
+      if (request.method === "POST") requireOrigin(request, options.origin);
+      const user = await requireUser(request.headers);
+      if (request.method === "GET") return json(await options.workspaces.list(user.id));
+      const business = await options.workspaces.create(user.id,
+        await readJson(request), request.headers.get("idempotency-key"));
+      return json(business, 201);
+    }),
+    business: (request: Request, id: string) => respond(async () => {
+      const user = await requireUser(request.headers);
+      return json(await options.workspaces.require(user.id, id));
+    }),
+    leads: (request: Request, businessId: string) => respond(async () => {
+      if (!options.leads) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
+      const user = await requireUser(request.headers);
+      if (request.method === "GET") return json(await options.leads.list(user.id, businessId, new URL(request.url).searchParams.get("status") as never || undefined));
+      if (request.method === "POST") { requireOrigin(request, options.origin); return json(await options.leads.create(user.id, businessId, await readJson(request)), 201); }
+      throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+    }),
+    leadStatus: (request: Request, businessId: string, leadId: string) => respond(async () => {
+      if (!options.leads || request.method !== "PATCH") throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+      requireOrigin(request, options.origin); const user = await requireUser(request.headers);
+      return json(await options.leads.updateStatus(user.id, businessId, leadId, (await readJson(request)).status));
+    }),
+    invitations: (request: Request, businessId?: string, invitationId?: string) => respond(async () => {
+      if (!options.invitations) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
+      const user = await requireUser(request.headers);
+      if (request.method === "GET") return json(await options.invitations.list(user.id, businessId));
+      requireOrigin(request, options.origin);
+      if (request.method === "POST" && businessId && !invitationId) { const body = await readJson(request); return json(await options.invitations.create(user.id, businessId, body.userId, body.role), 201); }
+      if (request.method === "POST" && invitationId === "accept") return json(await options.invitations.accept(user.id, businessId ?? ""));
+      if (request.method === "POST" && businessId && invitationId) return json(await options.invitations.revoke(user.id, businessId, invitationId));
+      throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+    }),
+    members: (request: Request, businessId: string) => respond(async () => {
+      if (!options.invitations) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
+      const user = await requireUser(request.headers);
+      if (request.method === "GET") return json(await options.invitations.members(user.id, businessId));
+      if (request.method === "POST") {
+        requireOrigin(request, options.origin); const body = await readJson(request);
+        if (body.action === "change_role") return json(await options.invitations.changeRole(user.id, businessId, body.userId, body.role));
+        if (body.action === "revoke") return json(await options.invitations.revokeMember(user.id, businessId, body.userId));
+        throw new AppError(400, "INVALID_ACTION", "Неизвестное действие.");
+      }
+      throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+    }),
+    audit: (request: Request, businessId: string) => respond(async () => {
+      if (!options.invitations || request.method !== "GET") throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+      const user = await requireUser(request.headers);
+      return json(await options.invitations.auditLog(user.id, businessId));
+    }),
+    connections: (request: Request, businessId: string) => respond(async () => {
+      if (!options.connections) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
+      const user = await requireUser(request.headers);
+      if (request.method === "GET") return json(await options.connections.list(user.id, businessId));
+      if (request.method === "POST") { requireOrigin(request, options.origin); return json(await options.connections.connect(user.id, businessId, await readJson(request)), 202); }
+      if (request.method === "DELETE") { requireOrigin(request, options.origin); return json(await options.connections.disconnect(user.id, businessId, new URL(request.url).searchParams.get("platform"))); }
+      throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+    }),
+  };
+}

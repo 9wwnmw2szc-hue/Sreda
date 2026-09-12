@@ -14,12 +14,15 @@ export interface User {
   id: string;
   name: string;
   email?: string;
+  username?: string | null;
   avatarUrl?: string;
 }
 
 export interface Business {
   id: string;
   ownerId: string;
+  timezone?: string;
+  role?: "owner" | "admin" | "operator";
   name: string;
   avatarUrl?: string;
   planName?: string;

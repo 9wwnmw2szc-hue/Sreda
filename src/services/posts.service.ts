@@ -1,8 +1,10 @@
+import { isDemoMode } from "@/lib/dataMode";
 import { delay } from "@/lib/delay";
 import { mockPosts } from "@/mocks/posts";
 import type { Post } from "@/types";
 
 export async function getPosts(businessId: string): Promise<Post[]> {
+  if (!isDemoMode) return [];
   await delay();
   return mockPosts.filter((post) => post.businessId === businessId);
 }

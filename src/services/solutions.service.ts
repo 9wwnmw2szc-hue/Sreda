@@ -1,3 +1,4 @@
+import { isDemoMode } from "@/lib/dataMode";
 import { delay } from "@/lib/delay";
 import { mockBusinessSolutions, mockSolutions } from "@/mocks/solutions";
 import type { BusinessSolution, Solution } from "@/types";
@@ -22,6 +23,7 @@ export async function getSolutionByCode(
 export async function getBusinessSolutions(
   businessId: string,
 ): Promise<BusinessSolution[]> {
+  if (!isDemoMode) return [];
   await delay();
   return mockBusinessSolutions.filter(
     (item) => item.businessId === businessId,

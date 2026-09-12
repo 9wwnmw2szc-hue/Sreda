@@ -9,8 +9,9 @@ import {
   type ReactNode,
 } from "react";
 import { getBusinesses } from "@/services/business.service";
-import type { Business } from "@/types";
+import type { Business, User } from "@/types";
 interface BusinessContextValue {
+  user: User;
   businesses: Business[];
   currentBusiness: Business | null;
   currentBusinessId: string;
@@ -19,8 +20,8 @@ interface BusinessContextValue {
   setCurrentBusinessId: (id: string) => void;
 }
 const BusinessContext = createContext<BusinessContextValue | null>(null);
-const STORAGE_KEY = "sreda.currentBusinessId";
-export function BusinessProvider({ children }: { children: ReactNode }) {
+export function BusinessProvider({ children, user }: { children: ReactNode; user: User }) {
+  const storageKey = "sreda.currentBusinessId:" + user.id;
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [currentBusinessId, setCurrentBusinessIdState] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -32,7 +33,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         let stored: string | null = null;
         try {
-          stored = localStorage.getItem(STORAGE_KEY);
+          stored = localStorage.getItem(storageKey);
         } catch {
           /* preferences are optional */
         }
@@ -53,18 +54,18 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [storageKey]);
   const setCurrentBusinessId = useCallback(
     (id: string) => {
       if (!businesses.some((item) => item.id === id)) return;
       setCurrentBusinessIdState(id);
       try {
-        localStorage.setItem(STORAGE_KEY, id);
+        localStorage.setItem(storageKey, id);
       } catch {
         /* preferences are optional */
       }
     },
-    [businesses],
+    [businesses, storageKey],
   );
   const currentBusiness = useMemo(
     () => businesses.find((item) => item.id === currentBusinessId) ?? null,
@@ -72,6 +73,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   );
   const value = useMemo(
     () => ({
+      user,
       businesses,
       currentBusiness,
       currentBusinessId,
@@ -80,6 +82,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       setCurrentBusinessId,
     }),
     [
+      user,
       businesses,
       currentBusiness,
       currentBusinessId,
