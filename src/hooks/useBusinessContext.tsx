@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -18,6 +19,7 @@ interface BusinessContextValue {
   isLoading: boolean;
   error: string | null;
   setCurrentBusinessId: (id: string) => void;
+  refreshBusinesses: (preferredId?: string) => Promise<void>;
 }
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 export function BusinessProvider({ children, user }: { children: ReactNode; user: User }) {
@@ -26,38 +28,53 @@ export function BusinessProvider({ children, user }: { children: ReactNode; user
   const [currentBusinessId, setCurrentBusinessIdState] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void getBusinesses()
-      .then((list) => {
-        if (cancelled) return;
-        let stored: string | null = null;
-        try {
-          stored = localStorage.getItem(storageKey);
-        } catch {
-          /* preferences are optional */
-        }
-        setBusinesses(list);
-        setCurrentBusinessIdState(
-          list.some((item) => item.id === stored)
-            ? stored!
-            : (list[0]?.id ?? ""),
-        );
-        if (!list.length) setError("У вас пока нет бизнесов.");
-      })
-      .catch(() => {
-        if (!cancelled) setError("Не удалось загрузить ваши бизнесы.");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const selected = useRef("");
+  const sequence = useRef(0);
+  const mounted = useRef(true);
+  const refreshBusinesses = useCallback(async (preferredId?: string) => {
+    if (preferredId) selected.current = preferredId;
+    const request = ++sequence.current;
+    try {
+      const list = await getBusinesses();
+      if (!mounted.current || request !== sequence.current) return;
+      let stored: string | null = null;
+      try { stored = localStorage.getItem(storageKey); } catch { /* optional preference */ }
+      const candidates = [preferredId, selected.current, stored];
+      const id = candidates.find((candidate) => list.some((item) => item.id === candidate)) ?? list[0]?.id ?? "";
+      selected.current = id;
+      setBusinesses(list);
+      setCurrentBusinessIdState(id);
+      setError(list.length ? null : "У вас пока нет бизнесов.");
+      try { localStorage.setItem(storageKey, id); } catch { /* optional preference */ }
+    } catch (cause) {
+      if (!mounted.current || request !== sequence.current) return;
+      // Do not continue showing cached rights after a failed access refresh.
+      setBusinesses([]);
+      setCurrentBusinessIdState("");
+      setError("Не удалось проверить доступ к вашим бизнесам. Попробуйте обновить список.");
+      throw cause;
+    } finally {
+      if (mounted.current && request === sequence.current) setIsLoading(false);
+    }
   }, [storageKey]);
+  useEffect(() => {
+    mounted.current = true;
+    const refresh = () => { if (document.visibilityState === "visible") void refreshBusinesses().catch(() => undefined); };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = window.setInterval(refresh, 30000);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+      window.clearInterval(timer);
+    };
+  }, [refreshBusinesses]);
   const setCurrentBusinessId = useCallback(
     (id: string) => {
       if (!businesses.some((item) => item.id === id)) return;
+      selected.current = id;
       setCurrentBusinessIdState(id);
       try {
         localStorage.setItem(storageKey, id);
@@ -80,6 +97,7 @@ export function BusinessProvider({ children, user }: { children: ReactNode; user
       isLoading,
       error,
       setCurrentBusinessId,
+      refreshBusinesses,
     }),
     [
       user,
@@ -89,6 +107,7 @@ export function BusinessProvider({ children, user }: { children: ReactNode; user
       isLoading,
       error,
       setCurrentBusinessId,
+      refreshBusinesses,
     ],
   );
   return (
