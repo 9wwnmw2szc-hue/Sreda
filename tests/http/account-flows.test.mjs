@@ -203,7 +203,19 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
     await stopApp();
     if (proxy) { proxy.closeAllConnections(); await new Promise((resolve) => proxy.close(resolve)); }
     if (db) await db.destroy();
-    if (created) await admin.query(`DROP DATABASE "${databaseName}" WITH (FORCE)`);
+    if (created) {
+      // pg/Next shutdown may resolve before PostgreSQL has observed every socket
+      // close. Do not forcibly terminate clients: that can emit a late unhandled
+      // pool error after otherwise successful assertions.
+      const deadline = Date.now() + 5000;
+      while (true) {
+        const remaining = await admin.query("SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname = $1", [databaseName]);
+        if (remaining.rows[0].count === 0) break;
+        assert.ok(Date.now() < deadline, "Test database still has connections after application shutdown");
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await admin.query(`DROP DATABASE "${databaseName}"`);
+    }
     await admin.end();
     if (certificateDir) await rm(certificateDir, { recursive: true, force: true });
   }
