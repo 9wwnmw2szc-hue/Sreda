@@ -1,3 +1,5 @@
+import { betterAuth } from "better-auth";
+import { verifyPassword } from "better-auth/crypto";
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -444,4 +446,52 @@ test("concurrent password changes cannot both accept the old password on Postgre
   assert.deepEqual(results.map((r) => r.status).sort(), [200, 400]);
   const events = await db.selectFrom("account_security_event").select("id").where("user_id", "=", a.internalId).where("action", "=", "password_changed").execute();
   assert.equal(events.length, 1);
+});
+
+
+// Pause the real library after it has verified a password, before it inserts a
+// session. Explicit barriers make the formerly vulnerable ordering deterministic.
+for (const operation of ["change", "recover"]) {
+  test(`in-flight login cannot survive password ${operation}`, { timeout: 20000 }, async () => {
+    const a = await login(); const other = await login();
+    const { codes } = await recovery.issue(a.internalId, password);
+    const verified = Promise.withResolvers(); const resume = Promise.withResolvers();
+    const delayedAuth = betterAuth({ ...auth.options, emailAndPassword: {
+      ...auth.options.emailAndPassword,
+      password: { verify: async (input) => {
+        const valid = await verifyPassword(input);
+        verified.resolve(); await resume.promise; return valid;
+      } },
+    } });
+    const handler = createAuthHandler({ db, auth: delayedAuth, origin, secret });
+    const pending = handler(request("/api/auth/sign-in/username", { method: "POST", body: { username: a.username, password } }));
+    const next = "race-safe-password-12345";
+    try {
+      await Promise.race([verified.promise, pending.then(() => { throw new Error("Login finished before verification barrier"); })]);
+      if (operation === "change") {
+        const changed = await passwordHandler(request("/password", { method: "POST", cookie: a.cookie, body: { currentPassword: password, newPassword: next, passwordConfirmation: next } }));
+        assert.equal(changed.status, 200);
+      } else {
+        await recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: next, passwordConfirmation: next });
+      }
+    } finally { resume.resolve(); }
+    const response = await pending;
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, "AUTH_FAILED");
+    assert.deepEqual(response.headers.getSetCookie(), []);
+    const remaining = await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute();
+    assert.equal(remaining.length, operation === "change" ? 1 : 0);
+    assert.equal((await app.me(request("/api/v1/me", { cookie: other.cookie }))).status, 200);
+    assert.equal((await signin(a.username, next)).status, 200);
+    assert.equal((await signin(a.username)).status, 400);
+  });
+}
+
+test("login completed before password reset is revoked by reset", async () => {
+  const a = await login(); const { codes } = await recovery.issue(a.internalId, password);
+  const signedIn = await signin(a.username);
+  assert.equal(signedIn.status, 200);
+  const cookie = signedIn.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  await recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: "reverse-race-password-1234", passwordConfirmation: "reverse-race-password-1234" });
+  assert.equal((await app.me(request("/api/v1/me", { cookie }))).status, 401);
 });

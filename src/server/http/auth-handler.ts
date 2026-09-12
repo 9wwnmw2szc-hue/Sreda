@@ -3,6 +3,7 @@ import type { Database } from "../db/schema.ts";
 import type { Identity } from "../identity/auth.ts";
 import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 import { limit } from "./limits.ts";
+import { acceptLogin, loginCredential } from "../identity/login-guard.ts";
 
 export function createAuthHandler(options: { db: Kysely<Database>; auth: Identity; origin: string; secret: string }) {
   return (request: Request) => respond(async () => {
@@ -30,6 +31,8 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
     }
     const headers = new Headers(request.headers);
     headers.delete("content-length");
+    const signingIn = path === "/sign-in/username";
+    const credential = signingIn ? await loginCredential(options.db, safeBody.username as string) : undefined;
     const result = await options.auth.handler(new Request(options.origin + "/api/auth" + (signup ? "/sign-up/email" : path), {
       method: "POST", headers, body: JSON.stringify(safeBody),
     }));
@@ -43,6 +46,13 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
           : duplicate ? "Этот логин уже занят. Выберите другой."
           : result.status >= 500 ? "Не удалось войти. Попробуйте позже."
           : signup ? "Не удалось создать аккаунт. Проверьте логин и пароль." : "Неверный логин или пароль.");
+    }
+    if (signingIn) {
+      const payload = await result.json();
+      if (typeof payload.token !== "string" || !payload.token) throw new Error("Missing internal session token");
+      if (!await acceptLogin(options.db, credential, payload.token)) {
+        throw new AppError(400, "AUTH_FAILED", "Неверный логин или пароль.");
+      }
     }
     const response = json({ ok: true });
     for (const cookie of result.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
