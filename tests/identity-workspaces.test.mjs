@@ -11,6 +11,8 @@ import { ConnectionService } from "../src/server/connections/service.ts";
 import { LeadService } from "../src/server/leads/service.ts";
 import { createApplication } from "../src/server/http/application.ts";
 import { createAuthHandler } from "../src/server/http/auth-handler.ts";
+import { createRecoveryHandler } from "../src/server/http/recovery-handler.ts";
+import { RecoveryService } from "../src/server/identity/recovery.ts";
 import { migrate } from "../src/server/db/migrate.ts";
 
 const origin = "http://localhost:3000";
@@ -24,6 +26,8 @@ const workspaces = new WorkspaceService(db);
 const invitations = new InvitationService(db);
 const app = createApplication({ auth, workspaces, invitations, db, origin });
 const authHandler = createAuthHandler({ db, auth, origin, secret });
+const recoveryHandler = createRecoveryHandler({ db, auth, origin, secret });
+const recovery = new RecoveryService(db);
 function request(path, { method = "GET", body, cookie = "", headers = {} } = {}) {
   return new Request(origin + path, { method, headers: {
     origin, "content-type": "application/json", cookie, ...headers,
@@ -57,6 +61,84 @@ before(async () => {
   await migrate(db, new URL("../migrations", import.meta.url).pathname);
 });
 after(async () => { await db.destroy(); });
+
+test("recovery issuance requires session, origin and current password; status exposes no codes", async () => {
+  const account = await login();
+  assert.equal((await recoveryHandler(request("/codes"), "codes")).status, 401);
+  assert.equal((await recoveryHandler(request("/codes", { method: "POST", cookie: account.cookie, headers: { origin: "https://evil.example" }, body: { currentPassword: password } }), "codes")).status, 403);
+  assert.equal((await recoveryHandler(request("/codes", { method: "POST", cookie: account.cookie, body: { currentPassword: "wrong-password-123" } }), "codes")).status, 400);
+  const issued = await recoveryHandler(request("/codes", { method: "POST", cookie: account.cookie, body: { currentPassword: password, userId: randomUUID() } }), "codes");
+  assert.equal(issued.status, 200); assert.equal(issued.headers.get("cache-control"), "no-store");
+  const { codes } = await issued.json(); assert.equal(codes.length, 8); assert.equal(new Set(codes).size, 8);
+  for (const code of codes) assert.match(code, /^[A-F0-9]{4}(-[A-F0-9]{4}){7}$/);
+  const rows = await db.selectFrom("recovery_code").selectAll().where("user_id", "=", account.internalId).execute();
+  assert.equal(rows.length, 8); assert.ok(rows.every((row) => !codes.includes(row.code_hash) && !codes.map((c) => c.replaceAll("-", "").toLowerCase()).includes(row.code_hash)));
+  const status = await (await recoveryHandler(request("/codes", { cookie: account.cookie }), "codes")).json();
+  assert.deepEqual(Object.keys(status).sort(), ["issuedAt", "remaining"]); assert.equal(status.remaining, 8);
+});
+
+test("recovery consumes one code, resets password and revokes every existing session", async () => {
+  const account = await login();
+  await signin(account.username);
+  const { codes } = await recovery.issue(account.internalId, password);
+  const nextPassword = "new-test-password-56789";
+  const body = { username: account.username.toUpperCase(), recoveryCode: codes[0], newPassword: nextPassword, passwordConfirmation: nextPassword };
+  await assert.rejects(recovery.recover({ ...body, passwordConfirmation: "mismatch" }), { status: 400 });
+  assert.equal((await recovery.status(account.internalId)).remaining, 8);
+  const response = await recoveryHandler(request("/recover", { method: "POST", body }), "recover");
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { ok: true });
+  assert.equal((await recovery.status(account.internalId)).remaining, 7);
+  assert.equal((await db.selectFrom("session").selectAll().where("userId", "=", account.internalId).execute()).length, 0);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: account.cookie }))).status, 401);
+  assert.equal((await signin(account.username)).status, 400);
+  assert.equal((await signin(account.username, nextPassword)).status, 200);
+  await assert.rejects(recovery.recover(body), { code: "RECOVERY_FAILED" });
+});
+
+test("regeneration invalidates old codes; another user's code cannot reset an account", async () => {
+  const a = await login(); const b = await login();
+  const first = await recovery.issue(a.internalId, password);
+  const other = await recovery.issue(b.internalId, password);
+  const second = await recovery.issue(a.internalId, password);
+  const body = { username: a.username, newPassword: "changed-password-4321", passwordConfirmation: "changed-password-4321" };
+  for (const recoveryCode of [first.codes[0], other.codes[0], "0000-".repeat(7) + "0000"]) await assert.rejects(recovery.recover({ ...body, recoveryCode }), { code: "RECOVERY_FAILED" });
+  await recovery.recover({ ...body, recoveryCode: second.codes[0].toLowerCase() });
+  assert.equal((await recovery.status(b.internalId)).remaining, 8);
+  assert.equal((await signin(b.username)).status, 200);
+});
+
+test("failed recovery has generic errors, CSRF protection and rate limits", async () => {
+  const account = await login();
+  const { codes } = await recovery.issue(account.internalId, password);
+  const body = { username: account.username, recoveryCode: "0".repeat(32), newPassword: "changed-password-4321", passwordConfirmation: "changed-password-4321" };
+  assert.equal((await recoveryHandler(request("/recover", { method: "POST", headers: { origin: "" }, body: { ...body, recoveryCode: codes[0] } }), "recover")).status, 403);
+  const missing = await recoveryHandler(request("/recover", { method: "POST", body: { ...body, username: freshUsername() } }), "recover");
+  const wrong = await recoveryHandler(request("/recover", { method: "POST", body }), "recover");
+  assert.equal((await missing.json()).error.code, (await wrong.json()).error.code);
+  for (let i = 0; i < 4; i++) assert.equal((await recoveryHandler(request("/recover", { method: "POST", body }), "recover")).status, 400);
+  assert.equal((await recoveryHandler(request("/recover", { method: "POST", body: { ...body, recoveryCode: codes[0] } }), "recover")).status, 429);
+  assert.equal((await recovery.status(account.internalId)).remaining, 8);
+});
+
+test("recovery rolls back consumed code, password and sessions if audit fails", async () => {
+  const account = await login(); const { codes } = await recovery.issue(account.internalId, password);
+  await sql`ALTER TABLE account_security_event ADD CONSTRAINT reject_recovery_test CHECK (action <> 'password_recovered') NOT VALID`.execute(db);
+  try { await assert.rejects(recovery.recover({ username: account.username, recoveryCode: codes[0], newPassword: "changed-password-4321", passwordConfirmation: "changed-password-4321" })); }
+  finally { await sql`ALTER TABLE account_security_event DROP CONSTRAINT reject_recovery_test`.execute(db); }
+  assert.equal((await recovery.status(account.internalId)).remaining, 8);
+  assert.equal((await signin(account.username)).status, 200);
+  assert.equal((await app.me(request("/me", { cookie: account.cookie }))).status, 200);
+});
+
+test("concurrent recovery cannot reuse a code on PostgreSQL", {
+  skip: !process.env.TEST_DATABASE_URL && "Requires separate PostgreSQL connections",
+}, async () => {
+  const account = await login(); const { codes } = await recovery.issue(account.internalId, password);
+  const body = { username: account.username, recoveryCode: codes[0], newPassword: "changed-password-4321", passwordConfirmation: "changed-password-4321" };
+  const results = await Promise.allSettled([recovery.recover(body), recovery.recover(body)]);
+  assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+  assert.equal((await recovery.status(account.internalId)).remaining, 7);
+});
 
 test("no session cannot list or create businesses", async () => {
   assert.equal((await app.businesses(request("/api/v1/businesses"))).status, 401);

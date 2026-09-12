@@ -4,6 +4,10 @@ export type Role = "owner" | "admin" | "operator";
 export type LeadStatus = "new" | "processing" | "closed";
 export interface Database {
   user: { id: string; public_id: string; name: string; username: string; };
+  account: { id: string; userId: string; providerId: string; password: string | null; updatedAt: Date };
+  session: { id: string; userId: string };
+  recovery_code: { user_id: string; code_hash: string; created_at: Generated<Date>; used_at: Date | null };
+  account_security_event: { id: string; user_id: string; action: "recovery_codes_issued" | "password_recovered"; created_at: Generated<Date> };
   business: {
     id: string; public_id: string; name: string; timezone: string;
     created_at: Generated<Date>; archived_at: Date | null;

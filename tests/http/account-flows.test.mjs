@@ -160,6 +160,19 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       const login = await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password } });
       assert.equal(login.status, 200); assert.deepEqual(login.json, { ok: true });
     });
+    await t.test("recovery routes issue codes and reset password without a session", async () => {
+      const login = await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password } });
+      const cookie = login.headers["set-cookie"].map((value) => value.split(";")[0]).join("; ");
+      const issued = await request("/api/v1/account/recovery-codes", { method: "POST", cookie, body: { currentPassword: password } });
+      assert.equal(issued.status, 200, issued.text); assert.equal(issued.headers["cache-control"], "no-store");
+      const code = issued.json.codes[0];
+      assert.equal((await request("/recover")).status, 200);
+      const next = randomBytes(24).toString("base64url");
+      const reset = await request("/api/v1/account/recover", { method: "POST", body: { username: owner.username, recoveryCode: code, newPassword: next, passwordConfirmation: next } });
+      assert.equal(reset.status, 200, reset.text);
+      assert.equal((await request("/api/v1/me", { cookie })).status, 401);
+      assert.equal((await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password: next } })).status, 200);
+    });
   } finally {
     await stopApp();
     if (proxy) { proxy.closeAllConnections(); await new Promise((resolve) => proxy.close(resolve)); }

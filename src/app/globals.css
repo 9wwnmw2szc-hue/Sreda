@@ -1,4 +1,9 @@
 @import "tailwindcss";
+
+.recovery-codes { display: grid; gap: 8px; padding: 12px 0; list-style: none; }
+.recovery-codes code { display: block; overflow-wrap: anywhere; font-size: 13px; user-select: all; }
+.recovery-confirm { display: flex; align-items: center; gap: 10px; margin: 18px 0; }
+.recovery-confirm input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
 :root {
   --background: #f7f7f4;
   --background-dark: #202823;

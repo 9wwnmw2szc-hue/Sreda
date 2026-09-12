@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import { apiRequest } from "@/lib/apiClient";
+import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 
 export function LoginForm({ register = false }: { register?: boolean }) {
   const [username, setUsername] = useState("");
@@ -10,6 +11,8 @@ export function LoginForm({ register = false }: { register?: boolean }) {
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [created, setCreated] = useState(false);
+  const [codes, setCodes] = useState<string[] | undefined>();
   async function submit() {
     setError("");
     if (register && password !== confirmation) { setError("Пароли не совпадают."); return; }
@@ -18,11 +21,18 @@ export function LoginForm({ register = false }: { register?: boolean }) {
       await apiRequest(`/api/auth/${register ? "sign-up" : "sign-in"}/username`, {
         method: "POST", body: JSON.stringify({ username, password, ...(register ? { passwordConfirmation: confirmation } : {}) }),
       });
-      window.location.replace("/dashboard");
+      if (register) {
+        try {
+          const result = await apiRequest<{ codes: string[] }>("/api/v1/account/recovery-codes", { method: "POST", body: JSON.stringify({ currentPassword: password }) });
+          setCodes(result.codes);
+        } catch { /* Account exists: show a password-confirmed retry, never repeat signup. */ }
+        setPassword(""); setConfirmation(""); setCreated(true); setBusy(false);
+      } else window.location.replace("/dashboard");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось войти."); setBusy(false);
     }
   }
+  if (created) return <RecoveryCodesPanel initialCodes={codes} registration />;
   return <div className="account-card">
     <span className="account-symbol"><LockKeyhole size={26} /></span>
     <h2>{register ? "Создать аккаунт" : "Войти в Среду"}</h2>
@@ -44,6 +54,7 @@ export function LoginForm({ register = false }: { register?: boolean }) {
         <button className="button button--primary button--full" type="submit">{busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}<ArrowRight size={18} /></button>
       </fieldset>
     </form>
+    {!register && <p><Link className="text-link" href="/recover">Забыли пароль?</Link></p>}
     <p className="account-footnote">{register ? "Уже есть аккаунт?" : "Первый раз в Среде?"} <Link className="text-link" href={register ? "/login" : "/register"}>{register ? "Войти" : "Зарегистрироваться"}</Link></p>
   </div>;
 }
