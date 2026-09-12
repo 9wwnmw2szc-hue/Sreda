@@ -22,7 +22,7 @@ export function PasswordChangePanel() {
   return <section className="panel">
     <h2>Смена пароля</h2>
     <p>После смены пароля на других устройствах потребуется войти заново. Резервные коды продолжат работать.</p>
-    <form onSubmit={(e) => { e.preventDefault(); if (!busy) void submit(); }}>
+    <form className="account-card" onSubmit={(e) => { e.preventDefault(); if (!busy) void submit(); }}>
       <fieldset disabled={busy}>
         <label htmlFor="change-current-password">Текущий пароль</label>
         <input id="change-current-password" type="password" autoComplete="current-password" minLength={10} maxLength={128} required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
