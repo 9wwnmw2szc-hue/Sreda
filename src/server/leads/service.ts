@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Kysely, Selectable } from "kysely";
+import { sql } from "kysely";
 import type { Database, LeadStatus } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 
@@ -23,11 +24,18 @@ export class LeadService {
     if (!row) throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
     return row.id;
   }
-  async list(userId: string, businessId: string, status?: LeadStatus) {
+  async list(userId: string, businessId: string, status?: LeadStatus, before?: string) {
     const publicBusinessId = businessId;
     businessId = await this.resolve(userId, businessId);
     if (status && !statuses.includes(status)) throw new AppError(400, "INVALID_STATUS", "Неизвестный статус.");
-    let query = this.db.selectFrom("lead").selectAll().where("business_id", "=", businessId).orderBy("created_at", "desc").limit(100);
+    // API dates have millisecond precision; cursor ordering must use the same precision.
+    const created = sql<Date>`date_trunc('milliseconds', created_at)`;
+    let query = this.db.selectFrom("lead").selectAll().where("business_id", "=", businessId).orderBy(created, "desc").orderBy("id", "desc").limit(100);
+    if (before) {
+      const [date, id, extra] = before.split("|");
+      if (!date || !id || extra !== undefined || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(date) || !Number.isFinite(Date.parse(date)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new AppError(400, "INVALID_CURSOR", "Обновите список заявок.");
+      query = query.where((eb) => eb.or([eb(created, "<", new Date(date)), eb.and([eb(created, "=", new Date(date)), eb("id", "<", id)])]));
+    }
     if (status) query = query.where("status", "=", status) as typeof query;
     return (await query.execute()).map((lead) => this.toLead(lead, publicBusinessId));
   }

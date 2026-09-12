@@ -33,7 +33,10 @@ export function createApplication(options: { auth: Identity; workspaces: Workspa
     leads: (request: Request, businessId: string) => respond(async () => {
       if (!options.leads) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
       const user = await requireUser(request.headers);
-      if (request.method === "GET") return json(await options.leads.list(user.id, businessId, new URL(request.url).searchParams.get("status") as never || undefined));
+      if (request.method === "GET") {
+        const params = new URL(request.url).searchParams;
+        return json(await options.leads.list(user.id, businessId, params.get("status") as never || undefined, params.get("before") || undefined));
+      }
       if (request.method === "POST") { requireOrigin(request, options.origin); return json(await options.leads.create(user.id, businessId, await readJson(request)), 201); }
       throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
     }),

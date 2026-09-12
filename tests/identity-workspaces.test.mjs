@@ -532,3 +532,49 @@ test("dashboard lead service reads real API data for the selected business and s
     await assert.rejects(getRecentLeads(a.id, 3), { status: 401 });
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("lead pages filter on the server, keep equal timestamps and avoid repeats after new arrivals", async () => {
+  const owner = await login(); const a = await (await create(owner)).json();
+  const internal = await db.selectFrom("business").select("id").where("public_id", "=", a.id).executeTakeFirstOrThrow();
+  const rows = Array.from({ length: 105 }, () => ({ id: randomUUID(), business_id: internal.id, source: "telegram", name: "Клиент", phone: null, message: null, status: "new", external_event_id: null, created_at: new Date("2026-01-01T10:00:00.123Z") }));
+  await db.insertInto("lead").values(rows).execute();
+  await sql`UPDATE lead SET created_at = '2026-01-01T10:00:00.123456Z'::timestamptz WHERE business_id = ${internal.id}::uuid`.execute(db);
+  const leads = new LeadService(db);
+  const first = await leads.list(owner.internalId, a.id, "new"); assert.equal(first.length, 100);
+  const last = first.at(-1); const cursor = `${last.createdAt}|${last.id}`;
+  const incoming = await leads.create(owner.internalId, a.id, { source: "vk", name: "Новое обращение" });
+  const second = await leads.list(owner.internalId, a.id, "new", cursor);
+  assert.equal(second.length, 5);
+  assert.equal(new Set([...first, ...second].map((row) => row.id)).size, 105);
+  assert.ok(!second.some((row) => row.id === incoming.id));
+  await leads.updateStatus(owner.internalId, a.id, first[0].id, "closed");
+  assert.deepEqual((await leads.list(owner.internalId, a.id, "closed")).map((row) => row.id), [first[0].id]);
+  await assert.rejects(leads.list(owner.internalId, a.id, undefined, "bad|cursor"), { status: 400 });
+});
+
+test("lead page client saves statuses through scoped API and loses access after revocation", async () => {
+  const { getLeadPage, updateLeadStatus } = await import("../src/services/leads.service.ts");
+  const owner = await login(); const operator = await login(); const other = await (await create(owner)).json();
+  const business = await (await create(owner)).json(); const leads = new LeadService(db);
+  const application = createApplication({ auth, workspaces, invitations, db, origin, leads });
+  const invitation = await invitations.create(owner.internalId, business.id, operator.user.id, "operator");
+  await invitations.accept(operator.internalId, invitation.id);
+  const row = await leads.create(owner.internalId, business.id, { source: "telegram", name: "Клиент" });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (path, init) => {
+    const url = new URL(path, origin); const parts = url.pathname.split("/");
+    const req = request(url.pathname + url.search, { method: init.method || "GET", cookie: operator.cookie, body: init.body ? JSON.parse(init.body) : undefined });
+    return parts[6] ? application.leadStatus(req, parts[4], parts[6]) : application.leads(req, parts[4]);
+  };
+  try {
+    assert.equal((await getLeadPage(business.id, "new")).length, 1);
+    assert.equal((await updateLeadStatus(business.id, row.id, "processing")).status, "processing");
+    assert.equal((await getLeadPage(business.id, "new")).length, 0);
+    assert.equal((await getLeadPage(business.id, "processing"))[0].id, row.id);
+    await assert.rejects(updateLeadStatus(other.id, row.id, "closed"), { status: 404 });
+    await invitations.revokeMember(owner.internalId, business.id, operator.user.id);
+    await assert.rejects(updateLeadStatus(business.id, row.id, "closed"), { status: 404 });
+    await assert.rejects(getLeadPage(business.id), { status: 404 });
+  } finally { globalThis.fetch = originalFetch; }
+});

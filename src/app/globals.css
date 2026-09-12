@@ -2578,3 +2578,24 @@ ul {
   .account-card h2 { font-size:28px; }
   .account-symbol { display:none; }
 }
+
+.leads-page { max-width:1100px; margin:auto; display:grid; gap:24px; }
+.leads-page__heading, .leads-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.leads-page h1 { font-size:32px; margin:8px 0; }
+.leads-page__heading p { color:var(--text-secondary); }
+.leads-page .panel { padding:24px; min-width:0; }
+.leads-toolbar label { display:grid; gap:8px; font-size:14px; font-weight:600; }
+.leads-toolbar select { min-height:44px; padding:10px 14px; background:white; border:1px solid var(--border); border-radius:12px; }
+.leads-records { list-style:none; padding:0; margin:16px 0; }
+.leads-record { width:100%; display:flex; align-items:center; gap:24px; justify-content:space-between; text-align:left; padding:18px 0; background:transparent; border:0; border-bottom:1px solid var(--border); }
+.leads-record:hover { background:var(--surface-soft, #f8f8f3); }
+.leads-record__content { display:grid; gap:7px; min-width:0; }
+.leads-record__content > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
+.leads-record__content strong { overflow-wrap:anywhere; }
+.leads-record__meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; flex-shrink:0; }
+.leads-record__meta time { font-size:12px; color:var(--text-secondary); }
+@media(max-width:640px) {
+  .leads-page .panel { padding:18px; }
+  .leads-record { align-items:stretch; flex-direction:column; gap:12px; }
+  .leads-record__meta { justify-content:flex-start; }
+}

@@ -143,6 +143,18 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       const createdLead = await request(base + "/leads", { method: "POST", cookie: invitee.cookie, body: { source: "telegram", name: "Тестовый клиент", externalEventId: "http-event" } });
       assert.equal(createdLead.status, 201, createdLead.text); lead = createdLead.json;
     });
+    await t.test("lead page, filters and status update work over HTTPS", async () => {
+      const base = `/api/v1/businesses/${business.id}/leads`;
+      assert.equal((await request("/leads", { cookie: invitee.cookie })).status, 200);
+      const denied = await request(`${base}/${lead.id}`, { method: "PATCH", cookie: invitee.cookie, headers: { origin: "https://evil.example" }, body: { status: "processing" } });
+      assert.equal(denied.status, 403);
+      const changed = await request(`${base}/${lead.id}`, { method: "PATCH", cookie: invitee.cookie, body: { status: "processing" } });
+      assert.equal(changed.status, 200, changed.text); assert.equal(changed.json.status, "processing");
+      assert.deepEqual((await request(base + "?status=new", { cookie: invitee.cookie })).json, []);
+      assert.equal((await request(base + "?status=processing", { cookie: invitee.cookie })).json[0].id, lead.id);
+      const cursor = encodeURIComponent(`${changed.json.createdAt}|${lead.id}`);
+      assert.deepEqual((await request(base + "?before=" + cursor, { cookie: invitee.cookie })).json, []);
+    });
     await t.test("server restart retains accounts, sessions and business data", async () => {
       await stopApp(); await startApp();
       assert.equal((await request("/api/v1/me", { cookie: owner.cookie })).json.id, owner.user.id);
