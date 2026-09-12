@@ -1,7 +1,7 @@
 name: Verify
 on:
   push:
-    branches: ["codex/accounts-workspaces"]
+    branches: ["main"]
   pull_request:
 permissions:
   contents: read
@@ -34,3 +34,4 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run test:http
