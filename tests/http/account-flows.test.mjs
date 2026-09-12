@@ -160,6 +160,20 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       const login = await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password } });
       assert.equal(login.status, 200); assert.deepEqual(login.json, { ok: true });
     });
+    await t.test("password change route retains this session and rejects old credentials", async () => {
+      const user = await account();
+      const login = await request("/api/auth/sign-in/username", { method: "POST", body: { username: user.username, password } });
+      const otherCookie = login.headers["set-cookie"].map((v) => v.split(";")[0]).join("; ");
+      const next = randomBytes(24).toString("base64url");
+      const body = { currentPassword: password, newPassword: next, passwordConfirmation: next };
+      assert.equal((await request("/api/v1/account/password", { method: "POST", body })).status, 401);
+      const result = await request("/api/v1/account/password", { method: "POST", cookie: user.cookie, body });
+      assert.equal(result.status, 200, result.text); assert.deepEqual(result.json, { ok: true });
+      assert.equal((await request("/api/v1/me", { cookie: user.cookie })).status, 200);
+      assert.equal((await request("/api/v1/me", { cookie: otherCookie })).status, 401);
+      assert.equal((await request("/api/auth/sign-in/username", { method: "POST", body: { username: user.username, password } })).status, 400);
+      assert.equal((await request("/api/auth/sign-in/username", { method: "POST", body: { username: user.username, password: next } })).status, 200);
+    });
     await t.test("recovery routes issue codes and reset password without a session", async () => {
       const login = await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password } });
       const cookie = login.headers["set-cookie"].map((value) => value.split(";")[0]).join("; ");

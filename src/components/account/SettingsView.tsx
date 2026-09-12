@@ -8,6 +8,7 @@ import { isDemoMode } from "@/lib/dataMode";
 import { MembersPanel } from "./MembersPanel";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
+import { PasswordChangePanel } from "./PasswordChangePanel";
 
 export function SettingsView() {
   const { user, currentBusiness, businesses, setCurrentBusinessId, refreshBusinesses, error } = useBusinessContext();
@@ -18,6 +19,7 @@ export function SettingsView() {
       <div><dt>Логин</dt><dd>{user.username ?? "Демонстрация"}</dd></div>
     {!isDemoMode && <div><dt>Ваш ID для приглашений</dt><dd>{user.id}</dd></div>}
     </dl>{!isDemoMode && <SignOutButton />}</section>
+    {!isDemoMode && <PasswordChangePanel />}
     {!isDemoMode && <RecoveryCodesPanel />}
     <section className="panel"><h2>Вход по коду</h2>
       <p>После подключения бота здесь можно будет включить получение кодов в вашей админ-панели Telegram или VK.</p>

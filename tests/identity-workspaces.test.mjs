@@ -12,6 +12,7 @@ import { LeadService } from "../src/server/leads/service.ts";
 import { createApplication } from "../src/server/http/application.ts";
 import { createAuthHandler } from "../src/server/http/auth-handler.ts";
 import { createRecoveryHandler } from "../src/server/http/recovery-handler.ts";
+import { createPasswordHandler } from "../src/server/http/password-handler.ts";
 import { RecoveryService } from "../src/server/identity/recovery.ts";
 import { migrate } from "../src/server/db/migrate.ts";
 
@@ -28,6 +29,7 @@ const app = createApplication({ auth, workspaces, invitations, db, origin });
 const authHandler = createAuthHandler({ db, auth, origin, secret });
 const recoveryHandler = createRecoveryHandler({ db, auth, origin, secret });
 const recovery = new RecoveryService(db);
+const passwordHandler = createPasswordHandler({ db, auth, origin, secret });
 function request(path, { method = "GET", body, cookie = "", headers = {} } = {}) {
   return new Request(origin + path, { method, headers: {
     origin, "content-type": "application/json", cookie, ...headers,
@@ -382,4 +384,64 @@ test("parallel invitation acceptance and lead replay serialize on PostgreSQL", {
   const leads = new LeadService(db);
   const created = await Promise.all(Array.from({ length: 4 }, () => leads.create(owner.internalId, business.id, { source: "telegram", name: "Клиент", externalEventId: "concurrent-1" })));
   assert.equal(new Set(created.map((item) => item.id)).size, 1);
+});
+
+
+test("password change retains current session, revokes others and preserves recovery codes and other users", async () => {
+  const a = await login(); const b = await login();
+  const second = await signin(a.username);
+  const secondCookie = second.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const { codes } = await recovery.issue(a.internalId, password);
+  const next = "changed-password-98765";
+  const response = await passwordHandler(request("/password", { method: "POST", cookie: a.cookie, body: { currentPassword: password, newPassword: next, passwordConfirmation: next, userId: b.internalId, revokeOtherSessions: false } }));
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal((await app.me(request("/api/v1/me", { cookie: a.cookie }))).status, 200);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: secondCookie }))).status, 401);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: b.cookie }))).status, 200);
+  assert.equal((await signin(a.username)).status, 400);
+  assert.equal((await signin(a.username, next)).status, 200);
+  assert.equal((await signin(b.username)).status, 200);
+  assert.equal((await recovery.status(a.internalId)).remaining, 8);
+  await recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: password, passwordConfirmation: password });
+  const events = await db.selectFrom("account_security_event").select("action").where("user_id", "=", a.internalId).where("action", "=", "password_changed").execute();
+  assert.equal(events.length, 1);
+});
+
+test("password change requires session, origin, matching passwords and limits guesses", async () => {
+  const a = await login(); const next = "changed-password-98765";
+  const body = { currentPassword: password, newPassword: next, passwordConfirmation: next };
+  const call = (patch = {}, headers = {}) => passwordHandler(request("/password", { method: "POST", cookie: a.cookie, body: { ...body, ...patch }, headers }));
+  assert.equal((await passwordHandler(request("/password", { method: "POST", body }))).status, 401);
+  assert.equal((await passwordHandler(request("/password", { cookie: a.cookie }))).status, 405);
+  assert.equal((await call({}, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await call({ passwordConfirmation: "mismatch" })).status, 400);
+  for (let i = 0; i < 4; i++) assert.equal((await call({ currentPassword: "wrong-password-1234" })).status, 400);
+  assert.equal((await call()).status, 429);
+  assert.equal((await signin(a.username)).status, 200);
+});
+
+test("password change rolls back credential and session changes when audit fails", async () => {
+  const a = await login(); await signin(a.username);
+  const before = await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute();
+  await sql`ALTER TABLE account_security_event ADD CONSTRAINT reject_change_test CHECK (action <> 'password_changed') NOT VALID`.execute(db);
+  try {
+    const result = await passwordHandler(request("/password", { method: "POST", cookie: a.cookie, body: { currentPassword: password, newPassword: "changed-password-98765", passwordConfirmation: "changed-password-98765" } }));
+    assert.equal(result.status, 503);
+  } finally { await sql`ALTER TABLE account_security_event DROP CONSTRAINT reject_change_test`.execute(db); }
+  const after = await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute();
+  assert.deepEqual(after.map((s) => s.id).sort(), before.map((s) => s.id).sort());
+  assert.equal((await signin(a.username)).status, 200);
+});
+
+
+test("concurrent password changes cannot both accept the old password on PostgreSQL", {
+  skip: !process.env.TEST_DATABASE_URL && "Requires separate PostgreSQL connections",
+}, async () => {
+  const a = await login();
+  const call = (next) => passwordHandler(request("/password", { method: "POST", cookie: a.cookie, body: { currentPassword: password, newPassword: next, passwordConfirmation: next } }));
+  const results = await Promise.all([call("concurrent-password-one"), call("concurrent-password-two")]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 400]);
+  const events = await db.selectFrom("account_security_event").select("id").where("user_id", "=", a.internalId).where("action", "=", "password_changed").execute();
+  assert.equal(events.length, 1);
 });
