@@ -1,0 +1,475 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Send,
+  ShieldCheck,
+  RotateCcw,
+} from "lucide-react";
+import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
+import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
+import { LoadingPanel } from "@/components/dashboard/LoadingPanel";
+import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import {
+  LEAD_FIELDS,
+  newLeadSetupDraft,
+  parseLeadSetupDraft,
+  leadSetupStorageKey,
+  type LeadSetupDraft,
+  type LeadFieldId,
+  type SetupChannel,
+} from "@/lib/leadSetupDraft";
+import type { Business } from "@/types";
+const STEPS = ["Площадки", "Поля заявки", "Проверка", "Итог"];
+function loadDraft(businessId: string) {
+  try {
+    return parseLeadSetupDraft(
+      localStorage.getItem(leadSetupStorageKey(businessId)),
+    );
+  } catch {
+    return newLeadSetupDraft();
+  }
+}
+export function LeadsSetupView({ price }: { price: number }) {
+  const { business, businesses, setBusinessId, isLoading, error } =
+    useCurrentBusiness();
+  return (
+    <div className="setup-page">
+      <div className="section-topline">
+        <Link href="/solutions" className="text-link">
+          <ArrowLeft size={17} />
+          Все решения
+        </Link>
+        <BusinessSwitcher
+          businesses={businesses}
+          currentBusiness={business}
+          onSelect={setBusinessId}
+        />
+      </div>
+      {isLoading ? (
+        <LoadingPanel label="Загружаем ваш бизнес" />
+      ) : error || !business ? (
+        <section className="panel load-error" role="alert">
+          <h1>Не получилось загрузить бизнес</h1>
+          <p>{error ?? "Выберите бизнес, чтобы продолжить."}</p>
+          <button
+            className="button button--outline"
+            onClick={() => window.location.reload()}
+          >
+            Попробовать ещё раз
+          </button>
+        </section>
+      ) : (
+        <LeadsWizard key={business.id} business={business} price={price} />
+      )}
+    </div>
+  );
+}
+function LeadsWizard({
+  business,
+  price,
+}: {
+  business: Business;
+  price: number;
+}) {
+  const [draft, setDraft] = useState<LeadSetupDraft>(() =>
+    loadDraft(business.id),
+  );
+  const [storage, setStorage] = useState<"unchanged" | "saved" | "unavailable">(
+    "unchanged",
+  );
+  const [error, setError] = useState("");
+  const [previewChannel, setPreviewChannel] = useState<SetupChannel>(
+    draft.channels[0] ?? "telegram",
+  );
+  const [testSent, setTestSent] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const firstChannel = useRef<HTMLInputElement>(null);
+  const previousStep = useRef(draft.step);
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true });
+    if (previousStep.current !== draft.step) {
+      heading.current?.scrollIntoView({ block: "nearest" });
+      previousStep.current = draft.step;
+    }
+  }, [draft.step]);
+  function update(next: LeadSetupDraft) {
+    setDraft(next);
+    setError("");
+    setTestSent(false);
+    try {
+      localStorage.setItem(
+        leadSetupStorageKey(business.id),
+        JSON.stringify(next),
+      );
+      setStorage("saved");
+    } catch {
+      setStorage("unavailable");
+    }
+  }
+  function nextStep() {
+    if (!draft.channels.length) {
+      setError("Выберите хотя бы одну площадку.");
+      firstChannel.current?.focus();
+      return;
+    }
+    update({
+      ...draft,
+      step: Math.min(3, draft.step + 1) as LeadSetupDraft["step"],
+    });
+  }
+  function toggleChannel(channel: SetupChannel) {
+    const channels = draft.channels.includes(channel)
+      ? draft.channels.filter((item) => item !== channel)
+      : [...draft.channels, channel];
+    update({ ...draft, channels });
+    if (!channels.includes(previewChannel))
+      setPreviewChannel(channels[0] ?? "telegram");
+  }
+  function toggleField(id: LeadFieldId) {
+    if (id === "name") return;
+    const selected = draft.fields.includes(id)
+      ? draft.fields.filter((item) => item !== id)
+      : [...draft.fields, id];
+    update({
+      ...draft,
+      fields: LEAD_FIELDS.filter((item) => selected.includes(item.id)).map(
+        (item) => item.id,
+      ),
+    });
+  }
+  const fields = LEAD_FIELDS.filter((field) => draft.fields.includes(field.id));
+  const activePreviewChannel = draft.channels.includes(previewChannel)
+    ? previewChannel
+    : (draft.channels[0] ?? "telegram");
+  return (
+    <>
+      <header className="setup-intro">
+        <Image
+          src="/assets/sreda/v2/module-leads.webp"
+          width={140}
+          height={140}
+          alt=""
+          sizes="100px"
+        />
+        <div>
+          <span className="eyebrow">Готовое решение</span>
+          <h1>Приём заявок</h1>
+          <p>Клиенты оставляют заявку. Вы видите её в Среде.</p>
+        </div>
+        <div className="setup-price">
+          <strong>{price} ₽</strong>
+          <span>/ месяц</span>
+        </div>
+      </header>
+      <p className="prototype-banner">
+        <ShieldCheck size={18} />
+        Предпросмотр настройки. Мы не запрашиваем ключи, не подключаем ботов и
+        не списываем деньги.
+      </p>
+      <ol className="setup-steps" aria-label="Шаги настройки">
+        {STEPS.map((step, index) => (
+          <li
+            key={step}
+            aria-current={draft.step === index ? "step" : undefined}
+            className={index < draft.step ? "is-complete" : ""}
+          >
+            <span>{index < draft.step ? <Check size={16} /> : index + 1}</span>
+            {step}
+          </li>
+        ))}
+      </ol>
+      <div className="setup-layout">
+        <section className="panel setup-form">
+          <span className="eyebrow">
+            Шаг {draft.step + 1} из 4 · {business.name}
+          </span>
+          <h2 ref={heading} tabIndex={-1}>
+            {
+              [
+                "Где клиенты будут оставлять заявки?",
+                "Что спросим у клиента?",
+                "Посмотрите глазами клиента",
+                "Настройка подготовлена",
+              ][draft.step]
+            }
+          </h2>
+          {draft.step === 0 && (
+            <>
+              <p className="setup-description">
+                Выберите одну или обе площадки. Все заявки будут собраны в одном
+                месте.
+              </p>
+              <fieldset
+                className="setup-options"
+                aria-describedby={error ? "setup-error" : undefined}
+              >
+                <legend className="sr-only">Площадки для заявок</legend>
+                {(["telegram", "vk"] as const).map((channel, index) => (
+                  <label
+                    key={channel}
+                    className={`setup-option ${draft.channels.includes(channel) ? "is-selected" : ""}`}
+                  >
+                    <PlatformBadge platform={channel} compact />
+                    <span>
+                      <strong>
+                        {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                      </strong>
+                      <small>
+                        {channel === "telegram"
+                          ? "Ваш бот для клиентов"
+                          : "Сообщество вашего бизнеса"}
+                      </small>
+                    </span>
+                    <input
+                      ref={index === 0 ? firstChannel : undefined}
+                      type="checkbox"
+                      checked={draft.channels.includes(channel)}
+                      onChange={() => toggleChannel(channel)}
+                      aria-label={
+                        channel === "telegram" ? "Telegram" : "ВКонтакте"
+                      }
+                    />
+                  </label>
+                ))}
+              </fieldset>
+              <p className="setup-hint">
+                При реальном запуске здесь появится безопасное подключение вашей
+                площадки. Для предпросмотра достаточно выбрать её.
+              </p>
+            </>
+          )}
+          {draft.step === 1 && (
+            <>
+              <p className="setup-description">
+                Оставьте только нужные вопросы. Чем короче заявка, тем проще её
+                заполнить.
+              </p>
+              <fieldset className="setup-options">
+                <legend className="sr-only">Поля заявки</legend>
+                {LEAD_FIELDS.map((field) => (
+                  <label
+                    className={`field-option ${draft.fields.includes(field.id) ? "is-selected" : ""}`}
+                    key={field.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draft.fields.includes(field.id)}
+                      disabled={field.required}
+                      onChange={() => toggleField(field.id)}
+                    />
+                    <span>
+                      <strong>{field.label}</strong>
+                      {field.required && <small>Обязательное поле</small>}
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <p className="setup-hint">
+                Выбрано вопросов: {fields.length}. Порядок вопросов показан в
+                предпросмотре.
+              </p>
+            </>
+          )}
+          {draft.step === 2 && (
+            <>
+              <p className="setup-description">
+                Это пример диалога с вымышленными ответами. Реальные сообщения
+                не отправляются.
+              </p>
+              <div
+                className="preview-channel-switch"
+                aria-label="Площадка предпросмотра"
+              >
+                {draft.channels.map((channel) => (
+                  <button
+                    key={channel}
+                    className="button button--outline"
+                    aria-pressed={activePreviewChannel === channel}
+                    onClick={() => {
+                      setPreviewChannel(channel);
+                      setTestSent(false);
+                    }}
+                  >
+                    <PlatformBadge platform={channel} compact />
+                    {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                  </button>
+                ))}
+              </div>
+              <div className="conversation-preview">
+                <div className="conversation-preview__heading">
+                  <PlatformBadge platform={activePreviewChannel} compact />
+                  <strong>{business.name}</strong>
+                  <span>Пример</span>
+                </div>
+                <p className="chat-bubble">
+                  Здравствуйте! Оставьте заявку — мы свяжемся с вами.
+                </p>
+                {fields.map((field) => (
+                  <div key={field.id} className="chat-pair">
+                    <p className="chat-bubble">
+                      {field.label === "Имя"
+                        ? "Как к вам обращаться?"
+                        : field.label === "Телефон"
+                          ? "Оставьте номер телефона для связи."
+                          : field.label === "Что интересует"
+                            ? "Что вас интересует?"
+                            : "Хотите что-нибудь добавить?"}
+                    </p>
+                    <p className="chat-bubble chat-bubble--reply">
+                      {field.example}
+                    </p>
+                  </div>
+                ))}
+                <button
+                  className="button button--primary button--full"
+                  onClick={() => setTestSent(true)}
+                >
+                  <Send size={17} />
+                  Показать результат заявки
+                </button>
+                {testSent && (
+                  <div className="preview-success" role="status">
+                    <CheckCircle2 size={20} />
+                    <span>
+                      <strong>Так будет выглядеть подтверждение</strong>Спасибо!
+                      Ваша заявка принята. Мы скоро свяжемся с вами.
+                      <small>
+                        Это пример. Заявка в рабочем пространстве не
+                        создавалась.
+                      </small>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {draft.step === 3 && (
+            <>
+              <div className="setup-complete-mark">
+                <CheckCircle2 size={34} />
+              </div>
+              <p className="setup-description">
+                Вы выбрали площадки и вопросы для клиентов. Черновик относится к
+                бизнесу {business.name}.
+              </p>
+              <div className="setup-review">
+                <div>
+                  <span>Площадки</span>
+                  <strong>
+                    {draft.channels
+                      .map((c) => (c === "telegram" ? "Telegram" : "ВКонтакте"))
+                      .join(" + ")}
+                  </strong>
+                </div>
+                <div>
+                  <span>Поля заявки</span>
+                  <strong>
+                    {fields.map((field) => field.label).join(", ")}
+                  </strong>
+                </div>
+                <div>
+                  <span>Стоимость после запуска</span>
+                  <strong>{price} ₽/мес.</strong>
+                </div>
+              </div>
+              <p className="prototype-banner">
+                Бот ещё не подключён. Предпросмотр завершён; реальные
+                подключения и оплата появятся на следующих этапах запуска
+                сервиса.
+              </p>
+              <Link
+                href="/dashboard"
+                className="button button--primary button--full"
+              >
+                В рабочее пространство
+                <ArrowRight size={18} />
+              </Link>
+            </>
+          )}
+          {error && (
+            <p id="setup-error" className="setup-error" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="setup-footer">
+            {draft.step > 0 ? (
+              <button
+                className="button button--outline"
+                onClick={() =>
+                  update({
+                    ...draft,
+                    step: (draft.step - 1) as LeadSetupDraft["step"],
+                  })
+                }
+              >
+                <ArrowLeft size={17} />
+                Назад
+              </button>
+            ) : (
+              <Link className="text-link" href="/solutions">
+                Вернуться позже
+              </Link>
+            )}
+            {draft.step < 3 && (
+              <button className="button button--primary" onClick={nextStep}>
+                {draft.step === 2 ? "Завершить предпросмотр" : "Далее"}
+                <ArrowRight size={17} />
+              </button>
+            )}
+          </div>
+          <p className="draft-status" role="status">
+            {storage === "unavailable"
+              ? "Браузер не позволяет сохранить черновик. Не закрывайте страницу, чтобы не потерять выбор."
+              : storage === "saved"
+                ? "Черновик сохранён в этом браузере для выбранного бизнеса."
+                : "Ваш выбор сохраняется в этом браузере отдельно для каждого бизнеса."}
+          </p>
+          <button
+            className="text-link"
+            onClick={() => {
+              update(newLeadSetupDraft());
+              setPreviewChannel("telegram");
+            }}
+          >
+            <RotateCcw size={15} />
+            Начать настройку заново
+          </button>
+        </section>
+        <aside className="setup-summary panel">
+          <Image
+            src="/assets/sreda/v2/module-leads.webp"
+            alt=""
+            width={180}
+            height={180}
+            sizes="150px"
+          />
+          <h2>Заявки без лишней работы</h2>
+          <p>
+            Клиент отвечает на несколько вопросов. Вы получаете
+            структурированную заявку и решаете, что делать дальше.
+          </p>
+          <ul>
+            <li>
+              <Check size={17} />
+              Готовый сценарий
+            </li>
+            <li>
+              <Check size={17} />
+              Общие данные Telegram и VK
+            </li>
+            <li>
+              <Check size={17} />
+              Управление из браузера
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </>
+  );
+}
