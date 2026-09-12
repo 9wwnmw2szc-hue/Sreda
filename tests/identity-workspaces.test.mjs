@@ -495,3 +495,40 @@ test("login completed before password reset is revoked by reset", async () => {
   await recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: "reverse-race-password-1234", passwordConfirmation: "reverse-race-password-1234" });
   assert.equal((await app.me(request("/api/v1/me", { cookie }))).status, 401);
 });
+
+
+test("dashboard lead service reads real API data for the selected business and surfaces access failures", async () => {
+  const { getRecentLeads } = await import("../src/services/leads.service.ts");
+  const owner = await login(); const stranger = await login();
+  const a = await (await create(owner, "Первый бизнес")).json();
+  const b = await (await create(owner, "Второй бизнес")).json();
+  const leads = new LeadService(db);
+  const application = createApplication({ auth, workspaces, invitations, db, origin, leads });
+  const expected = [];
+  for (let i = 0; i < 4; i++) {
+    const lead = await leads.create(owner.internalId, a.id, { source: i % 2 ? "vk" : "telegram", name: "Клиент " + i, phone: "+79990000000", message: "Сообщение " + i });
+    await db.updateTable("lead").set({ created_at: new Date(Date.UTC(2026, 0, i + 1)) }).where("id", "=", lead.id).execute();
+    expected.unshift(lead.id);
+  }
+  const other = await leads.create(owner.internalId, b.id, { source: "telegram", name: "Другой клиент" });
+  const originalFetch = globalThis.fetch;
+  let cookie = owner.cookie;
+  globalThis.fetch = async (path, init) => {
+    assert.equal(init.credentials, "same-origin"); assert.equal(init.cache, "no-store");
+    const match = /^\/api\/v1\/businesses\/([^/]+)\/leads$/.exec(path);
+    assert.ok(match, "Client must use business-scoped leads endpoint");
+    return application.leads(request(path, { cookie }), decodeURIComponent(match[1]));
+  };
+  try {
+    const first = await getRecentLeads(a.id, 3);
+    assert.deepEqual(first.map((l) => l.id), expected.slice(0, 3));
+    assert.ok(first.every((l) => l.businessId === a.id && l.phone === "+79990000000"));
+    assert.deepEqual((await getRecentLeads(b.id, 3)).map((l) => l.id), [other.id]);
+    await leads.updateStatus(owner.internalId, a.id, first[0].id, "processing");
+    assert.equal((await getRecentLeads(a.id, 3))[0].status, "processing");
+    cookie = stranger.cookie;
+    await assert.rejects(getRecentLeads(a.id, 3), { status: 404 });
+    cookie = "";
+    await assert.rejects(getRecentLeads(a.id, 3), { status: 401 });
+  } finally { globalThis.fetch = originalFetch; }
+});

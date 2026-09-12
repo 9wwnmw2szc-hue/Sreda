@@ -28,6 +28,7 @@ export interface WorkspaceSolutionItem {
 }
 interface DashboardSnapshot {
   businessId: string;
+  attempt: number;
   workspaceItems: WorkspaceSolutionItem[];
   connections: Connection[];
   billing: BillingInfo | null;
@@ -61,7 +62,7 @@ export function useDashboardData() {
             getBusinessSolutions(businessId),
             getConnections(businessId),
             getBilling(businessId),
-            getRecentLeads(businessId, 4),
+            getRecentLeads(businessId, 3),
             getScheduledPosts(businessId, 2),
           ]);
         if (cancelled) return;
@@ -85,6 +86,7 @@ export function useDashboardData() {
         });
         setSnapshot({
           businessId,
+          attempt,
           workspaceItems,
           connections,
           billing,
@@ -106,7 +108,7 @@ export function useDashboardData() {
       cancelled = true;
     };
   }, [businessId, business, businessLoading, attempt]);
-  const current = snapshot?.businessId === businessId ? snapshot : null;
+  const current = business && !businessLoading && snapshot?.businessId === businessId && snapshot.attempt === attempt ? snapshot : null;
   const error =
     businessError ||
     userError ||
@@ -121,7 +123,7 @@ export function useDashboardData() {
     workspaceItems,
     connections: current?.connections ?? [],
     billing: current?.billing ?? null,
-    leads: current?.leads ?? [],
+    leads: error ? [] : current?.leads ?? [],
     posts: current?.posts ?? [],
     activeSolutionsCount: workspaceItems.filter(
       (item) => item.status === "active",
