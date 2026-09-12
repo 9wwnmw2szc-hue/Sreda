@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { emailOTP } from "better-auth/plugins/email-otp";
+import { username } from "better-auth/plugins/username";
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 
@@ -7,7 +7,6 @@ export function createIdentity(options: {
   db: Kysely<Database>;
   origin: string;
   secret: string;
-  sendCode: (email: string, code: string) => Promise<void>;
 }) {
   return betterAuth({
     appName: "Среда",
@@ -16,7 +15,7 @@ export function createIdentity(options: {
     secret: options.secret,
     trustedOrigins: [options.origin],
     database: { db: options.db, type: "postgres", transaction: true },
-    emailAndPassword: { enabled: false },
+    emailAndPassword: { enabled: true, minPasswordLength: 10, maxPasswordLength: 128, requireEmailVerification: false },
     session: {
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
@@ -29,17 +28,11 @@ export function createIdentity(options: {
       // The edge must supply a trusted client IP before IP tracking is enabled.
       ipAddress: { ipAddressHeaders: [] },
     },
-    // Additional global and per-email atomic limits live in our HTTP boundary.
-    rateLimit: { enabled: true, storage: "database", window: 60, max: 100 },
+    // Additional global and per-login atomic limits live in our HTTP boundary.
+    rateLimit: { enabled: true, storage: "database", window: 60, max: 100,
+      customRules: { "/sign-up/email": { window: 60, max: 100 }, "/sign-in/username": { window: 60, max: 100 } } },
     logger: { disabled: true },
-    plugins: [emailOTP({
-      otpLength: 6, expiresIn: 300, allowedAttempts: 5, storeOTP: "hashed",
-      rateLimit: { window: 60, max: 100 },
-      async sendVerificationOTP({ email, otp, type }) {
-        if (type !== "sign-in") throw new Error("Unsupported email flow");
-        await options.sendCode(email, otp);
-      },
-    })],
+    plugins: [username({ minUsernameLength: 3, maxUsernameLength: 30 })],
   });
 }
 export type Identity = ReturnType<typeof createIdentity>;

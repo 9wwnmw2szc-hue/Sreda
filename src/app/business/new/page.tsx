@@ -1,3 +1,4 @@
+import { MembersPanel } from "@/components/account/MembersPanel";
 import { AccountFrame } from "@/components/account/AccountFrame";
 import { CreateBusinessForm } from "@/components/account/CreateBusinessForm";
 import { SignOutButton } from "@/components/account/SignOutButton";
@@ -7,6 +8,6 @@ export const dynamic = "force-dynamic";
 export default async function NewBusinessPage() {
   const user = await pageUser();
   const businesses = await getRuntime().workspaces.list(user.id);
-  return <AccountFrame><div><CreateBusinessForm userId={user.id} hasBusinesses={businesses.length > 0} />
+  return <AccountFrame><div><p className="account-footnote">Ваш ID для приглашений: {user.id}</p><MembersPanel /><CreateBusinessForm userId={user.id} hasBusinesses={businesses.length > 0} />
     <div className="account-exit"><SignOutButton /></div></div></AccountFrame>;
 }

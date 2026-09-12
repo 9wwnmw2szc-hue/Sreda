@@ -8,45 +8,43 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
   return (request: Request) => respond(async () => {
     requireOrigin(request, options.origin);
     const path = new URL(request.url).pathname.replace("/api/auth", "");
-    if (request.method !== "POST" || ![
-      "/email-otp/send-verification-otp", "/sign-in/email-otp", "/sign-out",
-    ].includes(path)) throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
-    const body = await readJson(request);
-    const isSend = path === "/email-otp/send-verification-otp";
-    if (path !== "/sign-out") {
-      if (typeof body.email !== "string" || body.email.length > 254 ||
-        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email.trim())) {
-        throw new AppError(400, "INVALID_EMAIL", "Проверьте адрес электронной почты.");
-      }
-      body.email = body.email.trim().toLowerCase();
-      if (!isSend && (typeof body.otp !== "string" || !/^\d{6}$/.test(body.otp))) {
-        throw new AppError(400, "INVALID_OTP", "Введите код из шести цифр.");
-      }
-      await limit(options.db, options.secret, "auth:global", 300, 60);
-      await limit(options.db, options.secret, `auth:${isSend ? "send" : "verify"}:${body.email}`, isSend ? 1 : 10, isSend ? 60 : 600);
-      if (isSend) await limit(options.db, options.secret, `auth:hour:${body.email}`, 5, 3600);
+    if (request.method !== "POST" || !["/sign-up/username", "/sign-in/username", "/sign-out"].includes(path)) {
+      throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
     }
-    const safeBody = path === "/sign-out" ? {} : isSend
-      ? { email: body.email, type: "sign-in" }
-      : { email: body.email, otp: body.otp,
-        name: typeof body.name === "string" ? body.name.trim().slice(0, 80) : "" };
+    const body = await readJson(request);
+    const signup = path === "/sign-up/username";
+    let safeBody: Record<string, unknown> = {};
+    if (path !== "/sign-out") {
+      const username = typeof body.username === "string" ? body.username.trim().toLowerCase() : "";
+      if (!/^[a-z0-9_.]{3,30}$/.test(username)) throw new AppError(400, "INVALID_USERNAME", "Логин: 3–30 символов, латинские буквы, цифры, точка или подчёркивание.");
+      if (typeof body.password !== "string" || body.password.length < 10 || body.password.length > 128) {
+        throw new AppError(400, "INVALID_PASSWORD", "Пароль должен содержать от 10 до 128 символов.");
+      }
+      if (signup && body.password !== body.passwordConfirmation) throw new AppError(400, "PASSWORD_MISMATCH", "Пароли не совпадают.");
+      await limit(options.db, options.secret, "auth:global", 300, 60);
+      await limit(options.db, options.secret, `auth:${signup ? "signup" : "login"}:${username}`, 10, 600);
+      safeBody = { username, password: body.password };
+      // Better Auth requires an email field internally. Reserved .invalid domain:
+      // never a contact address, never exposed, never used for mail or recovery.
+      if (signup) safeBody = { ...safeBody, name: username, email: `${username}@accounts.sreda.invalid` };
+    }
     const headers = new Headers(request.headers);
     headers.delete("content-length");
-    const result = await options.auth.handler(new Request(options.origin + "/api/auth" + path, {
+    const result = await options.auth.handler(new Request(options.origin + "/api/auth" + (signup ? "/sign-up/email" : path), {
       method: "POST", headers, body: JSON.stringify(safeBody),
     }));
     if (!result.ok) {
       const payload = await result.json().catch(() => ({}));
-      const rateLimited = result.status === 429 || payload.code === "TOO_MANY_ATTEMPTS";
-      const unavailable = result.status >= 500;
-      throw new AppError(rateLimited ? 429 : unavailable ? 503 : 400,
-        rateLimited ? "RATE_LIMITED" : unavailable ? "MAIL_UNAVAILABLE" : "INVALID_OTP",
-        rateLimited ? "Слишком много попыток. Подождите и запросите новый код."
-          : unavailable ? "Не удалось отправить письмо. Попробуйте позже."
-          : "Код неверный или истёк. Проверьте письмо или запросите новый.");
+      const rateLimited = result.status === 429;
+      const duplicate = signup && ["USERNAME_IS_ALREADY_TAKEN", "USER_ALREADY_EXISTS", "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"].includes(payload.code);
+      throw new AppError(rateLimited ? 429 : duplicate ? 409 : result.status >= 500 ? 503 : 400,
+        rateLimited ? "RATE_LIMITED" : duplicate ? "USERNAME_TAKEN" : "AUTH_FAILED",
+        rateLimited ? "Слишком много попыток. Попробуйте через 10 минут."
+          : duplicate ? "Этот логин уже занят. Выберите другой."
+          : result.status >= 500 ? "Не удалось войти. Попробуйте позже."
+          : signup ? "Не удалось создать аккаунт. Проверьте логин и пароль." : "Неверный логин или пароль.");
     }
-    // Forward signed HttpOnly cookies, never the session token in a JSON response.
-    const response = json({ ok: true }, isSend ? 202 : 200);
+    const response = json({ ok: true });
     for (const cookie of result.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
     if (path === "/sign-out") response.headers.set("Clear-Site-Data", '"cache"');
     return response;

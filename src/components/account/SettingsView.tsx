@@ -5,6 +5,8 @@ import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { SignOutButton } from "./SignOutButton";
 import { isDemoMode } from "@/lib/dataMode";
+import { MembersPanel } from "./MembersPanel";
+import { AuditLogPanel } from "./AuditLogPanel";
 
 export function SettingsView() {
   const { user, currentBusiness, businesses, setCurrentBusinessId } = useBusinessContext();
@@ -12,8 +14,15 @@ export function SettingsView() {
     <header><span className="eyebrow">Ваше пространство</span><h1>Настройки</h1></header>
     <section className="panel"><h2>Аккаунт</h2><dl>
       <div><dt>Имя</dt><dd>{user.name}</dd></div>
-      <div><dt>Электронная почта</dt><dd>{user.email}</dd></div>
+      <div><dt>Логин</dt><dd>{user.username ?? "Демонстрация"}</dd></div>
+    {!isDemoMode && <div><dt>Ваш ID для приглашений</dt><dd>{user.id}</dd></div>}
     </dl>{!isDemoMode && <SignOutButton />}</section>
+    <section className="panel"><h2>Вход по коду</h2>
+      <p>После подключения бота здесь можно будет включить получение кодов в вашей админ-панели Telegram или VK.</p>
+      <p className="account-footnote">Сначала нужно подтвердить, что получатель кодов — вы. Вход по логину и паролю сохранится.</p>
+      <dl><div><dt>Telegram</dt><dd>Пока недоступно</dd></div><div><dt>VK</dt><dd>Пока недоступно</dd></div></dl>
+      <p className="account-footnote">Подключение ботов и доставка кодов появятся на этапе интеграций.</p>
+    </section>
     <section className="panel"><h2>Бизнесы</h2>
       <div className="settings-business">
         <BusinessSwitcher businesses={businesses} currentBusiness={currentBusiness} onSelect={setCurrentBusinessId} />
@@ -26,5 +35,7 @@ export function SettingsView() {
           : currentBusiness?.role === "operator" ? "Оператор" : "Демонстрация"}</dd></div>
       </dl>
     </section>
+    {!isDemoMode && currentBusiness && <MembersPanel key={currentBusiness.id} business={currentBusiness} />}
+    {!isDemoMode && currentBusiness && <AuditLogPanel key={currentBusiness.id} business={currentBusiness} />}
   </div>;
 }

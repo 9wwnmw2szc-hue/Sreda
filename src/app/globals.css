@@ -2547,6 +2547,22 @@ ul {
 .settings-page dt { color:var(--text-secondary); font-size:13px; margin-bottom:4px; }
 .settings-page dd { margin:0; overflow-wrap:anywhere; }
 .settings-business { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.audit-list { display:grid; gap:0; margin:0; padding:0; list-style:none; }
+.audit-list li { display:flex; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid var(--border); color:var(--text-primary); }
+.audit-list li:last-child { border-bottom:0; }
+.audit-list time { color:var(--text-secondary); font-size:.82rem; white-space:nowrap; }
+.connections-page { max-width:850px; margin:auto; display:grid; gap:24px; }
+.connections-page header p { color:var(--text-secondary); }
+.connection-setup { padding:26px; }
+.connection-setup__title { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.connection-setup__title h2 { margin:0; }
+.connection-setup__title p { margin:3px 0 0; color:var(--text-secondary); }
+.connection-ok { margin-left:auto; color:var(--success); }
+.connection-setup .account-footnote { display:flex; align-items:center; gap:6px; margin:10px 0 18px; }
+.connection-setup--muted { opacity:.72; }
+.connection-vk-mark { display:grid; place-items:center; width:32px; height:32px; border-radius:10px; background:#2787f5; color:#fff; font-weight:700; font-size:12px; }
+.spin { animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 @media(max-width:900px) {
   .account-page { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
   .account-story { min-height:0; padding:24px; }
