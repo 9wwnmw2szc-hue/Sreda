@@ -6,17 +6,17 @@ import { encryptSecret } from "./crypto.ts";
 
 export class ConnectionService {
   constructor(private readonly db: Kysely<Database>, private readonly secret: string, private readonly fetchTelegram: typeof fetch = fetch) {}
-  private async business(userId: string, publicId: string) {
+  private async business(userId: string, publicId: string, write = true) {
     const row = await this.db.selectFrom("business_member as member").innerJoin("business", "business.id", "member.business_id").select(["business.id", "member.role"]).where("business.public_id", "=", publicId).where("business.archived_at", "is", null).where("member.user_id", "=", userId).where("member.status", "=", "active").executeTakeFirst();
     if (!row) throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
-    if (row.role !== "owner" && row.role !== "admin") throw new AppError(403, "FORBIDDEN", "Недостаточно прав для управления подключениями.");
+    if (write && row.role !== "owner" && row.role !== "admin") throw new AppError(403, "FORBIDDEN", "Недостаточно прав для управления подключениями.");
     return row.id;
   }
   private async audit(db: Kysely<Database>, businessId: string, actorUserId: string, action: "connection_connected" | "connection_disconnected") {
     await db.insertInto("business_audit_log").values({ id: randomUUID(), business_id: businessId, actor_user_id: actorUserId, action, target_user_id: null, details: "Сохранение или удаление токена; запуск обработки сообщений отдельно." }).execute();
   }
   async list(userId: string, publicId: string) {
-    const businessId = await this.business(userId, publicId);
+    const businessId = await this.business(userId, publicId, false);
     return this.db.selectFrom("business_connection").select(["id", "platform", "display_name as displayName", "status", "created_at as createdAt", "updated_at as updatedAt"]).where("business_id", "=", businessId).orderBy("platform").execute();
   }
   async connect(userId: string, publicId: string, raw: unknown) {
@@ -42,6 +42,7 @@ export class ConnectionService {
         await new ConnectionService(tx, this.secret, this.fetchTelegram).business(userId, publicId);
         await tx.insertInto("business_connection").values({ id, business_id: businessId, platform, external_account_id: externalAccountId, display_name: displayName, status }).onConflict((oc) => oc.columns(["business_id", "platform"]).doUpdateSet({ external_account_id: externalAccountId, display_name: displayName, status, updated_at: new Date() })).execute();
         const connection = await tx.selectFrom("business_connection").select("id").where("business_id", "=", businessId).where("platform", "=", platform).executeTakeFirstOrThrow();
+        await tx.deleteFrom("telegram_runtime").where("connection_id", "=", connection.id).execute();
         await tx.insertInto("connection_secret").values({ connection_id: connection.id, encrypted_token: encryptSecret(token, this.secret), key_version: 1 }).onConflict((oc) => oc.column("connection_id").doUpdateSet({ encrypted_token: encryptSecret(token, this.secret), key_version: 1, updated_at: new Date() })).execute();
         await this.audit(tx, businessId, userId, "connection_connected");
       });
@@ -57,6 +58,7 @@ export class ConnectionService {
     await this.db.transaction().execute(async (tx) => {
       await tx.selectFrom("business").select("id").where("id", "=", businessId).forUpdate().execute();
       await new ConnectionService(tx, this.secret, this.fetchTelegram).business(userId, publicId);
+      await tx.deleteFrom("telegram_runtime").where("connection_id", "=", row.id).execute();
       await tx.deleteFrom("connection_secret").where("connection_id", "=", row.id).execute();
       await tx.updateTable("business_connection").set({ status: "disconnected", external_account_id: null, updated_at: new Date() }).where("id", "=", row.id).execute();
       await this.audit(tx, businessId, userId, "connection_disconnected");

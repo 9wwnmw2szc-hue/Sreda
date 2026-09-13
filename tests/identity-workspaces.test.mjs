@@ -16,6 +16,9 @@ import { createAuthHandler } from "../src/server/http/auth-handler.ts";
 import { createRecoveryHandler } from "../src/server/http/recovery-handler.ts";
 import { createPasswordHandler } from "../src/server/http/password-handler.ts";
 import { RecoveryService } from "../src/server/identity/recovery.ts";
+import { SolutionService } from "../src/server/solutions/service.ts";
+import { TelegramService, webhookSecret } from "../src/server/telegram/service.ts";
+import { createSolutionHandler } from "../src/server/http/solution-handler.ts";
 import { migrate } from "../src/server/db/migrate.ts";
 
 const origin = "http://localhost:3000";
@@ -577,4 +580,169 @@ test("lead page client saves statuses through scoped API and loses access after 
     await assert.rejects(updateLeadStatus(business.id, row.id, "closed"), { status: 404 });
     await assert.rejects(getLeadPage(business.id), { status: 404 });
   } finally { globalThis.fetch = originalFetch; }
+});
+
+
+const readyDraft = { version: 1, step: 3, channels: ["telegram"], fields: ["name", "phone", "service"] };
+async function botFixture(fields = readyDraft.fields) {
+  const owner = await login(); const business = await (await create(owner)).json();
+  const calls = [];
+  const transport = async (url, init) => {
+    if (url.endsWith("/getMe")) return Response.json({ ok: true, result: { id: Number.parseInt(randomUUID().slice(0,8),16), is_bot: true, username: "fixture_bot" } });
+    calls.push({ method: url.split("/").at(-1), body: JSON.parse(init.body) });
+    return Response.json({ ok: true, result: true });
+  };
+  const connections = new ConnectionService(db, secret, transport);
+  await connections.connect(owner.internalId, business.id, { platform: "telegram", token: "test-only-bot-token-12345" });
+  const connection = (await connections.list(owner.internalId, business.id))[0];
+  const solutions = new SolutionService(db, true);
+  await solutions.save(owner.internalId, business.id, { draft: { ...readyDraft, fields }, revision: 0 });
+  const telegram = new TelegramService(db, secret, "https://sreda.test", true, transport);
+  await telegram.start(owner.internalId, business.id);
+  const runtime = await db.selectFrom("telegram_runtime").selectAll().where("connection_id", "=", connection.id).executeTakeFirstOrThrow();
+  const header = webhookSecret(secret, connection.id, runtime.generation);
+  const send = (update, text, chat = 123) => telegram.receive(connection.id, header, { update_id: update, message: { text, chat: { id: chat, type: "private" }, from: { id: chat, is_bot: false } } });
+  return { owner, business, calls, connections, connection, solutions, telegram, header, send, transport };
+}
+
+test("setup persists per business, validates fields, rejects operators and concurrent edits", async () => {
+  const owner = await login(); const operator = await login(); const outsider = await login();
+  const a = await (await create(owner)).json(); const b = await (await create(owner)).json();
+  const service = new SolutionService(db);
+  assert.equal((await service.get(owner.internalId, a.id)).revision, 0);
+  const saved = await service.save(owner.internalId, a.id, { draft: readyDraft, revision: 0 });
+  assert.equal(saved.revision, 1); assert.deepEqual((await new SolutionService(db).get(owner.internalId, a.id)).draft, readyDraft);
+  assert.equal((await service.get(owner.internalId, b.id)).revision, 0);
+  await assert.rejects(service.save(owner.internalId, a.id, { draft: readyDraft, revision: 0 }), { status: 409 });
+  await assert.rejects(service.save(owner.internalId, a.id, { draft: { ...readyDraft, fields: ["phone"] }, revision: 1 }), { status: 400 });
+  await assert.rejects(service.get(outsider.internalId, a.id), { status: 404 });
+  const invite = await invitations.create(owner.internalId, a.id, operator.user.id, "operator"); await invitations.accept(operator.internalId, invite.id);
+  assert.equal((await service.get(operator.internalId, a.id)).revision, 1);
+  await assert.rejects(service.save(operator.internalId, a.id, { draft: readyDraft, revision: 1 }), { status: 403 });
+  const handler = createSolutionHandler({ db, auth, origin, secret });
+  assert.equal((await handler(request("/setup", { method: "POST", cookie: owner.cookie, headers: { origin: "https://evil.example" }, body: { draft: readyDraft, revision: 1 } }), a.id, "setup")).status, 403);
+  assert.equal((await handler(request("/setup"), a.id, "setup")).status, 401);
+});
+
+test("Telegram activation requires saved configuration, verified token and enabled deployment", async () => {
+  const owner = await login(); const business = await (await create(owner)).json(); const solutions = new SolutionService(db, true);
+  const tg = new TelegramService(db, secret, origin, true);
+  await assert.rejects(tg.start(owner.internalId, business.id), { status: 400 });
+  await solutions.save(owner.internalId, business.id, { draft: readyDraft, revision: 0 });
+  await assert.rejects(tg.start(owner.internalId, business.id), { code: "CONNECTION_REQUIRED" });
+  await assert.rejects(new TelegramService(db, secret, origin, false).start(owner.internalId, business.id), { status: 503 });
+  assert.equal((await solutions.list(owner.internalId, business.id))[0].status, "setup_required");
+});
+
+test("Telegram dialogue persists, isolates chats, deduplicates updates and creates a business lead", async () => {
+  const f = await botFixture();
+  await assert.rejects(f.telegram.receive(f.connection.id, "0".repeat(64), { update_id: 1 }), { status: 403 });
+  await f.send(1, "/start"); await f.send(2, "Анна"); await f.send(3, "/skip");
+  await f.send(4, "/start", 456);
+  await f.send(5, "Запись на завтра"); await f.send(5, "Запись на завтра");
+  const leads = await new LeadService(db).list(f.owner.internalId, f.business.id);
+  assert.equal(leads.length, 1); assert.equal(leads[0].name, "Анна"); assert.equal(leads[0].message, "Запись на завтра"); assert.equal(leads[0].phone, undefined);
+  const dialogs = await db.selectFrom("telegram_dialog").selectAll().where("connection_id", "=", f.connection.id).execute();
+  assert.equal(dialogs.length, 1); assert.equal(dialogs[0].chat_id, "456");
+  const anotherInstance = new TelegramService(db, secret, "https://sreda.test", true, f.transport);
+  for(let i=0;i<20;i++) if(!await anotherInstance.deliverOne()) break;
+  assert.ok(f.calls.some(c=>c.method==="sendMessage"&&c.body.text.includes("заявка принята")));
+  assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "active");
+  await f.solutions.save(f.owner.internalId, f.business.id, { draft: readyDraft, revision: 1 });
+  assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "setup_required");
+  await assert.rejects(f.send(6,"Ответ"), { status: 403 });
+  assert.equal((await new LeadService(db).list(f.owner.internalId, f.business.id)).length, 1);
+});
+
+test("Telegram updates, answers, lead and queued confirmation roll back together", async () => {
+  const f = await botFixture(["name"]); await f.send(10, "/start");
+  await sql`ALTER TABLE lead ADD CONSTRAINT reject_bot_test CHECK (source <> 'telegram') NOT VALID`.execute(db);
+  try { await assert.rejects(f.send(11, "Анна")); }
+  finally { await sql`ALTER TABLE lead DROP CONSTRAINT reject_bot_test`.execute(db); }
+  assert.equal((await db.selectFrom("telegram_update").selectAll().where("connection_id","=",f.connection.id).where("update_id","=","11").execute()).length,0);
+  await f.send(11, "Анна");
+  assert.equal((await new LeadService(db).list(f.owner.internalId, f.business.id)).length,1);
+});
+
+test("Telegram outbox retries without re-creating leads and preserves per-chat order", async () => {
+  const f = await botFixture(["name"]); await f.send(20,"/start"); await f.send(21,"Анна");
+  // Drain other test fixtures so the worker selects this connection.
+  await db.updateTable("telegram_outbox").set({delivered_at:new Date()}).where("connection_id","!=",f.connection.id).execute();
+  const failing = new TelegramService(db,secret,"https://sreda.test",true,async()=>Response.json({ok:false,parameters:{retry_after:30}},{status:429}));
+  await failing.deliverOne();
+  const first = await db.selectFrom("telegram_outbox").selectAll().where("connection_id","=",f.connection.id).orderBy("id").execute();
+  assert.equal(first[0].attempts,1); assert.equal(first[1].attempts,0);
+  assert.equal(await failing.deliverOne(),false);
+  await db.updateTable("telegram_outbox").set({available_at:new Date(0)}).where("id","=",first[0].id).execute();
+  await f.telegram.deliverOne(); await f.telegram.deliverOne();
+  assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
+  assert.equal((await db.selectFrom("telegram_outbox").selectAll().where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute()).length,0);
+});
+
+test("a blocked Telegram recipient cannot pause other chats or delete accepted leads", async () => {
+  const f = await botFixture(["name"]);
+  await f.send(80,"/start",123); await f.send(81,"Анна",123);
+  await f.send(82,"/start",456);
+  await db.updateTable("telegram_outbox").set({delivered_at:new Date()}).where("connection_id","!=",f.connection.id).execute();
+  const worker = new TelegramService(db,secret,"https://sreda.test",true,async(url,init)=>{
+    if(JSON.parse(init.body).chat_id==="123")return Response.json({ok:false},{status:403});
+    return f.transport(url,init);
+  });
+  await worker.deliverOne();
+  assert.equal((await f.solutions.list(f.owner.internalId,f.business.id))[0].status,"active");
+  const pending=await db.selectFrom("telegram_outbox").selectAll().where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute();
+  assert.deepEqual(pending.map(row=>row.chat_id),["456"]);
+  assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
+  assert.equal(await worker.deliverOne(),true);
+  assert.equal(f.calls.at(-1).body.chat_id,"456");
+  await f.send(83,"Борис",456);
+  assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,2);
+  await f.send(84,"/start",123);
+  await worker.deliverOne(); await worker.deliverOne();
+  assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).where("chat_id","=","123").execute()).length,0);
+});
+
+test("Telegram disconnect cancels queued messages and rejects old webhook secrets", async () => {
+  const f = await botFixture(); await f.send(30,"/start");
+  await f.connections.disconnect(f.owner.internalId,f.business.id,"telegram");
+  await assert.rejects(f.send(31,"Анна"),{status:403});
+  assert.equal((await db.selectFrom("telegram_outbox").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
+  assert.equal((await f.solutions.list(f.owner.internalId,f.business.id))[0].status,"setup_required");
+});
+
+test("parallel Telegram delivery creates only one lead on PostgreSQL", {skip:!process.env.TEST_DATABASE_URL&&"Requires PostgreSQL connections"}, async()=>{
+ const f=await botFixture(["name"]);await f.send(40,"/start");
+ await Promise.all([f.send(41,"Анна"),f.send(41,"Анна")]);
+ assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
+});
+
+
+test("permanent Telegram failure and stale worker cannot show an active solution", async()=>{
+ const f=await botFixture(["name"]);await f.send(50,"/start");
+ await db.updateTable("telegram_outbox").set({delivered_at:new Date()}).where("connection_id","!=",f.connection.id).execute();
+ const failed=new TelegramService(db,secret,"https://sreda.test",true,async()=>Response.json({ok:false},{status:401}));
+ await failed.deliverOne();
+ assert.equal((await f.solutions.list(f.owner.internalId,f.business.id))[0].status,"paused");
+ await assert.rejects(f.send(51,"Анна"),{status:503});
+ await f.telegram.start(f.owner.internalId,f.business.id);
+ await db.updateTable("worker_heartbeat").set({seen_at:new Date(0)}).where("name","=","telegram").execute();
+ assert.equal((await f.solutions.list(f.owner.internalId,f.business.id))[0].status,"paused");
+});
+
+test("uncertain webhook reconfiguration removes a previous ready state", async()=>{
+ const f=await botFixture();
+ const failed=new TelegramService(db,secret,"https://sreda.test",true,async()=>{throw new Error("simulated timeout");});
+ await assert.rejects(failed.start(f.owner.internalId,f.business.id),{status:503});
+ const runtime=await db.selectFrom("telegram_runtime").select("status").where("connection_id","=",f.connection.id).executeTakeFirstOrThrow();
+ assert.equal(runtime.status,"error");
+});
+
+test("Telegram ignores group messages and cancel clears the pending dialogue", async()=>{
+ const f=await botFixture();
+ await f.telegram.receive(f.connection.id,f.header,{update_id:60,message:{text:"/start",chat:{id:-123,type:"group"},from:{id:123}}});
+ assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
+ await f.send(61,"/start");await f.send(62,"/cancel");
+ assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
+ const messages=await db.selectFrom("telegram_outbox").select("message").where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute();
+ assert.equal(messages.length,1);assert.match(messages[0].message,/отменена/);
 });

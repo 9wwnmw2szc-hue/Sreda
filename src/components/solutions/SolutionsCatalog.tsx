@@ -4,6 +4,7 @@ import Image from "next/image";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
+import { isDemoMode } from "@/lib/dataMode";
 import type { Solution } from "@/types";
 export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
   const { business, businesses, setBusinessId } = useCurrentBusiness();
@@ -30,8 +31,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         </span>
       </header>
       <p className="prototype-banner">
-        Демонстрация сервиса: доступен предпросмотр настройки «Приёма заявок».
-        Подключение площадок и оплата пока не выполняются.
+        {isDemoMode ? "Демонстрация: доступен предпросмотр настройки «Приёма заявок»." : "Настройте «Приём заявок» и подключите своего Telegram-бота. VK и оплата появятся отдельно."}
       </p>
       <div className="solution-catalog-grid">
         {solutions.map((solution) => (
@@ -60,7 +60,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   href="/solutions/leads/setup"
                   className="button button--primary"
                 >
-                  Посмотреть настройку
+                  {isDemoMode ? "Посмотреть настройку" : "Настроить"}
                   <ArrowRight size={18} />
                 </Link>
               ) : (

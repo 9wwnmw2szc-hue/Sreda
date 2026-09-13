@@ -25,6 +25,7 @@ import {
   type SetupChannel,
 } from "@/lib/leadSetupDraft";
 import type { Business } from "@/types";
+import { apiRequest } from "@/lib/apiClient";
 import { isDemoMode } from "@/lib/dataMode";
 const STEPS = ["Площадки", "Поля заявки", "Проверка", "Итог"];
 function loadDraft(businessId: string) {
@@ -67,25 +68,48 @@ export function LeadsSetupView({ price }: { price: number }) {
           </button>
         </section>
       ) : (
-        <LeadsWizard key={business.id} business={business} price={price} />
+        <ServerLeadsWizard key={`${business.id}:${business.role}`} business={business} price={price} />
       )}
     </div>
   );
 }
+function ServerLeadsWizard({business,price}:{business:Business;price:number}) {
+  const [value,setValue]=useState<{draft:LeadSetupDraft;revision:number}|null>(null);
+  const [failure,setFailure]=useState("");
+  useEffect(()=>{
+    if(isDemoMode)return;
+    let cancelled=false;
+    void apiRequest<{draft:LeadSetupDraft;revision:number}>(`/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`).then(result=>{if(!cancelled)setValue(result);}).catch(e=>{if(!cancelled)setFailure(e instanceof Error?e.message:"Не удалось загрузить настройку.");});
+    return ()=>{cancelled=true;};
+  },[business.id]);
+  if(failure)return <section className="panel"><p role="alert">{failure}</p><button className="button button--outline" onClick={()=>window.location.reload()}>Обновить страницу</button></section>;
+  if(!isDemoMode&&!value)return <LoadingPanel label="Загружаем сохранённую настройку" />;
+  return <LeadsWizard business={business} price={price} initialDraft={value?.draft} initialRevision={value?.revision??0} />;
+}
 function LeadsWizard({
   business,
-  price,
+  price, initialDraft, initialRevision,
 }: {
   business: Business;
-  price: number;
+  price: number; initialDraft?: LeadSetupDraft; initialRevision: number;
 }) {
   const [draft, setDraft] = useState<LeadSetupDraft>(() =>
-    loadDraft(business.id),
+    initialDraft ?? loadDraft(business.id),
   );
   const [storage, setStorage] = useState<"unchanged" | "saved" | "unavailable">(
     "unchanged",
   );
   const [error, setError] = useState("");
+  const [revision,setRevision]=useState(initialRevision);
+  const [busy,setBusy]=useState(false);
+  const [started,setStarted]=useState(false);
+  const canWrite=isDemoMode||business.role==="owner"||business.role==="admin";
+  async function startTelegram(){
+    setBusy(true);setError("");
+    try {await apiRequest(`/api/v1/businesses/${encodeURIComponent(business.id)}/telegram/start`,{method:"POST",body:"{}"});setStarted(true);}
+    catch(e){setError(e instanceof Error?e.message:"Не удалось запустить Telegram.");}
+    finally{setBusy(false);}
+  }
   const [previewChannel, setPreviewChannel] = useState<SetupChannel>(
     draft.channels[0] ?? "telegram",
   );
@@ -100,7 +124,17 @@ function LeadsWizard({
       previousStep.current = draft.step;
     }
   }, [draft.step]);
-  function update(next: LeadSetupDraft) {
+  async function update(next: LeadSetupDraft) {
+    if(busy||!canWrite)return;
+    if(!isDemoMode){
+      setBusy(true);setError("");
+      try {
+        const result=await apiRequest<{draft:LeadSetupDraft;revision:number}>(`/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`,{method:"POST",body:JSON.stringify({draft:next,revision})});
+        setDraft(result.draft);setRevision(result.revision);setStorage("saved");setStarted(false);setTestSent(false);
+      }catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить настройку.");}
+      finally{setBusy(false);}
+      return;
+    }
     setDraft(next);
     setError("");
     setTestSent(false);
@@ -172,8 +206,7 @@ function LeadsWizard({
       </header>
       <p className="prototype-banner">
         <ShieldCheck size={18} />
-        Предпросмотр настройки. Мы не запрашиваем ключи, не подключаем ботов и
-        не списываем деньги.
+        {isDemoMode ? "Предпросмотр настройки. Подключения и оплата не выполняются." : "Настройка сохраняется для этого бизнеса. Изменения останавливают сценарий до повторного запуска. Оплата пока не подключена."}
       </p>
       <ol className="setup-steps" aria-label="Шаги настройки">
         {STEPS.map((step, index) => (
@@ -188,7 +221,7 @@ function LeadsWizard({
         ))}
       </ol>
       <div className="setup-layout">
-        <section className="panel setup-form">
+        <section className="panel setup-form"><fieldset className="setup-editor" disabled={busy || !canWrite}>
           <span className="eyebrow">
             Шаг {draft.step + 1} из 4 · {business.name}
           </span>
@@ -382,10 +415,9 @@ function LeadsWizard({
                 </div>
               </div>
               <p className="prototype-banner">
-                Бот ещё не подключён. Предпросмотр завершён; реальные
-                подключения и оплата появятся на следующих этапах запуска
-                сервиса.
+                {isDemoMode ? "Предпросмотр завершён. Это демонстрация." : started ? "Telegram подтвердил подключение. Отправьте боту /start для проверки первой заявки. Для ответов должен работать обработчик сообщений." : "Подключите токен бота в разделе «Подключения», затем запустите Telegram. VK появится отдельным этапом."}
               </p>
+              {!isDemoMode && <><Link href="/connections" className="button button--outline">Подключения</Link><button type="button" className="button button--primary" onClick={()=>void startTelegram()}>Запустить Telegram</button></>}
               <Link
                 href="/dashboard"
                 className="button button--primary button--full"
@@ -421,14 +453,14 @@ function LeadsWizard({
             )}
             {draft.step < 3 && (
               <button className="button button--primary" onClick={nextStep}>
-                {draft.step === 2 ? "Завершить предпросмотр" : "Далее"}
+                {draft.step === 2 ? (isDemoMode ? "Завершить предпросмотр" : "Завершить настройку") : "Далее"}
                 <ArrowRight size={17} />
               </button>
             )}
           </div>
           <p className="draft-status" role="status">
             {!isDemoMode
-              ? "Это предпросмотр. Выбор действует до закрытия страницы; серверное сохранение появится на следующем этапе."
+              ? (busy ? "Сохраняем…" : "Настройка хранится на сервере отдельно для этого бизнеса.")
               : storage === "unavailable"
               ? "Браузер не позволяет сохранить черновик. Не закрывайте страницу, чтобы не потерять выбор."
               : storage === "saved"
@@ -445,7 +477,7 @@ function LeadsWizard({
             <RotateCcw size={15} />
             Начать настройку заново
           </button>
-        </section>
+        </fieldset></section>
         <aside className="setup-summary panel">
           <Image
             src="/assets/sreda/v2/module-leads.webp"

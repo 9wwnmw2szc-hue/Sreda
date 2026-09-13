@@ -1,0 +1,51 @@
+name: Deploy Yandex (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: yandex-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: cr.yandex/${{ secrets.YC_REGISTRY_ID }}/sreda:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require successful verification of this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/verify.yml/runs?head_sha=$GITHUB_SHA&status=success" --jq '.workflow_runs | length' | awk '{if ($1 < 1) exit 1}'
+      - uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: json_key
+          password: ${{ secrets.YC_REGISTRY_KEY }}
+      - name: Build and push immutable image
+        run: |
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deliver deployment files and release
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          LOGIN: ${{ secrets.DEPLOY_USER }}
+        run: |
+          [[ "$IMAGE" =~ ^cr\.yandex/[a-z0-9]+/sreda:[a-f0-9]{40}$ ]]
+          [[ "$LOGIN" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          scp -o BatchMode=yes -o StrictHostKeyChecking=yes deploy/compose.yml deploy/Caddyfile deploy/release.sh deploy/backup.sh "$LOGIN@$HOST:/opt/sreda/deploy/"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$LOGIN@$HOST" bash /opt/sreda/deploy/release.sh "$IMAGE"

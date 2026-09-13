@@ -45,6 +45,7 @@ export interface Solution {
 }
 
 export interface BusinessSolution {
+  note?: string;
   id: string;
   businessId: string;
   solutionId: string;

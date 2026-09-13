@@ -2599,3 +2599,6 @@ ul {
   .leads-record { align-items:stretch; flex-direction:column; gap:12px; }
   .leads-record__meta { justify-content:flex-start; }
 }
+
+.setup-editor { border:0; padding:0; margin:0; min-width:0; }
+.setup-editor:disabled { opacity:.75; }

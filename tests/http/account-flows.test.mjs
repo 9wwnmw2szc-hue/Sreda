@@ -155,6 +155,20 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       const cursor = encodeURIComponent(`${changed.json.createdAt}|${lead.id}`);
       assert.deepEqual((await request(base + "?before=" + cursor, { cookie: invitee.cookie })).json, []);
     });
+    await t.test("solution setup persists through routes and Telegram remains disabled until deployment", async () => {
+      const base = `/api/v1/businesses/${business.id}`;
+      const draft = { version: 1, step: 3, channels: ["telegram"], fields: ["name", "phone"] };
+      const empty = await request(base + "/lead-setup", { cookie: owner.cookie });
+      assert.equal(empty.status, 200); assert.equal(empty.json.revision, 0);
+      const saved = await request(base + "/lead-setup", { method: "POST", cookie: owner.cookie, body: { draft, revision: 0 } });
+      assert.equal(saved.status, 200, saved.text); assert.equal(saved.json.revision, 1);
+      assert.deepEqual((await request(base + "/lead-setup", { cookie: owner.cookie })).json.draft, draft);
+      assert.equal((await request(base + "/lead-setup", { method: "POST", cookie: owner.cookie, body: { draft, revision: 0 } })).status, 409);
+      assert.equal((await request(base + "/solutions", { cookie: owner.cookie })).json[0].status, "setup_required");
+      assert.equal((await request(base + "/telegram/start", { method: "POST", cookie: owner.cookie, body: {} })).status, 503);
+      assert.equal((await request("/api/telegram/00000000-0000-0000-0000-000000000000", { method: "POST", body: { update_id: 1 } })).status, 503);
+      assert.equal((await request("/api/health")).status, 200);
+    });
     await t.test("server restart retains accounts, sessions and business data", async () => {
       await stopApp(); await startApp();
       assert.equal((await request("/api/v1/me", { cookie: owner.cookie })).json.id, owner.user.id);

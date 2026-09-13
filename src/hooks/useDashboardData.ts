@@ -21,6 +21,7 @@ import type {
   SolutionStatus,
 } from "@/types";
 export interface WorkspaceSolutionItem {
+  note?: string;
   solution: Solution;
   code: SolutionAccentCode;
   status: SolutionStatus;
@@ -75,6 +76,7 @@ export function useDashboardData() {
             ? [
                 {
                   solution,
+                  note: installed.find((item) => item.solutionId === solution.id)?.note,
                   code,
                   status:
                     statuses.get(solution.id) ??

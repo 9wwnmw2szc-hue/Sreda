@@ -46,3 +46,9 @@ next-env.d.ts
 /public/__qa.html
 /public/__review/
 /.sites-runtime/
+
+# Deployment secrets and database backups
+/deploy/app.env
+/deploy/db.env
+/deploy/caddy.env
+*.dump

@@ -15,7 +15,7 @@ function initialize() {
     pool: new Pool({ connectionString: config.databaseUrl, max: 10,
       connectionTimeoutMillis: 5000, idleTimeoutMillis: 30000 }),
   }) });
-  return { ...config, db, auth: createIdentity({ ...config, db }),
+  return { ...config, telegramEnabled: process.env.TELEGRAM_WEBHOOKS_ENABLED === "true", db, auth: createIdentity({ ...config, db }),
     workspaces: new WorkspaceService(db), leads: new LeadService(db), invitations: new InvitationService(db), connections: new ConnectionService(db, config.secret) };
 }
 const state = globalThis as typeof globalThis & { sredaRuntime?: ReturnType<typeof initialize> };

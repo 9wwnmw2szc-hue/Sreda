@@ -3,6 +3,13 @@ import type { Generated } from "kysely";
 export type Role = "owner" | "admin" | "operator";
 export type LeadStatus = "new" | "processing" | "closed";
 export interface Database {
+  worker_heartbeat: { name: string; seen_at: Date };
+  lead_setup: { business_id: string; draft: string; revision: number; updated_at: Date };
+  telegram_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
+  telegram_dialog: { connection_id: string; chat_id: string; fields: string; answers: string; position: number; last_update_id: string; updated_at: Generated<Date> };
+  telegram_update: { connection_id: string; update_id: string; created_at: Generated<Date> };
+  telegram_outbox: { id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
+
   user: { id: string; public_id: string; name: string; username: string; };
   account: { id: string; userId: string; providerId: string; password: string | null; updatedAt: Date };
   session: { id: string; userId: string; token: string };

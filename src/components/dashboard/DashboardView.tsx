@@ -305,9 +305,9 @@ export function DashboardView() {
                 <span>Стоимость</span>
                 <strong>{visibleSelection.item.solution.price} ₽/мес.</strong>
               </div>
+              {visibleSelection.item.note && <p className="account-notice">{visibleSelection.item.note}</p>}
               <p className="demo-note">
-                Это демонстрация решения. Реальное подключение появится после
-                запуска сервиса.
+                {isDemoMode ? "Это демонстрация решения." : visibleSelection.item.code === "leads" ? "Сохраните настройку и запустите Telegram в мастере. Статус учитывает подключение и работу обработчика." : "Это решение появится позже."}
               </p>
               <Link
                 className="button button--primary button--full"
