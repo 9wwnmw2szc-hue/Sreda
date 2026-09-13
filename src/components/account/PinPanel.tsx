@@ -1,0 +1,63 @@
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
+
+export function PinPanel() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [desired, setDesired] = useState(false);
+  const [password, setPassword] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    let active = true;
+    apiRequest<{ enabled: boolean }>("/api/v1/account/pin").then((result) => {
+      if (active) { setEnabled(result.enabled); setDesired(result.enabled); }
+    }).catch((e) => { if (active) setError(e instanceof Error ? e.message : "Не удалось загрузить настройку PIN."); });
+    return () => { active = false; };
+  }, []);
+  async function submit() {
+    setError(""); setNotice("");
+    if (desired && pin !== confirmation) { setError("PIN-коды не совпадают."); return; }
+    setBusy(true);
+    try {
+      const result = await apiRequest<{ enabled: boolean }>("/api/v1/account/pin", {
+        method: "POST", body: JSON.stringify({ enabled: desired, currentPassword: password, currentPin, pin, pinConfirmation: confirmation }),
+      });
+      setEnabled(result.enabled); setDesired(result.enabled);
+      setNotice(`${result.enabled ? "PIN сохранён. Для нового входа нужны пароль и PIN." : "PIN отключён. Для входа нужен пароль."} Остальные сеансы завершены.`);
+    } catch (e) { setError(e instanceof Error ? e.message : "Не удалось изменить PIN."); }
+    finally { setPassword(""); setCurrentPin(""); setPin(""); setConfirmation(""); setBusy(false); }
+  }
+  return <section className="panel">
+    <h2>PIN для входа</h2>
+    <p>Четыре цифры, которые вы задаёте сами. После включения PIN потребуется при каждом новом входе вместе с паролем.</p>
+    {enabled === null ? <p>{error || "Загружаем настройку…"}</p> : <>
+      <p className="account-footnote">Сейчас PIN {enabled ? "включён" : "выключен"}. Резервные коды сохраняются.</p>
+      <form className="account-card" onSubmit={(e) => { e.preventDefault(); if (!busy) void submit(); }}>
+        <fieldset disabled={busy}>
+          <button className="button button--outline" type="button" role="switch" aria-checked={desired} onClick={() => { setDesired(!desired); setNotice(""); }}>Запрашивать PIN: {desired ? "да" : "нет"}</button>
+          {(desired || enabled) && <>
+            <label htmlFor="pin-password">Текущий пароль</label>
+            <input id="pin-password" type="password" autoComplete="current-password" required minLength={10} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} />
+            {enabled && <><label htmlFor="pin-current">Текущий PIN</label>
+              <input id="pin-current" type="password" inputMode="numeric" autoComplete="off" required pattern="[0-9]{4}" minLength={4} maxLength={4} value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/[^0-9]/g, ""))} /></>}
+            {desired && <><label htmlFor="pin-new">{enabled ? "Новый PIN" : "Придумайте PIN"}</label>
+              <input id="pin-new" type="password" inputMode="numeric" autoComplete="off" required pattern="[0-9]{4}" minLength={4} maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ""))} />
+              <label htmlFor="pin-confirm">Повторите PIN</label>
+              <input id="pin-confirm" type="password" inputMode="numeric" autoComplete="off" required pattern="[0-9]{4}" minLength={4} maxLength={4} value={confirmation} onChange={(e) => setConfirmation(e.target.value.replace(/[^0-9]/g, ""))} /></>}
+            <p className="account-footnote">Изменение применится после сохранения. На других устройствах потребуется войти заново.</p>
+            <button className="button button--primary" type="submit">{busy ? "Сохраняем…" : desired ? "Сохранить PIN" : "Отключить PIN"}</button>
+          </>}
+        </fieldset>
+      </form>
+      {error && <p className="account-error" role="alert">{error}</p>}
+      {notice && <p className="account-notice" role="status">{notice}</p>}
+      <p className="account-footnote">Забыли PIN? <Link className="text-link" href="/recover">Восстановите доступ резервным кодом</Link>. При восстановлении PIN будет отключён.</p>
+    </>}
+  </section>;
+}

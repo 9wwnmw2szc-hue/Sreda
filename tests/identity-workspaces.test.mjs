@@ -15,6 +15,8 @@ import { createApplication } from "../src/server/http/application.ts";
 import { createAuthHandler } from "../src/server/http/auth-handler.ts";
 import { createRecoveryHandler } from "../src/server/http/recovery-handler.ts";
 import { createPasswordHandler } from "../src/server/http/password-handler.ts";
+import { createPinHandler } from "../src/server/http/pin-handler.ts";
+import { PinService } from "../src/server/identity/pin.ts";
 import { RecoveryService } from "../src/server/identity/recovery.ts";
 import { SolutionService } from "../src/server/solutions/service.ts";
 import { TelegramService, webhookSecret } from "../src/server/telegram/service.ts";
@@ -35,6 +37,8 @@ const authHandler = createAuthHandler({ db, auth, origin, secret });
 const recoveryHandler = createRecoveryHandler({ db, auth, origin, secret });
 const recovery = new RecoveryService(db);
 const passwordHandler = createPasswordHandler({ db, auth, origin, secret });
+const pinHandler = createPinHandler({ db, auth, origin, secret });
+const pins = new PinService(db, secret);
 function request(path, { method = "GET", body, cookie = "", headers = {} } = {}) {
   return new Request(origin + path, { method, headers: {
     origin, "content-type": "application/json", cookie, ...headers,
@@ -745,4 +749,111 @@ test("Telegram ignores group messages and cancel clears the pending dialogue", a
  assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
  const messages=await db.selectFrom("telegram_outbox").select("message").where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute();
  assert.equal(messages.length,1);assert.match(messages[0].message,/отменена/);
+});
+
+async function configurePin(a, body = {}) {
+  const session = await auth.api.getSession({ headers: new Headers({ cookie: a.cookie }) });
+  return pins.configure(a.internalId, session.session.id, { enabled: true, currentPassword: password, pin: "0826", pinConfirmation: "0826", ...body });
+}
+const pinSignin = (a, pin, value = password) => authHandler(request("/api/auth/sign-in/username", { method: "POST", body: { username: a.username, password: value, pin } }));
+
+test("PIN requires password and valid session, stores no plaintext, and scopes management to the caller", async () => {
+  const a = await login(); const b = await login();
+  assert.equal((await pinHandler(request("/pin"))).status, 401);
+  assert.equal((await pinHandler(request("/pin", { method: "POST", cookie: a.cookie, headers: { origin: "https://evil.example" }, body: {} }))).status, 403);
+  await assert.rejects(configurePin(a, { currentPassword: "wrong-password-12345" }), { status: 400 });
+  await assert.rejects(configurePin(a, { pin: 826, pinConfirmation: 826 }), { status: 400 });
+  await assert.rejects(configurePin(a, { pinConfirmation: "1111" }), { status: 400 });
+  assert.equal((await pinHandler(request("/pin", { method: "POST", cookie: a.cookie, body: { enabled: true, currentPassword: password, pin: "0826", pinConfirmation: "0826", userId: b.internalId } }))).status, 200);
+  assert.deepEqual(await (await pinHandler(request("/pin", { cookie: a.cookie }))).json(), { enabled: true });
+  assert.deepEqual(await pins.status(b.internalId), { enabled: false });
+  const row = await db.selectFrom("account_pin").selectAll().where("user_id", "=", a.internalId).executeTakeFirstOrThrow();
+  assert.notEqual(row.pin_hash, "0826");
+  assert.equal(await verifyPassword({ hash: row.pin_hash, password: "0826" }), false);
+  await assert.rejects(configurePin(a, { enabled: false, currentPin: "1111" }), { status: 400 });
+});
+
+test("PIN gates every new login, revokes other sessions and preserves unrelated accounts", async () => {
+  const a = await login(); const b = await login();
+  const existing = await signin(a.username);
+  const oldCookie = existing.headers.getSetCookie().map(c => c.split(";")[0]).join("; ");
+  await configurePin(a);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: oldCookie }))).status, 401);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: a.cookie }))).status, 200);
+  assert.equal((await app.me(request("/api/v1/me", { cookie: b.cookie }))).status, 200);
+  for (const pin of [undefined, "1111", "826"]) {
+    const result = await pinSignin(a, pin);
+    assert.equal(result.status, 400); assert.deepEqual(result.headers.getSetCookie(), []);
+    assert.equal((await result.json()).error.code, "PIN_REQUIRED");
+  }
+  assert.equal((await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute()).length, 1);
+  const wrongPassword = await pinSignin(a, "0826", "wrong-password-1234");
+  assert.equal((await wrongPassword.json()).error.code, "AUTH_FAILED");
+  assert.equal((await pinSignin(a, "0826")).status, 200);
+  await configurePin(a, { currentPin: "0826", pin: "6723", pinConfirmation: "6723" });
+  assert.equal((await pinSignin(a, "0826")).status, 400);
+  assert.equal((await pinSignin(a, "6723")).status, 200);
+  await configurePin(a, { enabled: false, currentPin: "6723" });
+  assert.equal((await signin(a.username)).status, 200);
+});
+
+test("five failed PIN attempts lock across instances; expiry and a correct PIN reset the counter", async () => {
+  const a = await login(); await configurePin(a);
+  for (let i = 0; i < 5; i++) assert.equal((await pinSignin(a, "1111")).status, i === 4 ? 429 : 400);
+  const anotherHandler = createAuthHandler({ db, auth: createIdentity({ db, origin, secret }), origin, secret });
+  const blocked = await anotherHandler(request("/api/auth/sign-in/username", { method: "POST", body: { username: a.username, password, pin: "0826" } }));
+  assert.equal(blocked.status, 429); assert.equal((await blocked.json()).error.code, "PIN_LOCKED");
+  assert.deepEqual(blocked.headers.getSetCookie(), []);
+  assert.equal((await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute()).length, 1);
+  await db.updateTable("account_pin").set({ locked_until: new Date(0) }).where("user_id", "=", a.internalId).execute();
+  assert.equal((await pinSignin(a, "0826")).status, 200);
+  const row = await db.selectFrom("account_pin").selectAll().where("user_id", "=", a.internalId).executeTakeFirstOrThrow();
+  assert.equal(row.failed_attempts, 0); assert.equal(row.locked_until, null);
+});
+
+test("PIN recovery is atomic, revokes sessions and allows password login after reset", async () => {
+  const a = await login(); const { codes } = await recovery.issue(a.internalId, password);
+  await configurePin(a);
+  const next = "pin-recovery-password-12345";
+  await sql`ALTER TABLE account_security_event ADD CONSTRAINT reject_pin_reset CHECK (action <> 'password_recovered') NOT VALID`.execute(db);
+  try {
+    await assert.rejects(recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: next, passwordConfirmation: next }));
+    assert.deepEqual(await pins.status(a.internalId), { enabled: true });
+    assert.equal((await app.me(request("/api/v1/me", { cookie: a.cookie }))).status, 200);
+  } finally { await sql`ALTER TABLE account_security_event DROP CONSTRAINT reject_pin_reset`.execute(db); }
+  await recovery.recover({ username: a.username, recoveryCode: codes[0], newPassword: next, passwordConfirmation: next });
+  assert.deepEqual(await pins.status(a.internalId), { enabled: false });
+  assert.equal((await app.me(request("/api/v1/me", { cookie: a.cookie }))).status, 401);
+  assert.equal((await signin(a.username, next)).status, 200);
+});
+
+for (const operation of ["enable", "change", "disable"]) {
+  test(`in-flight login cannot survive PIN ${operation}`, { timeout: 20000 }, async () => {
+    const a = await login();
+    if (operation !== "enable") await configurePin(a);
+    const verified = Promise.withResolvers(); const resume = Promise.withResolvers();
+    const delayedAuth = betterAuth({ ...auth.options, emailAndPassword: { ...auth.options.emailAndPassword,
+      password: { verify: async (input) => { const valid = await verifyPassword(input); verified.resolve(); await resume.promise; return valid; } },
+    } });
+    const handler = createAuthHandler({ db, auth: delayedAuth, origin, secret });
+    const pending = handler(request("/api/auth/sign-in/username", { method: "POST", body: { username: a.username, password, ...(operation !== "enable" ? { pin: "0826" } : {}) } }));
+    try {
+      await Promise.race([verified.promise, pending.then(() => { throw new Error("Login finished before barrier"); })]);
+      await configurePin(a, operation === "disable" ? { enabled: false, currentPin: "0826" } : operation === "change" ? { currentPin: "0826", pin: "6723", pinConfirmation: "6723" } : {});
+    } finally { resume.resolve(); }
+    const result = await pending;
+    assert.equal(result.status, 400); assert.equal((await result.json()).error.code, "AUTH_FAILED");
+    assert.deepEqual(result.headers.getSetCookie(), []);
+    assert.equal((await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute()).length, 1);
+  });
+}
+
+test("concurrent wrong PIN requests enforce one shared five-attempt lock on PostgreSQL", { skip: !process.env.TEST_DATABASE_URL && "Requires PostgreSQL connections" }, async () => {
+  const a = await login(); await configurePin(a);
+  const results = await Promise.all(Array.from({ length: 6 }, () => pinSignin(a, "1111")));
+  assert.equal(results.filter(r => r.status === 400).length, 4);
+  assert.equal(results.filter(r => r.status === 429).length, 2);
+  const row = await db.selectFrom("account_pin").selectAll().where("user_id", "=", a.internalId).executeTakeFirstOrThrow();
+  assert.equal(row.failed_attempts, 5); assert.ok(row.locked_until > new Date());
+  assert.equal((await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute()).length, 1);
 });

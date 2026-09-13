@@ -3,6 +3,7 @@ import type { Generated } from "kysely";
 export type Role = "owner" | "admin" | "operator";
 export type LeadStatus = "new" | "processing" | "closed";
 export interface Database {
+  account_pin: { user_id: string; pin_hash: string; failed_attempts: Generated<number>; locked_until: Date | null; updated_at: Generated<Date> };
   worker_heartbeat: { name: string; seen_at: Date };
   lead_setup: { business_id: string; draft: string; revision: number; updated_at: Date };
   telegram_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
@@ -14,7 +15,7 @@ export interface Database {
   account: { id: string; userId: string; providerId: string; password: string | null; updatedAt: Date };
   session: { id: string; userId: string; token: string };
   recovery_code: { user_id: string; code_hash: string; created_at: Generated<Date>; used_at: Date | null };
-  account_security_event: { id: string; user_id: string; action: "recovery_codes_issued" | "password_recovered" | "password_changed"; created_at: Generated<Date> };
+  account_security_event: { id: string; user_id: string; action: "recovery_codes_issued" | "password_recovered" | "password_changed" | "pin_enabled" | "pin_changed" | "pin_disabled"; created_at: Generated<Date> };
   business: {
     id: string; public_id: string; name: string; timezone: string;
     created_at: Generated<Date>; archived_at: Date | null;

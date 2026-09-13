@@ -22,8 +22,8 @@ export function RecoverAccountForm() {
     finally { setCode(""); setPassword(""); setConfirmation(""); setBusy(false); }
   }
   return <div className="account-card"><h2>{done ? "Пароль изменён" : "Восстановить доступ"}</h2>
-    {done ? <p role="status">Существующие сессии завершены. Войдите с новым паролем. Использованный резервный код больше не действует. Если коды могли попасть к посторонним, выпустите новый набор в настройках.</p> : <>
-      <p>Нужны ваш логин и один сохранённый резервный код. Все существующие сессии будут завершены.</p>
+    {done ? <p role="status">Существующие сессии завершены, PIN отключён. Войдите с новым паролем и при необходимости задайте новый PIN в настройках. Использованный резервный код больше не действует. Если коды могли попасть к посторонним, выпустите новый набор в настройках.</p> : <>
+      <p>Нужны ваш логин и один сохранённый резервный код. Все существующие сессии будут завершены, PIN будет отключён.</p>
       <form onSubmit={(e) => { e.preventDefault(); if (!busy) void submit(); }}><fieldset disabled={busy}>
         <label htmlFor="recover-username">Логин</label><input id="recover-username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30} value={username} onChange={(e) => setUsername(e.target.value)} />
         <label htmlFor="recover-code">Резервный код</label><input id="recover-code" autoComplete="off" autoCapitalize="none" spellCheck={false} required maxLength={100} value={code} onChange={(e) => setCode(e.target.value)} />

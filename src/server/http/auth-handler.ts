@@ -50,7 +50,10 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
     if (signingIn) {
       const payload = await result.json();
       if (typeof payload.token !== "string" || !payload.token) throw new Error("Missing internal session token");
-      if (!await acceptLogin(options.db, credential, payload.token)) {
+      const accepted = await acceptLogin(options.db, credential, payload.token, options.secret, body.pin);
+      if (accepted === "locked") throw new AppError(429, "PIN_LOCKED", "Слишком много неверных PIN. Повторите вход через 15 минут или восстановите доступ резервным кодом.");
+      if (accepted === "pin") throw new AppError(400, "PIN_REQUIRED", body.pin ? "PIN не подходит. Проверьте четыре цифры." : "Введите PIN вашего аккаунта.");
+      if (accepted !== "accepted") {
         throw new AppError(400, "AUTH_FAILED", "Неверный логин или пароль.");
       }
     }

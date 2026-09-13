@@ -216,6 +216,41 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       assert.equal((await request("/api/v1/me", { cookie })).status, 401);
       assert.equal((await request("/api/auth/sign-in/username", { method: "POST", body: { username: owner.username, password: next } })).status, 200);
     });
+    await t.test("PIN routes gate login cookies, persist after restart, and reset through recovery", async () => {
+      const user = await account();
+      const body = { enabled: true, currentPassword: password, pin: "0826", pinConfirmation: "0826" };
+      assert.equal((await request("/api/v1/account/pin")).status, 401);
+      assert.equal((await request("/api/v1/account/pin", { method: "POST", cookie: user.cookie, headers: { origin: "https://evil.example" }, body })).status, 403);
+      const saved = await request("/api/v1/account/pin", { method: "POST", cookie: user.cookie, body });
+      assert.equal(saved.status, 200, saved.text); assert.deepEqual(saved.json, { enabled: true });
+      assert.equal(saved.headers["cache-control"], "no-store");
+      await stopApp(); await startApp();
+      assert.deepEqual((await request("/api/v1/account/pin", { cookie: user.cookie })).json, { enabled: true });
+      const loginBody = { username: user.username, password };
+      for (const extra of [{}, { pin: "1111" }]) {
+        const denied = await request("/api/auth/sign-in/username", { method: "POST", body: { ...loginBody, ...extra } });
+        assert.equal(denied.status, 400); assert.equal(denied.json.error.code, "PIN_REQUIRED");
+        assert.equal(denied.headers["set-cookie"], undefined);
+      }
+      const signedIn = await request("/api/auth/sign-in/username", { method: "POST", body: { ...loginBody, pin: "0826" } });
+      assert.equal(signedIn.status, 200); assert.deepEqual(signedIn.json, { ok: true });
+      assert.ok(signedIn.headers["set-cookie"].some(value => /Secure/i.test(value) && /HttpOnly/i.test(value)));
+      const pinCookie = signedIn.headers["set-cookie"].map(value => value.split(";")[0]).join("; ");
+      assert.equal((await request("/api/v1/me", { cookie: pinCookie })).status, 200);
+      const changed = await request("/api/v1/account/pin", { method: "POST", cookie: user.cookie,
+        body: { ...body, currentPin: "0826", pin: "6723", pinConfirmation: "6723" } });
+      assert.equal(changed.status, 200); assert.equal((await request("/api/v1/me", { cookie: pinCookie })).status, 401);
+      const issued = await request("/api/v1/account/recovery-codes", { method: "POST", cookie: user.cookie, body: { currentPassword: password } });
+      assert.equal(issued.status, 200);
+      const next = randomBytes(24).toString("base64url");
+      const reset = await request("/api/v1/account/recover", { method: "POST", body: { username: user.username, recoveryCode: issued.json.codes[0], newPassword: next, passwordConfirmation: next } });
+      assert.equal(reset.status, 200);
+      assert.equal((await request("/api/v1/me", { cookie: user.cookie })).status, 401);
+      const recovered = await request("/api/auth/sign-in/username", { method: "POST", body: { username: user.username, password: next } });
+      assert.equal(recovered.status, 200);
+      const restoredCookie = recovered.headers["set-cookie"].map(value => value.split(";")[0]).join("; ");
+      assert.deepEqual((await request("/api/v1/account/pin", { cookie: restoredCookie })).json, { enabled: false });
+    });
   } finally {
     await stopApp();
     if (proxy) { proxy.closeAllConnections(); await new Promise((resolve) => proxy.close(resolve)); }

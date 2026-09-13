@@ -49,6 +49,7 @@ export class RecoveryService {
       const updated = await tx.updateTable("account").set({ password: await hashPassword(newPassword), updatedAt: new Date() }).where("userId", "=", user.id).where("providerId", "=", "credential").executeTakeFirst();
       if (Number(updated.numUpdatedRows) !== 1) throw invalid();
       await tx.deleteFrom("session").where("userId", "=", user.id).execute();
+      await tx.deleteFrom("account_pin").where("user_id", "=", user.id).execute();
       await tx.insertInto("account_security_event").values({ id: randomUUID(), user_id: user.id, action: "password_recovered" }).execute();
       return { ok: true };
     });
