@@ -136,7 +136,10 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       assert.equal((await request(base + "/members", { method: "POST", cookie: invitee.cookie, body: { action: "revoke", userId: owner.user.id } })).status, 403);
       assert.equal((await request(base + "/members", { method: "POST", cookie: owner.cookie, headers: { origin: "https://evil.example" }, body: { action: "revoke", userId: invitee.user.id } })).status, 403);
       assert.equal((await request(base + "/members", { method: "POST", cookie: owner.cookie, body: { action: "change_role", userId: invitee.user.id, role: "operator" } })).status, 200);
-      assert.equal((await request(base + "/connections", { cookie: invitee.cookie })).status, 403);
+      const visibleConnections = await request(base + "/connections", { cookie: invitee.cookie });
+      assert.equal(visibleConnections.status, 200); assert.deepEqual(visibleConnections.json, []);
+      assert.equal((await request(base + "/connections", { method: "POST", cookie: invitee.cookie, body: { platform: "telegram", token: "test-only-invalid-token" } })).status, 403);
+      assert.equal((await request(base + "/connections?platform=telegram", { method: "DELETE", cookie: invitee.cookie })).status, 403);
       // Missing connection: 404 application error, not an unimplemented DELETE (405).
       const disconnected = await request(base + "/connections?platform=telegram", { method: "DELETE", cookie: owner.cookie });
       assert.equal(disconnected.status, 404); assert.equal(disconnected.json.error.code, "CONNECTION_NOT_FOUND");
