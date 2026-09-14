@@ -12,8 +12,11 @@ export function AccountFrame({ children }: { children: React.ReactNode }) {
       </div>
       <Image className="account-story__art" src="/assets/sreda/v2/desk-platform-decor.webp"
         alt="" width={1000} height={700} priority sizes="(max-width: 900px) 100vw, 55vw" />
-      <p className="account-story__promise">Не нужно разбираться.<br /><strong>Подключил — и работает.</strong></p>
     </section>
-    <section className="account-form-pane">{children}</section>
+    <section className="account-form-pane">
+      <div className="account-form-shell">
+        {children}
+      </div>
+    </section>
   </main>;
 }

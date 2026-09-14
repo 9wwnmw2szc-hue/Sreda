@@ -1,0 +1,133 @@
+import { randomUUID } from "node:crypto";
+import type { Kysely, Transaction } from "kysely";
+import type { Database } from "../db/schema.ts";
+import { AppError } from "../http/errors.ts";
+
+type Platform = "telegram" | "vk";
+type ConversationStatus = "open" | "assigned" | "closed" | "blocked";
+
+function text(value: unknown, max = 10000) {
+  if (typeof value !== "string") throw new AppError(400, "INVALID_MESSAGE", "Введите текст сообщения.");
+  const result = value.trim();
+  if (!result || result.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(result)) {
+    throw new AppError(400, "INVALID_MESSAGE", "Проверьте текст сообщения.");
+  }
+  return result;
+}
+
+export class CommunicationService {
+  constructor(private readonly db: Kysely<Database>) {}
+
+  private async resolve(userId: string, publicId: string, write = false) {
+    const row = await this.db.selectFrom("business_member")
+      .innerJoin("business", "business.id", "business_member.business_id")
+      .select(["business.id", "business_member.role"])
+      .where("business.public_id", "=", publicId)
+      .where("business.archived_at", "is", null)
+      .where("business_member.user_id", "=", userId)
+      .where("business_member.status", "=", "active")
+      .executeTakeFirst();
+    if (!row) throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
+    if (write && row.role !== "owner" && row.role !== "admin" && row.role !== "operator") {
+      throw new AppError(403, "FORBIDDEN", "Недостаточно прав для работы с сообщениями.");
+    }
+    return row;
+  }
+
+  async listConversations(userId: string, publicId: string, status?: ConversationStatus) {
+    const businessId = (await this.resolve(userId, publicId)).id;
+    if (status && !["open", "assigned", "closed", "blocked"].includes(status)) {
+      throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
+    }
+    let query = this.db.selectFrom("communication_conversation")
+      .select(["id", "platform", "external_user_id as externalUserId", "external_username as externalUsername", "status", "assigned_member_user_id as assignedMemberUserId", "last_message_at as lastMessageAt", "created_at as createdAt"])
+      .where("business_id", "=", businessId)
+      .orderBy("last_message_at", "desc")
+      .limit(100);
+    if (status) query = query.where("status", "=", status) as typeof query;
+    return (await query.execute()).map((row) => ({ ...row, lastMessageAt: row.lastMessageAt.toISOString(), createdAt: row.createdAt.toISOString() }));
+  }
+
+  async listMessages(userId: string, publicId: string, conversationId: string) {
+    const businessId = (await this.resolve(userId, publicId)).id;
+    const conversation = await this.db.selectFrom("communication_conversation")
+      .select("id")
+      .where("id", "=", conversationId)
+      .where("business_id", "=", businessId)
+      .executeTakeFirst();
+    if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
+    const rows = await this.db.selectFrom("communication_message")
+      .select(["id", "direction", "text", "external_message_id as externalMessageId", "actor_user_id as actorUserId", "moderation_status as moderationStatus", "created_at as createdAt"])
+      .where("conversation_id", "=", conversationId)
+      .where("business_id", "=", businessId)
+      .orderBy("created_at", "asc")
+      .limit(500)
+      .execute();
+    return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+  }
+
+  async sendMessage(userId: string, publicId: string, conversationId: string, raw: unknown) {
+    await this.resolve(userId, publicId, true);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AppError(400, "INVALID_MESSAGE", "Проверьте сообщение.");
+    const body = raw as Record<string, unknown>;
+    const message = text(body.text);
+    const businessId = (await this.resolve(userId, publicId)).id;
+    const conversation = await this.db.selectFrom("communication_conversation").select(["id", "platform", "external_user_id"]).where("id", "=", conversationId).where("business_id", "=", businessId).executeTakeFirst();
+    if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
+    const row = await this.db.transaction().execute(async (tx) => {
+      const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversationId, business_id: businessId, direction: "outbound", text: message, external_message_id: null, actor_user_id: userId, moderation_status: "allowed", created_at: new Date() }).returningAll().executeTakeFirstOrThrow();
+      const connection = await tx.selectFrom("business_connection as c")
+        .select(["c.id", "c.status"])
+        .where("c.business_id", "=", businessId)
+        .where("c.platform", "=", conversation.platform)
+        .executeTakeFirst();
+      const runtime = connection ? (conversation.platform === "telegram"
+        ? await tx.selectFrom("telegram_runtime").select("status").where("connection_id", "=", connection.id).executeTakeFirst()
+        : await tx.selectFrom("vk_runtime").select("status").where("connection_id", "=", connection.id).executeTakeFirst()) : undefined;
+      if (!connection || connection.status !== "connected" || runtime?.status !== "ready") {
+        throw new AppError(409, "CHANNEL_PAUSED", "Канал временно недоступен. Повторите отправку позже.");
+      }
+      if (conversation.platform === "telegram") {
+        await tx.insertInto("telegram_outbox").values({ connection_id: connection.id, chat_id: conversation.external_user_id, message, delivered_at: null, last_error: null, created_at: new Date() }).execute();
+      } else {
+        await tx.insertInto("vk_outbox").values({ connection_id: connection.id, peer_id: conversation.external_user_id, message, delivered_at: null, last_error: null, created_at: new Date() }).execute();
+      }
+      await tx.updateTable("communication_conversation").set({ status: "assigned", last_message_at: new Date() }).where("id", "=", conversationId).where("business_id", "=", businessId).execute();
+      return inserted;
+    });
+    return { id: row.id, conversationId, platform: conversation.platform, direction: row.direction, text: row.text, createdAt: row.created_at.toISOString(), deliveryStatus: "queued" as const };
+  }
+
+  async updateStatus(userId: string, publicId: string, conversationId: string, raw: unknown) {
+    await this.resolve(userId, publicId, true);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AppError(400, "INVALID_STATUS", "Проверьте статус.");
+    const status = (raw as Record<string, unknown>).status;
+    if (!["open", "assigned", "closed", "blocked"].includes(String(status))) throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
+    const businessId = (await this.resolve(userId, publicId)).id;
+    const row = await this.db.updateTable("communication_conversation").set({ status: status as ConversationStatus, closed_at: status === "closed" ? new Date() : null }).where("id", "=", conversationId).where("business_id", "=", businessId).returning(["id", "status", "closed_at"]).executeTakeFirst();
+    if (!row) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
+    return { id: row.id, status: row.status, closedAt: row.closed_at?.toISOString() };
+  }
+
+  async recordInbound(input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null }) {
+    return this.db.transaction().execute((tx) => this.recordInboundInTransaction(tx, input));
+  }
+
+  async recordInboundInTransaction(tx: Transaction<Database>, input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null }) {
+    const message = text(input.text);
+    const periodStart = new Date().toISOString().slice(0, 10);
+    return (async () => {
+      const blocked = await tx.selectFrom("communication_block").select("id").where("business_id", "=", input.businessId).where("platform", "=", input.platform).where("external_user_id", "=", input.externalUserId).where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", new Date())])).executeTakeFirst();
+      if (blocked) return { accepted: false as const, reason: "blocked" as const };
+      await tx.insertInto("communication_quota").values({ business_id: input.businessId, period_start: periodStart, inbound_limit: 300, inbound_count: 0, warned_at_percent: 0, updated_at: new Date() }).onConflict((oc) => oc.columns(["business_id", "period_start"]).doNothing()).execute();
+      const quota = await tx.selectFrom("communication_quota").selectAll().where("business_id", "=", input.businessId).where("period_start", "=", periodStart).forUpdate().executeTakeFirstOrThrow();
+      if (quota.inbound_count >= quota.inbound_limit) return { accepted: false as const, reason: "quota" as const, limit: quota.inbound_limit };
+      await tx.insertInto("communication_conversation").values({ id: randomUUID(), business_id: input.businessId, platform: input.platform, external_user_id: input.externalUserId, external_username: input.externalUsername ?? null, status: "open", assigned_member_user_id: null, last_message_at: new Date(), created_at: new Date(), closed_at: null }).onConflict((oc) => oc.columns(["business_id", "platform", "external_user_id"]).doUpdateSet({ external_username: input.externalUsername ?? null, status: "open", last_message_at: new Date(), closed_at: null })).execute();
+      const conversation = await tx.selectFrom("communication_conversation").select("id").where("business_id", "=", input.businessId).where("platform", "=", input.platform).where("external_user_id", "=", input.externalUserId).executeTakeFirstOrThrow();
+      const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversation.id, business_id: input.businessId, direction: "inbound", text: message, external_message_id: input.externalMessageId ?? null, actor_user_id: null, moderation_status: "allowed", created_at: new Date() }).onConflict((oc) => oc.columns(["business_id", "external_message_id"]).doNothing()).returning("id").executeTakeFirst();
+      if (!inserted) return { accepted: true as const, duplicate: true as const, conversationId: conversation.id };
+      await tx.updateTable("communication_quota").set({ inbound_count: quota.inbound_count + 1, warned_at_percent: quota.inbound_count + 1 >= quota.inbound_limit ? 100 : quota.inbound_count + 1 >= Math.ceil(quota.inbound_limit * 0.8) ? 80 : quota.warned_at_percent, updated_at: new Date() }).where("business_id", "=", input.businessId).where("period_start", "=", periodStart).execute();
+      return { accepted: true as const, duplicate: false as const, conversationId: conversation.id, messageId: inserted.id };
+    })();
+  }
+}

@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    env_file: /opt/sreda/db.env
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sreda -d sreda"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  app:
+    image: ${SREDA_IMAGE:?Set immutable image tag}
+    restart: unless-stopped
+    env_file: /opt/sreda/app.env
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 3
+      start_period: 60s
+  worker:
+    image: ${SREDA_IMAGE:?Set immutable image tag}
+    restart: unless-stopped
+    env_file: /opt/sreda/app.env
+    command: ["node", "--import", "tsx", "scripts/telegram-worker.mts"]
+    profiles: ["telegram"]
+    depends_on:
+      db:
+        condition: service_healthy
+  migrate:
+    image: ${SREDA_IMAGE:?Set immutable image tag}
+    env_file: /opt/sreda/app.env
+    command: ["node", "--import", "tsx", "scripts/db-migrate.mts"]
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: /opt/sreda/caddy.env
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
+volumes:
+  postgres:
+  caddy_data:
+  caddy_config:

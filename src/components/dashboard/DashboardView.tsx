@@ -21,6 +21,7 @@ import {
   type WorkspaceSolutionItem,
 } from "@/hooks/useDashboardData";
 import { formatRelativeDateTime } from "@/lib/format";
+import { isDemoMode } from "@/lib/dataMode";
 import type { Lead, Post } from "@/types";
 type Selection =
   | { type: "catalog" }
@@ -62,8 +63,10 @@ export function DashboardView() {
     : [];
   const resultCount =
     matchingSolutions.length + matchingLeads.length + matchingPosts.length;
-  const visibleSelection =
-    selectionBusiness === data.businessId ? selection : null;
+  const selectedLead = selection?.type === "lead" ? data.leads.find((lead) => lead.id === selection.item.id) : undefined;
+  const visibleSelection: Selection | null =
+    selectionBusiness !== data.businessId || data.error || data.isLoading ? null
+      : selection?.type === "lead" ? selectedLead ? { type: "lead", item: selectedLead } : null : selection;
   const dialogTitle =
     visibleSelection?.type === "catalog"
       ? "Что поручим Среде?"
@@ -227,6 +230,7 @@ export function DashboardView() {
                 <>
                   <RecentLeads
                     leads={data.leads}
+                    onRefresh={data.retry}
                     onSelect={(item) => show({ type: "lead", item })}
                   />
                   <ScheduledPosts
@@ -301,9 +305,9 @@ export function DashboardView() {
                 <span>Стоимость</span>
                 <strong>{visibleSelection.item.solution.price} ₽/мес.</strong>
               </div>
+              {visibleSelection.item.note && <p className="account-notice">{visibleSelection.item.note}</p>}
               <p className="demo-note">
-                Это демонстрация решения. Реальное подключение появится после
-                запуска сервиса.
+                {isDemoMode ? "Это демонстрация решения." : visibleSelection.item.code === "leads" ? "Сохраните настройку и запустите Telegram в мастере. Статус учитывает подключение и работу обработчика." : "Это решение появится позже."}
               </p>
               <Link
                 className="button button--primary button--full"
@@ -330,10 +334,12 @@ export function DashboardView() {
                 <span>Площадка</span>
                 <PlatformBadge platform={visibleSelection.item.source} />
               </div>
-              <p className="message-preview">{visibleSelection.item.message}</p>
+              {visibleSelection.item.phone && <div className="detail-facts"><span>Телефон</span><strong>{visibleSelection.item.phone}</strong></div>}
+              <div className="detail-facts"><span>Статус</span><strong>{visibleSelection.item.status === "new" ? "Новая" : visibleSelection.item.status === "processing" ? "В работе" : "Закрыта"}</strong></div>
+              <p className="message-preview">{visibleSelection.item.message || "Клиент не оставил сообщение."}</p>
               <p className="demo-note">
-                {formatRelativeDateTime(visibleSelection.item.createdAt)} ·
-                Демонстрационная заявка
+                {formatRelativeDateTime(visibleSelection.item.createdAt)}
+                {isDemoMode && " · Демонстрационная заявка"}
               </p>
               <Link
                 href="/leads"

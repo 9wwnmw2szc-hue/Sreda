@@ -6,9 +6,11 @@ import type { Lead } from "@/types";
 export function RecentLeads({
   leads,
   onSelect,
+  onRefresh,
 }: {
   leads: Lead[];
   onSelect?: (lead: Lead) => void;
+  onRefresh?: () => void;
 }) {
   const newCount = leads.filter((lead) => lead.status === "new").length;
   return (
@@ -31,6 +33,7 @@ export function RecentLeads({
           <ChevronRight size={16} />
         </Link>
       </div>
+      {onRefresh && <button type="button" className="text-link" onClick={onRefresh}>Обновить заявки</button>}
       {leads.length ? (
         <ul className="lead-list">
           {leads.slice(0, 3).map((lead, index) => (

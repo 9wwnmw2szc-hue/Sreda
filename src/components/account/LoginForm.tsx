@@ -2,27 +2,41 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, LockKeyhole } from "lucide-react";
-import { apiRequest } from "@/lib/apiClient";
+import { apiRequest, ClientError } from "@/lib/apiClient";
+import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 
 export function LoginForm({ register = false }: { register?: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [pin, setPin] = useState("");
+  const [needsPin, setNeedsPin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [created, setCreated] = useState(false);
+  const [codes, setCodes] = useState<string[] | undefined>();
   async function submit() {
     setError("");
     if (register && password !== confirmation) { setError("Пароли не совпадают."); return; }
     setBusy(true);
     try {
       await apiRequest(`/api/auth/${register ? "sign-up" : "sign-in"}/username`, {
-        method: "POST", body: JSON.stringify({ username, password, ...(register ? { passwordConfirmation: confirmation } : {}) }),
+        method: "POST", body: JSON.stringify({ username, password, ...(register ? { passwordConfirmation: confirmation } : needsPin ? { pin } : {}) }),
       });
-      window.location.replace("/dashboard");
+      if (register) {
+        try {
+          const result = await apiRequest<{ codes: string[] }>("/api/v1/account/recovery-codes", { method: "POST", body: JSON.stringify({ currentPassword: password }) });
+          setCodes(result.codes);
+        } catch { /* Account exists: show a password-confirmed retry, never repeat signup. */ }
+        setPassword(""); setConfirmation(""); setCreated(true); setBusy(false);
+      } else window.location.replace("/dashboard");
     } catch (error) {
+      if (error instanceof ClientError && ["PIN_REQUIRED", "PIN_LOCKED"].includes(error.code)) setNeedsPin(true);
+      setPin("");
       setError(error instanceof Error ? error.message : "Не удалось войти."); setBusy(false);
     }
   }
+  if (created) return <RecoveryCodesPanel initialCodes={codes} registration />;
   return <div className="account-card">
     <span className="account-symbol"><LockKeyhole size={26} /></span>
     <h2>{register ? "Создать аккаунт" : "Войти в Среду"}</h2>
@@ -31,7 +45,7 @@ export function LoginForm({ register = false }: { register?: boolean }) {
       <fieldset disabled={busy}>
         <label htmlFor="account-login">Логин</label>
         <input id="account-login" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30}
-          pattern="[a-zA-Z0-9_.]{3,30}" value={username} onChange={(event) => setUsername(event.target.value)} aria-describedby="login-hint" />
+          pattern="[a-zA-Z0-9_.]{3,30}" value={username} onChange={(event) => { setUsername(event.target.value); setNeedsPin(false); setPin(""); }} aria-describedby="login-hint" />
         <p id="login-hint" className="account-footnote">3–30 символов: латинские буквы, цифры, точка или подчёркивание.</p>
         <label htmlFor="account-password">Пароль</label>
         <input id="account-password" type="password" autoComplete={register ? "new-password" : "current-password"} required minLength={10} maxLength={128}
@@ -40,10 +54,15 @@ export function LoginForm({ register = false }: { register?: boolean }) {
           <label htmlFor="account-confirmation">Повторите пароль</label>
           <input id="account-confirmation" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
             value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></>}
+        {!register && needsPin && <><label htmlFor="account-pin">PIN аккаунта</label>
+          <input id="account-pin" type="password" inputMode="numeric" autoComplete="off" autoFocus required pattern="[0-9]{4}" minLength={4} maxLength={4}
+            value={pin} onChange={(event) => setPin(event.target.value.replace(/[^0-9]/g, ""))} aria-describedby="pin-hint" />
+          <p id="pin-hint" className="account-footnote">Четыре цифры, которые вы задали в настройках.</p></>}
         {error && <p className="account-error" role="alert">{error}</p>}
         <button className="button button--primary button--full" type="submit">{busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}<ArrowRight size={18} /></button>
       </fieldset>
     </form>
+    {!register && <p><Link className="text-link" href="/recover">Забыли пароль или PIN?</Link></p>}
     <p className="account-footnote">{register ? "Уже есть аккаунт?" : "Первый раз в Среде?"} <Link className="text-link" href={register ? "/login" : "/register"}>{register ? "Войти" : "Зарегистрироваться"}</Link></p>
   </div>;
 }
