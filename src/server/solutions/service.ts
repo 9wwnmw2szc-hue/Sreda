@@ -2,6 +2,8 @@ import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { newLeadSetupDraft, LEAD_FIELDS, type LeadSetupDraft } from "../../lib/leadSetupDraft.ts";
+import { SOLUTIONS } from "./catalog.ts";
+import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
   if (!d || d.version !== 1 || !Number.isInteger(d.step) || d.step < 0 || d.step > 3 || !Array.isArray(d.channels) || !Array.isArray(d.fields)
@@ -43,12 +45,27 @@ export class SolutionService {
  async list(userId:string,publicId:string) {
   const id=await this.business(userId,publicId);
   const setup=await this.get(userId,publicId);
+  const enabledSolutions=await this.db.selectFrom("business_solution").select(["solution_code","status","expires_at"]).where("business_id","=",id).execute();
+  const now=Date.now();
+  const solutionState=new Map(enabledSolutions.map((item)=>[item.solution_code,{active:(item.status==="active"||item.status==="trial")&&(!item.expires_at||item.expires_at.getTime()>now),status:item.status}]));
   const runtime=await this.db.selectFrom("business_connection as c").innerJoin("telegram_runtime as r","r.connection_id","c.id").select("r.status").where("c.business_id","=",id).where("c.status","=","connected").where("c.platform","=","telegram").executeTakeFirst();
   const heartbeat=await this.db.selectFrom("worker_heartbeat").select("seen_at").where("name","=","telegram").executeTakeFirst();
   const healthy=heartbeat && heartbeat.seen_at.getTime()>Date.now()-60000;
   const active=!!healthy && this.telegramEnabled && setup.draft.step===3 && setup.draft.channels.length===1 && setup.draft.channels[0]==="telegram" && runtime?.status==="ready";
   const paused=setup.revision && (runtime?.status==="error" || runtime?.status==="ready"&&!healthy);
   const note=active?"Telegram подключён, обработчик отвечает.":!setup.revision||setup.draft.step!==3?"Завершите выбор площадок и вопросов.":setup.draft.channels.includes("vk")?"Запуск VK ещё недоступен. Для первого запуска выберите только Telegram.":!this.telegramEnabled?"Запуск сообщений станет доступен после подготовки сервера.":runtime?.status==="error"?"Отправка в Telegram приостановлена после ошибок. Проверьте токен и запустите сценарий повторно.":runtime?.status==="ready"&&!healthy?"Обработчик сообщений не отвечает. Требуется проверка сервера.":"Подключите Telegram-бота и запустите сценарий в настройке решения.";
-  return [{id:publicId+":leads",businessId:publicId,solutionId:"sol_leads",status:active?"active":paused?"paused":setup.revision?"setup_required":"available",note},...(["sales","autopost","booking"] as const).map(code=>({id:publicId+":"+code,businessId:publicId,solutionId:code==="autopost"?"sol_autopost":"sol_"+code,status:"unavailable"}))];
+  return SOLUTIONS.map((solution) => ({
+    id: publicId + ":" + solution.code,
+    businessId: publicId,
+    solutionId: solution.id,
+    status: (solution.code === "leads"
+      ? active ? "active" : paused ? "paused" : setup.revision ? "setup_required" : "available"
+      : solutionState.get(solution.code)?.active ? "active" : "unavailable") as SolutionStatus,
+    note: solution.code === "leads"
+      ? note
+      : solutionState.get(solution.code)?.active
+        ? "Решение подключено и доступно в универсальном боте."
+        : "Подключите решение, чтобы добавить его функции в универсальный бот.",
+  }));
  }
 }

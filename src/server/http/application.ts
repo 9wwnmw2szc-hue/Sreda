@@ -4,7 +4,7 @@ import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 
-export function createApplication(options: { auth: Identity; workspaces: WorkspaceService; leads?: import("../leads/service.ts").LeadService; invitations?: import("../invitations/service.ts").InvitationService; connections?: import("../connections/service.ts").ConnectionService; db?: Kysely<Database>; origin: string }) {
+export function createApplication(options: { auth: Identity; workspaces: WorkspaceService; leads?: import("../leads/service.ts").LeadService; invitations?: import("../invitations/service.ts").InvitationService; connections?: import("../connections/service.ts").ConnectionService; communications?: import("../communications/service.ts").CommunicationService; db?: Kysely<Database>; origin: string }) {
   async function requireUser(headers: Headers) {
     const session = await options.auth.api.getSession({ headers });
     if (!session || !session.user.username) throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
@@ -44,6 +44,16 @@ export function createApplication(options: { auth: Identity; workspaces: Workspa
       if (!options.leads || request.method !== "PATCH") throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
       requireOrigin(request, options.origin); const user = await requireUser(request.headers);
       return json(await options.leads.updateStatus(user.id, businessId, leadId, (await readJson(request)).status));
+    }),
+    conversations: (request: Request, businessId: string, conversationId?: string) => respond(async () => {
+      if (!options.communications) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
+      const user = await requireUser(request.headers);
+      if (request.method === "GET" && conversationId) return json(await options.communications.listMessages(user.id, businessId, conversationId));
+      if (request.method === "GET") return json(await options.communications.listConversations(user.id, businessId, new URL(request.url).searchParams.get("status") as never || undefined));
+      if (!conversationId || (request.method !== "POST" && request.method !== "PATCH")) throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
+      requireOrigin(request, options.origin);
+      if (request.method === "POST") return json(await options.communications.sendMessage(user.id, businessId, conversationId, await readJson(request)), 202);
+      return json(await options.communications.updateStatus(user.id, businessId, conversationId, await readJson(request)));
     }),
     invitations: (request: Request, businessId?: string, invitationId?: string) => respond(async () => {
       if (!options.invitations) throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");

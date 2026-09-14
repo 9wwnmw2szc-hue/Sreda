@@ -5,10 +5,11 @@ import { AppError } from "../http/errors.ts";
 import { decryptSecret } from "../connections/crypto.ts";
 import { SolutionService, validateSetup } from "../solutions/service.ts";
 import { telegramCall, TelegramError } from "./api.ts";
-const questions:Record<string,string>={name:"Как к вам обращаться?",phone:"Оставьте номер телефона для связи или /skip.",service:"Что вас интересует? Можно пропустить: /skip.",comment:"Хотите что-нибудь добавить? Можно пропустить: /skip."};
+import { CommunicationService } from "../communications/service.ts";
+const questions:Record<string,string>={name:"Как к вам обращаться?",phone:"Оставьте номер телефона для связи или напишите /skip.",service:"Что вас интересует? Можно пропустить: /skip.",comment:"Хотите что-нибудь добавить? Можно пропустить: /skip."};
 export function webhookSecret(secret:string,id:string,generation:string){return createHmac("sha256",secret).update("telegram-webhook:"+id+":"+generation).digest("hex");}
 export class TelegramService {
- constructor(private readonly db:Kysely<Database>,private readonly secret:string,private readonly origin:string,private readonly enabled:boolean,private readonly transport:typeof fetch=fetch){}
+ constructor(private readonly db:Kysely<Database>,private readonly secret:string,private readonly origin:string,private readonly enabled:boolean,private readonly transport:typeof fetch=fetch,private readonly communications?:CommunicationService){}
  async start(userId:string,publicId:string){
   if(!this.enabled)throw new AppError(503,"TELEGRAM_DISABLED","Запуск Telegram станет доступен после подготовки сервера.");
   let affected: string | undefined;
@@ -51,20 +52,27 @@ export class TelegramService {
    const updateId=String(body.update_id);
    const unique=await tx.insertInto("telegram_update").values({connection_id:id,update_id:updateId}).onConflict(oc=>oc.columns(["connection_id","update_id"]).doNothing()).returning("update_id").executeTakeFirst();
    if(!unique)return {ok:true};
-   const m=body.message as {chat?:{id?:number;type?:string};from?:{id?:number;is_bot?:boolean};text?:string}|undefined;
+   const m=body.message as {chat?:{id?:number;type?:string};from?:{id?:number;is_bot?:boolean;username?:string};text?:string}|undefined;
    if(m?.chat?.type!=="private"||!Number.isSafeInteger(m.chat.id)||m.from?.id!==m.chat.id||m.from?.is_bot||typeof m.text!=="string")return {ok:true};
    const chatId=String(m.chat.id);const text=m.text.trim();
    const queue=async(message:string)=>{await tx.insertInto("telegram_outbox").values({connection_id:id,chat_id:chatId,message,delivered_at:null,last_error:null}).execute();};
+   if(this.communications){
+    const communication=await this.communications.recordInboundInTransaction(tx,{businessId:business.id,platform:"telegram",externalUserId:chatId,externalUsername:m.from?.username?`@${m.from.username}`:null,text,externalMessageId:`${id}:${updateId}`});
+    if(!communication.accepted){
+     await queue(communication.reason==="quota"?"Лимит бесплатных сообщений на этот месяц исчерпан. Владелец бизнеса получил уведомление.":"Сообщения временно ограничены. Попробуйте позже.");
+     return {ok:true};
+    }
+   }
    const dialog=await tx.selectFrom("telegram_dialog").selectAll().where("connection_id","=",id).where("chat_id","=",chatId).executeTakeFirst();
    if(dialog&&BigInt(updateId)<=BigInt(dialog.last_update_id))return {ok:true};
    const remove=async()=>{await tx.deleteFrom("telegram_dialog").where("connection_id","=",id).where("chat_id","=",chatId).execute();};
    const discardQueue=async()=>{await tx.deleteFrom("telegram_outbox").where("connection_id","=",id).where("chat_id","=",chatId).where("delivered_at","is",null).execute();};
-   if(text==="/cancel"){await discardQueue();await remove();await queue("Заявка отменена. Начать заново: /start.");return {ok:true};}
+   if(text==="/cancel"){await discardQueue();await remove();await queue("Заполнение заявки отменено. Если захотите начать снова, напишите /start.");return {ok:true};}
    if(text==="/start"||!dialog||dialog.updated_at.getTime()<Date.now()-86400000){
     const setup=await tx.selectFrom("lead_setup").select("draft").where("business_id","=",business.id).executeTakeFirstOrThrow();
     const fields=validateSetup(JSON.parse(setup.draft)).fields;
     await discardQueue();await remove();await tx.insertInto("telegram_dialog").values({connection_id:id,chat_id:chatId,fields:JSON.stringify(fields),answers:"{}",position:0,last_update_id:updateId}).execute();
-    await queue("Здравствуйте! Ответьте на несколько вопросов, чтобы оставить заявку. Отменить: /cancel.\n\n"+questions[fields[0]!]);return {ok:true};
+    await queue("Здравствуйте! Это бот «Среды».\n\nОставьте заявку — мы зададим несколько коротких вопросов. В любой момент можно написать /cancel.\n\n"+questions[fields[0]!]);return {ok:true};
    }
    const fields=JSON.parse(dialog.fields) as string[];const field=fields[dialog.position]!;
    const max=field==="name"?100:field==="phone"?40:900;
@@ -76,7 +84,7 @@ export class TelegramService {
    const next=dialog.position+1;
    if(next>=fields.length){
     await tx.insertInto("lead").values({id:randomUUID(),business_id:business.id,source:"telegram",name:answers.name!,phone:answers.phone||null,message:[answers.service,answers.comment].filter(Boolean).join("\n\n")||null,status:"new",external_event_id:c.external_account_id+":"+updateId}).onConflict(oc=>oc.columns(["business_id","source","external_event_id"]).doNothing()).execute();
-    await remove();await queue("Спасибо! Ваша заявка принята. Мы свяжемся с вами. Новая заявка: /start.");
+    await remove();await queue("Спасибо! Ваша заявка принята. Мы передадим её сотрудникам компании и свяжемся с вами. Чтобы отправить новую заявку, напишите /start.");
    }else{
     await tx.updateTable("telegram_dialog").set({answers:JSON.stringify(answers),position:next,last_update_id:updateId,updated_at:new Date()}).where("connection_id","=",id).where("chat_id","=",chatId).execute();await queue(questions[fields[next]!]!);
    }
