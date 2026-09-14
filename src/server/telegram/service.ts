@@ -67,7 +67,7 @@ export class TelegramService {
    if(dialog&&BigInt(updateId)<=BigInt(dialog.last_update_id))return {ok:true};
    const remove=async()=>{await tx.deleteFrom("telegram_dialog").where("connection_id","=",id).where("chat_id","=",chatId).execute();};
    const discardQueue=async()=>{await tx.deleteFrom("telegram_outbox").where("connection_id","=",id).where("chat_id","=",chatId).where("delivered_at","is",null).execute();};
-   if(text==="/cancel"){await discardQueue();await remove();await queue("Заполнение заявки отменено. Если захотите начать снова, напишите /start.");return {ok:true};}
+   if(text==="/cancel"){await discardQueue();await remove();await queue("Заявка отменена. Если захотите начать снова, напишите /start.");return {ok:true};}
    if(text==="/start"||!dialog||dialog.updated_at.getTime()<Date.now()-86400000){
     const setup=await tx.selectFrom("lead_setup").select("draft").where("business_id","=",business.id).executeTakeFirstOrThrow();
     const fields=validateSetup(JSON.parse(setup.draft)).fields;

@@ -77,12 +77,14 @@ export class CommunicationService {
     const row = await this.db.transaction().execute(async (tx) => {
       const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversationId, business_id: businessId, direction: "outbound", text: message, external_message_id: null, actor_user_id: userId, moderation_status: "allowed", created_at: new Date() }).returningAll().executeTakeFirstOrThrow();
       const connection = await tx.selectFrom("business_connection as c")
-        .leftJoin(conversation.platform === "telegram" ? "telegram_runtime as r" : "vk_runtime as r", "r.connection_id", "c.id")
-        .select(["c.id", "c.status", "r.status as runtimeStatus"])
+        .select(["c.id", "c.status"])
         .where("c.business_id", "=", businessId)
         .where("c.platform", "=", conversation.platform)
         .executeTakeFirst();
-      if (!connection || connection.status !== "connected" || connection.runtimeStatus !== "ready") {
+      const runtime = connection ? (conversation.platform === "telegram"
+        ? await tx.selectFrom("telegram_runtime").select("status").where("connection_id", "=", connection.id).executeTakeFirst()
+        : await tx.selectFrom("vk_runtime").select("status").where("connection_id", "=", connection.id).executeTakeFirst()) : undefined;
+      if (!connection || connection.status !== "connected" || runtime?.status !== "ready") {
         throw new AppError(409, "CHANNEL_PAUSED", "Канал временно недоступен. Повторите отправку позже.");
       }
       if (conversation.platform === "telegram") {
