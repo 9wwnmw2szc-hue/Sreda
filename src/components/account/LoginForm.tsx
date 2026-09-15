@@ -1,13 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowRight, LockKeyhole } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
+import styles from "./Login.module.css";
 import { apiRequest, ClientError } from "@/lib/apiClient";
 import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 
 export function LoginForm({ register = false }: { register?: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [pin, setPin] = useState("");
   const [needsPin, setNeedsPin] = useState(false);
@@ -37,19 +39,24 @@ export function LoginForm({ register = false }: { register?: boolean }) {
     }
   }
   if (created) return <RecoveryCodesPanel initialCodes={codes} registration />;
-  return <div className="account-card">
-    <span className="account-symbol"><LockKeyhole size={26} /></span>
+  return <div className={`account-card${register ? "" : ` ${styles.card}`}`}>
+    {register && <span className="account-symbol"><LockKeyhole size={26} /></span>}
     <h2>{register ? "Создать аккаунт" : "Войти в Среду"}</h2>
-    <p className="account-intro">{register ? "Придумайте логин и пароль — и можно начинать." : "Введите логин и пароль вашего аккаунта."}</p>
+    <p className={`account-intro${register ? "" : ` ${styles.intro}`}`}>{register ? "Придумайте логин и пароль — и можно начинать." : "Ваш бизнес — под рукой"}</p>
     <form onSubmit={(event) => { event.preventDefault(); if (!busy) void submit(); }}>
       <fieldset disabled={busy}>
         <label htmlFor="account-login">Логин</label>
-        <input id="account-login" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30}
+        <input id="account-login" placeholder="Введите логин" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30}
           pattern="[a-zA-Z0-9_.]{3,30}" value={username} onChange={(event) => { setUsername(event.target.value); setNeedsPin(false); setPin(""); }} aria-describedby="login-hint" />
-        <p id="login-hint" className="account-footnote">3–30 символов: латинские буквы, цифры, точка или подчёркивание.</p>
+        <p id="login-hint" className={register ? "account-footnote" : styles.hidden}>3–30 символов: латинские буквы, цифры, точка или подчёркивание.</p>
         <label htmlFor="account-password">Пароль</label>
-        <input id="account-password" type="password" autoComplete={register ? "new-password" : "current-password"} required minLength={10} maxLength={128}
+        <div className={register ? undefined : styles.password}>
+        <input id="account-password" placeholder="Введите пароль" type={!register && showPassword ? "text" : "password"} autoComplete={register ? "new-password" : "current-password"} required minLength={10} maxLength={128}
           value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby={register ? "password-hint" : undefined} />
+        {!register && <button type="button" className={styles.reveal} aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"} aria-controls="account-password" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>
+          {showPassword ? <EyeOff size={21} aria-hidden="true" /> : <Eye size={21} aria-hidden="true" />}
+        </button>}
+        </div>
         {register && <><p id="password-hint" className="account-footnote">От 10 символов.</p>
           <label htmlFor="account-confirmation">Повторите пароль</label>
           <input id="account-confirmation" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
@@ -59,10 +66,10 @@ export function LoginForm({ register = false }: { register?: boolean }) {
             value={pin} onChange={(event) => setPin(event.target.value.replace(/[^0-9]/g, ""))} aria-describedby="pin-hint" />
           <p id="pin-hint" className="account-footnote">Четыре цифры, которые вы задали в настройках.</p></>}
         {error && <p className="account-error" role="alert">{error}</p>}
-        <button className="button button--primary button--full" type="submit">{busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}<ArrowRight size={18} /></button>
+        {!register && <Link className={styles.recover} href="/recover">Забыли пароль или PIN?</Link>}
+        <button className={`button button--primary button--full${register ? "" : ` ${styles.submit}`}`} type="submit">{busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}<ArrowRight size={20} aria-hidden="true" /></button>
       </fieldset>
     </form>
-    {!register && <p><Link className="text-link" href="/recover">Забыли пароль или PIN?</Link></p>}
-    <p className="account-footnote">{register ? "Уже есть аккаунт?" : "Первый раз в Среде?"} <Link className="text-link" href={register ? "/login" : "/register"}>{register ? "Войти" : "Зарегистрироваться"}</Link></p>
+    <p className={register ? "account-footnote" : styles.footer}>{register ? "Уже есть аккаунт?" : "Нет аккаунта?"} <Link className="text-link" href={register ? "/login" : "/register"}>{register ? "Войти" : "Создать"}</Link></p>
   </div>;
 }
