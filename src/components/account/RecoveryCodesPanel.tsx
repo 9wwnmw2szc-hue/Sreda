@@ -36,7 +36,7 @@ export function RecoveryCodesPanel({ initialCodes, registration = false }: { ini
       <p>Эти коды показаны только сейчас. Позже можно будет выпустить новый набор, который отменит старый.</p>
       <ul className="recovery-codes" aria-label="Резервные коды">{codes.map((code) => <li key={code}><code>{code}</code></li>)}</ul>
       <button className="button button--outline" type="button" onClick={() => void copy()}>Скопировать коды</button>
-      <label className="recovery-confirm"><input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />Я сохранил резервные коды</label>
+      <label className="recovery-confirm"><input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} /><span>Я сохранил резервные коды</span></label>
       <button className="button button--primary" type="button" disabled={!saved} onClick={() => { setCodes(null); setNotice("Резервные коды подготовлены."); if (registration) window.location.replace("/dashboard"); }}> {registration ? "Продолжить" : "Готово"}</button>
     </> : <>
       {remaining !== null && <p>Неиспользованных кодов: {remaining}.</p>}

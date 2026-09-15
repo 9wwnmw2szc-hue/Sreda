@@ -2,8 +2,9 @@
 
 .recovery-codes { display: grid; gap: 8px; padding: 12px 0; list-style: none; }
 .recovery-codes code { display: block; overflow-wrap: anywhere; font-size: 13px; user-select: all; }
-.recovery-confirm { display: flex; align-items: center; gap: 10px; margin: 18px 0; }
-.recovery-confirm input[type="checkbox"] { width: 20px; height: 20px; flex-shrink: 0; }
+.recovery-confirm, .account-card .recovery-confirm { display:flex; align-items:center; gap:12px; min-height:44px; margin:18px 0; line-height:1.45; cursor:pointer; }
+.recovery-confirm input[type="checkbox"] { width:22px; height:22px; min-height:22px; padding:0; margin:0; flex:0 0 22px; border-radius:5px; accent-color:var(--accent); }
+.recovery-confirm span { min-width:0; }
 :root {
   --background: #f7f7f4;
   --background-dark: #202823;
@@ -2625,6 +2626,7 @@ ul {
 @media (max-width:900px) {
   .account-page { min-height:100dvh; display:flex; flex-direction:column; }
   .account-story { min-height:248px; height:248px; padding:calc(22px + env(safe-area-inset-top)) 24px 0; }
+  .account-story::before { display:none; }
   .account-story .brand strong { font-size:30px; }
   .account-story__copy { margin-top:30px; }
   .account-story__copy .eyebrow { font-size:11px; }
