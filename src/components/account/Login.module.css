@@ -51,27 +51,36 @@
   .shell { padding-top: 32px; padding-bottom: 28px; }
 }
 @media (max-width: 900px) {
-  .page { display: flex; flex-direction: column; min-height: 100svh; padding: 0 12px calc(44px + env(safe-area-inset-bottom)); gap: 0; }
-  .scene { background-size: auto 420px; background-position: calc(50% + 200px) -130px; }
-  .page::after { content: ""; position: absolute; z-index: -1; pointer-events: none; inset: 240px 0 0; background: linear-gradient(#182e2200, #182e22 95px); }
-  .header { min-height: 228px; padding: calc(35px + env(safe-area-inset-top)) 12px 0; }
+  .page { display: flex; flex-direction: column; min-height: 100svh; padding: 0 12px calc(28px + env(safe-area-inset-bottom)); gap: 0; }
+  .scene {
+    background-image: linear-gradient(180deg, #182e2200 220px, #182e22 410px), url("/assets/sreda/login/botanical-mobile.webp");
+    background-size: 100% 100%, 100% auto;
+    background-position: center, center -60px;
+  }
+  .header { min-height: clamp(158px, 24svh, 205px); padding: calc(26px + env(safe-area-inset-top)) 12px 0; }
   .brand { gap: 7px; }
-  .brand svg { width: 42px; height: 30px; }
-  .brand span { font-size: 26px; }
+  .brand svg { width: 36px; height: 27px; }
+  .brand span { font-size: 24px; }
   .story { display: none; }
   .formPane { display: block; padding: 0; width: 100%; }
-  .shell { margin: 0 auto; max-width: 460px; border-radius: 23px; padding: 38px 28px 32px; }
-  .card h2 { font-size: 32px; text-align: left; letter-spacing: -1px; }
-  .card .intro { font-size: 16px; margin-bottom: 31px; text-align: left; }
-  .card label { margin-top: 25px; }
-  .card input { height: 52px; min-height: 52px; }
-  .reveal { top: 4px; right: 4px; }
-  .card .submit { min-height: 58px; margin-top: 22px; }
-  .card .footer { margin-top: 32px; font-size: 14px; }
+  .shell { margin: 0 auto; max-width: 460px; border-radius: 23px; padding: 28px 24px 24px; }
+  .card h2 { font-size: 30px; text-align: left; letter-spacing: -1px; }
+  .card .intro { font-size: 15px; margin-bottom: 24px; text-align: left; }
+  .card label { margin-top: 18px; }
+  .card fieldset > label:first-child { margin-top: 0; }
+  .card input { height: 50px; min-height: 50px; }
+  .reveal { top: 3px; right: 4px; }
+  .recover { margin-top: 2px; }
+  .card .submit { min-height: 54px; margin-top: 13px; font-size: 18px; }
+  .card .footer { margin-top: 22px; font-size: 14px; }
+}
+@media (min-width: 600px) and (max-width: 900px) {
+  .header { min-height: calc(53vw - 60px); }
+  .scene { background-image: linear-gradient(180deg, #182e2200 430px, #182e22 600px), url("/assets/sreda/login/botanical-mobile.webp"); }
 }
 @media (max-width: 360px) {
-  .header { min-height: 207px; }
-  .shell { padding: 30px 22px; }
+  .header { min-height: 150px; }
+  .shell { padding: 24px 20px; }
   .card h2 { font-size: 28px; }
   .card .intro { font-size: 14px; }
 }
