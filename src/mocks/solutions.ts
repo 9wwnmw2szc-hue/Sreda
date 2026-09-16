@@ -10,10 +10,10 @@ export const mockSolutions: Solution[] = [
     price: 250,
   },
   {
-    id: "sol_sales",
-    code: "sales",
-    name: "Продажи",
-    description: "Каталог товаров и приём заказов.",
+    id: "sol_admin_messages",
+    code: "admin_messages",
+    name: "Связь с администрацией",
+    description: "Собирает обращения клиентов в общем inbox сотрудников.",
     price: 250,
   },
   {
@@ -43,7 +43,7 @@ export const mockBusinessSolutions: BusinessSolution[] = [
   {
     id: "bs_2",
     businessId: "biz_zerno",
-    solutionId: "sol_sales",
+    solutionId: "sol_admin_messages",
     status: "available",
   },
   {

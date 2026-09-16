@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.mjs",
     "test:http": "node --import tsx --test tests/http/*.test.mjs",
+    "audit:responsive": "node scripts/responsive-audit.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/db-migrate.mts",
     "worker:telegram": "node --env-file-if-exists=.env.local --import tsx scripts/telegram-worker.mts",
     "worker:vk": "node --env-file-if-exists=.env.local --import tsx scripts/vk-worker.mts",

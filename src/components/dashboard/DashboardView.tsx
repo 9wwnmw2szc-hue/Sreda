@@ -22,6 +22,7 @@ import {
 } from "@/hooks/useDashboardData";
 import { formatRelativeDateTime } from "@/lib/format";
 import { isDemoMode } from "@/lib/dataMode";
+import { solutionRoute } from "@/config/solutionPresentation";
 import type { Lead, Post } from "@/types";
 type Selection =
   | { type: "catalog" }
@@ -307,19 +308,19 @@ export function DashboardView() {
               </div>
               {visibleSelection.item.note && <p className="account-notice">{visibleSelection.item.note}</p>}
               <p className="demo-note">
-                {isDemoMode ? "Это демонстрация решения." : visibleSelection.item.code === "leads" ? "Сохраните настройку и запустите Telegram в мастере. Статус учитывает подключение и работу обработчика." : "Это решение появится позже."}
+                {isDemoMode
+                  ? "Это демонстрация решения."
+                  : visibleSelection.item.status === "active"
+                    ? "Решение активно. Его статус учитывает подключения и работу обработчиков."
+                    : "Откройте раздел решения, чтобы завершить настройку."}
               </p>
               <Link
                 className="button button--primary button--full"
-                href={
-                  visibleSelection.item.code === "leads"
-                    ? "/solutions/leads/setup"
-                    : "/solutions"
-                }
+                href={solutionRoute(visibleSelection.item.code)}
               >
                 {visibleSelection.item.code === "leads"
-                  ? "Посмотреть настройку"
-                  : "Подробнее о решениях"}
+                  ? "Открыть настройку"
+                  : "Открыть решение"}
                 <ArrowUpRight size={18} />
               </Link>
             </>
@@ -379,9 +380,11 @@ export function DashboardView() {
                   ))}
                 </span>
               </div>
-              <p className="demo-note">
-                Демонстрационная публикация. На площадки ничего не отправляется.
-              </p>
+              {isDemoMode && (
+                <p className="demo-note">
+                  Демонстрационная публикация. На площадки ничего не отправляется.
+                </p>
+              )}
             </>
           )}
         </DetailDialog>

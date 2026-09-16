@@ -1179,7 +1179,7 @@ ul {
 .solution-detail .solution-state {
   justify-content: center;
 }
-.solution-detail--sales {
+.solution-detail--admin_messages {
   background: radial-gradient(ellipse, #f4e4e7, transparent 72%);
 }
 .solution-detail--autopost {
@@ -1926,7 +1926,8 @@ ul {
   background: linear-gradient(135deg, #f0f5eb, white 65%);
   box-shadow: var(--shadow-soft);
 }
-.catalog-card--sales {
+.catalog-card--sales,
+.catalog-card--admin_messages {
   background: linear-gradient(135deg, #fbf0f1, white 65%);
 }
 .catalog-card--autopost {
