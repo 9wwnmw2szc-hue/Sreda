@@ -11,12 +11,13 @@ export interface Database extends ClientTables {
   solution_config: { business_id: string; solution_code: string; config: unknown; revision: number; updated_at: Generated<Date> };
   integration_key: { business_id: string; key_hash: string; key_hint: string; created_at: Generated<Date>; rotated_at: Date | null; revoked_at: Date | null };
   telegram_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
-  telegram_dialog: { connection_id: string; chat_id: string; fields: string; answers: string; position: number; last_update_id: string; updated_at: Generated<Date> };
+  vk_dialog: Database["telegram_dialog"];
+  telegram_dialog: { mode: Generated<string>; config: Generated<string>; connection_id: string; chat_id: string; fields: string; answers: string; position: number; last_update_id: string; updated_at: Generated<Date> };
   telegram_update: { connection_id: string; update_id: string; created_at: Generated<Date> };
-  telegram_outbox: { id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
+  telegram_outbox: { buttons: Generated<unknown>; id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
   vk_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
   vk_update: { connection_id: string; event_id: string; created_at: Generated<Date> };
-  vk_outbox: { id: Generated<string>; connection_id: string; peer_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
+  vk_outbox: { buttons: Generated<unknown>; id: Generated<string>; connection_id: string; peer_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
 
   user: { id: string; public_id: string; name: string; username: string; };
   account: { id: string; userId: string; providerId: string; password: string | null; updatedAt: Date };
@@ -42,7 +43,7 @@ export interface Database extends ClientTables {
     expires_at: Date; created_at: Generated<Date>; responded_at: Date | null;
   };
   business_audit_log: {
-    id: string; business_id: string; actor_user_id: string; action: "invitation_created" | "invitation_accepted" | "invitation_revoked" | "member_revoked" | "member_role_changed" | "connection_connected" | "connection_disconnected";
+    id: string; business_id: string; actor_user_id: string; action: "invitation_created" | "invitation_accepted" | "invitation_revoked" | "member_revoked" | "member_role_changed" | "connection_connected" | "connection_disconnected" | "lead_taken" | "lead_closed" | "conversation_taken" | "conversation_closed" | "booking_created" | "booking_rescheduled" | "booking_cancelled" | "booking_completed" | "service_created" | "service_updated" | "specialist_created" | "specialist_updated" | "post_created" | "post_scheduled" | "post_cancelled" | "post_published" | "settings_changed";
     target_user_id: string | null; details: string | null; created_at: Generated<Date>;
   };
   business_connection: {
@@ -52,6 +53,7 @@ export interface Database extends ClientTables {
   };
   connection_secret: { connection_id: string; encrypted_token: string; key_version: number; updated_at: Generated<Date> };
   lead: {
+    processing_by: Generated<string|null>; processing_at: Generated<Date|null>; answers: Generated<unknown>;
     client_id: Generated<string|null>;
     id: string; business_id: string; source: "telegram" | "vk" | "max";
     name: string; phone: string | null; message: string | null;
@@ -71,6 +73,7 @@ export interface Database extends ClientTables {
     external_message_id: string | null; actor_user_id: string | null;
     moderation_status: "allowed" | "pending" | "blocked"; created_at: Generated<Date>;
   };
+  conversation_read_state: { business_id:string; conversation_id:string; user_id:string; read_at:Date };
   communication_quota: {
     business_id: string; period_start: string; inbound_limit: number;
     inbound_count: number; warned_at_percent: 0 | 80 | 100; updated_at: Generated<Date>;

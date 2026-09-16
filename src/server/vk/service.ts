@@ -1,3 +1,4 @@
+import { routeBot } from "../bot/router.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -35,12 +36,10 @@ export class VKService {
       if (!eventId || eventId.length > 200) throw new AppError(400, "INVALID_EVENT", "Некорректное событие VK.");
       const unique = await tx.insertInto("vk_update").values({ connection_id: id, event_id: eventId }).onConflict((oc) => oc.columns(["connection_id", "event_id"]).doNothing()).returning("event_id").executeTakeFirst();
       if (!unique) return { ok: true, duplicate: true };
-      const message = body.object as VKMessage | undefined;
+      const object=body.object as {message?:VKMessage}|undefined;
+      const message = object?.message ?? body.object as VKMessage | undefined;
       if (!message || typeof message.from_id !== "number" || typeof message.peer_id !== "number" || !Number.isSafeInteger(message.from_id) || !Number.isSafeInteger(message.peer_id) || typeof message.text !== "string" || message.from_id <= 0 || message.peer_id <= 0) return { ok: true };
-      if (this.communications) {
-        const recorded = await this.communications.recordInboundInTransaction(tx, { businessId: runtime.business_id, platform: "vk", externalUserId: String(message.from_id), text: message.text, externalMessageId: id + ":" + eventId });
-        if (!recorded.accepted) return { ok: true, limited: recorded.reason };
-      }
+      await routeBot(tx,{businessId:runtime.business_id,connectionId:id,platform:'vk',userId:String(message.from_id),eventId,text:message.text});
       return { ok: true, accepted: true };
     });
   }
@@ -68,7 +67,7 @@ export class VKService {
         // Keep random_id stable across retries so VK deduplicates a response
         // when the network fails after the platform accepted the message.
         const randomId = Number(BigInt(String(row.id)) % BigInt(2_147_483_647));
-        await vkCall(decryptSecret(connection.encrypted_token, this.secret), "messages.send", { peer_id: row.peer_id, random_id: randomId, message: row.message }, this.transport);
+        await vkCall(decryptSecret(connection.encrypted_token, this.secret), "messages.send", { peer_id: row.peer_id, random_id: randomId, message: row.message, keyboard: JSON.stringify({one_time:false,buttons:(row.buttons as string[]).slice(0,10).map(label=>[{action:{type:"text",label},color:"secondary"}])}) }, this.transport);
         await tx.updateTable("vk_outbox").set({ delivered_at: new Date(), message: "", last_error: null }).where("id", "=", row.id).execute();
       } catch (error) {
         const failure = error instanceof VKError ? error : new VKError();

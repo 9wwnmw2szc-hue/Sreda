@@ -1,5 +1,7 @@
 /** Only non-sensitive setup choices are stored. Never store channel credentials here. */
 export const LEAD_FIELDS = [
+  { id: "email", label: "Email", example: "mail@example.com", required: false },
+  { id: "message", label: "Сообщение", example: "Мой вопрос", required: false },
   { id: "name", label: "Имя", example: "Анна", required: true },
   {
     id: "phone",
@@ -23,6 +25,10 @@ export const LEAD_FIELDS = [
 export type LeadFieldId = (typeof LEAD_FIELDS)[number]["id"];
 export type SetupChannel = "telegram" | "vk";
 export interface LeadSetupDraft {
+  title?: string;
+  greeting?: string;
+  finalMessage?: string;
+  fieldOptions?: Partial<Record<LeadFieldId,{label:string;required:boolean}>>;
   version: 1;
   step: 0 | 1 | 2 | 3;
   channels: SetupChannel[];

@@ -9,6 +9,7 @@ import { MembersPanel } from "./MembersPanel";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 import { PasswordChangePanel } from "./PasswordChangePanel";
+import { BusinessProfilePanel } from "./BusinessProfilePanel";
 import { PinPanel } from "./PinPanel";
 
 export function SettingsView() {
@@ -43,6 +44,7 @@ export function SettingsView() {
           : currentBusiness?.role === "operator" ? "Оператор" : "Демонстрация"}</dd></div>
       </dl>
     </section>
+    {!isDemoMode && currentBusiness && <BusinessProfilePanel key={currentBusiness.id} businessId={currentBusiness.id} canEdit={currentBusiness.role !== "operator"} />}
     {!isDemoMode && <MembersPanel key={`${currentBusiness?.id ?? "none"}:${currentBusiness?.role ?? "none"}`} business={currentBusiness ?? undefined} onAccepted={refreshBusinesses} />}
     {!isDemoMode && currentBusiness && <AuditLogPanel key={`${currentBusiness.id}:${currentBusiness.role}`} business={currentBusiness} />}
   </div>;

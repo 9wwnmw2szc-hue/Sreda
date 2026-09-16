@@ -1,3 +1,5 @@
+import { matchClient,clientActivity } from "../clients/service.ts";
+import { notify } from "../notifications/service.ts";
 import { randomUUID } from "node:crypto";
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -104,7 +106,10 @@ export class CommunicationService {
     const status = (raw as Record<string, unknown>).status;
     if (!["open", "assigned", "closed", "blocked"].includes(String(status))) throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
     const businessId = (await this.resolve(userId, publicId)).id;
-    const row = await this.db.updateTable("communication_conversation").set({ status: status as ConversationStatus, closed_at: status === "closed" ? new Date() : null }).where("id", "=", conversationId).where("business_id", "=", businessId).returning(["id", "status", "closed_at"]).executeTakeFirst();
+    let update=this.db.updateTable("communication_conversation").set({status:status as ConversationStatus,closed_at:status==='closed'?new Date():null,...(status==='assigned'?{assigned_member_user_id:userId}:status==='open'?{assigned_member_user_id:null}:{})}).where('id','=',conversationId).where('business_id','=',businessId);
+    if(status==='assigned')update=update.where(eb=>eb.or([eb('assigned_member_user_id','is',null),eb('assigned_member_user_id','=',userId)]));
+    const row=await update.returning(['id','status','closed_at']).executeTakeFirst();
+    if(!row&&status==='assigned')throw new AppError(409,'CONVERSATION_ASSIGNED','Диалог уже взял другой сотрудник.');
     if (!row) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
     return { id: row.id, status: row.status, closedAt: row.closed_at?.toISOString() };
   }
@@ -115,18 +120,25 @@ export class CommunicationService {
 
   async recordInboundInTransaction(tx: Transaction<Database>, input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null }) {
     const message = text(input.text);
-    const periodStart = new Date().toISOString().slice(0, 10);
+    const periodStart = new Date().toISOString().slice(0, 7)+"-01";
     return (async () => {
+      await tx.selectFrom('business').select('id').where('id','=',input.businessId).forUpdate().execute();
+      if(input.externalMessageId){const duplicate=await tx.selectFrom('communication_message').select(['id','conversation_id']).where('business_id','=',input.businessId).where('external_message_id','=',input.externalMessageId).executeTakeFirst();if(duplicate)return {accepted:true as const,duplicate:true as const,conversationId:duplicate.conversation_id};}
+      const blockedConversation=await tx.selectFrom('communication_conversation').select('id').where('business_id','=',input.businessId).where('platform','=',input.platform).where('external_user_id','=',input.externalUserId).where('status','=','blocked').executeTakeFirst();
+      if(blockedConversation)return {accepted:false as const,reason:'blocked' as const};
       const blocked = await tx.selectFrom("communication_block").select("id").where("business_id", "=", input.businessId).where("platform", "=", input.platform).where("external_user_id", "=", input.externalUserId).where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", new Date())])).executeTakeFirst();
       if (blocked) return { accepted: false as const, reason: "blocked" as const };
       await tx.insertInto("communication_quota").values({ business_id: input.businessId, period_start: periodStart, inbound_limit: 300, inbound_count: 0, warned_at_percent: 0, updated_at: new Date() }).onConflict((oc) => oc.columns(["business_id", "period_start"]).doNothing()).execute();
       const quota = await tx.selectFrom("communication_quota").selectAll().where("business_id", "=", input.businessId).where("period_start", "=", periodStart).forUpdate().executeTakeFirstOrThrow();
-      if (quota.inbound_count >= quota.inbound_limit) return { accepted: false as const, reason: "quota" as const, limit: quota.inbound_limit };
-      await tx.insertInto("communication_conversation").values({ id: randomUUID(), business_id: input.businessId, platform: input.platform, external_user_id: input.externalUserId, external_username: input.externalUsername ?? null, status: "open", assigned_member_user_id: null, last_message_at: new Date(), created_at: new Date(), closed_at: null }).onConflict((oc) => oc.columns(["business_id", "platform", "external_user_id"]).doUpdateSet({ external_username: input.externalUsername ?? null, status: "open", last_message_at: new Date(), closed_at: null })).execute();
+      const clientId=await matchClient(tx,input.businessId,{identities:[{kind:input.platform,value:input.externalUserId,username:input.externalUsername}]});
+      const previous=await tx.selectFrom('communication_conversation').select(['status','assigned_member_user_id']).where('business_id','=',input.businessId).where('platform','=',input.platform).where('external_user_id','=',input.externalUserId).executeTakeFirst();
+      await tx.insertInto("communication_conversation").values({ client_id:clientId,id: randomUUID(), business_id: input.businessId, platform: input.platform, external_user_id: input.externalUserId, external_username: input.externalUsername ?? null, status: "open", assigned_member_user_id: null, last_message_at: new Date(), created_at: new Date(), closed_at: null }).onConflict((oc) => oc.columns(["business_id", "platform", "external_user_id"]).doUpdateSet({ client_id:clientId,external_username: input.externalUsername ?? null, status: previous?.status==="assigned"?"assigned":"open", assigned_member_user_id:previous?.status==="assigned"?previous.assigned_member_user_id:null, last_message_at: new Date(), closed_at: null })).execute();
       const conversation = await tx.selectFrom("communication_conversation").select("id").where("business_id", "=", input.businessId).where("platform", "=", input.platform).where("external_user_id", "=", input.externalUserId).executeTakeFirstOrThrow();
       const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversation.id, business_id: input.businessId, direction: "inbound", text: message, external_message_id: input.externalMessageId ?? null, actor_user_id: null, moderation_status: "allowed", created_at: new Date() }).onConflict((oc) => oc.columns(["business_id", "external_message_id"]).doNothing()).returning("id").executeTakeFirst();
       if (!inserted) return { accepted: true as const, duplicate: true as const, conversationId: conversation.id };
       await tx.updateTable("communication_quota").set({ inbound_count: quota.inbound_count + 1, warned_at_percent: quota.inbound_count + 1 >= quota.inbound_limit ? 100 : quota.inbound_count + 1 >= Math.ceil(quota.inbound_limit * 0.8) ? 80 : quota.warned_at_percent, updated_at: new Date() }).where("business_id", "=", input.businessId).where("period_start", "=", periodStart).execute();
+      await clientActivity(tx,input.businessId,clientId,'message.received','message:'+inserted.id,conversation.id);
+      await notify(tx,input.businessId,'message.received','message:'+inserted.id,'Новое обращение','/messages');
       return { accepted: true as const, duplicate: false as const, conversationId: conversation.id, messageId: inserted.id };
     })();
   }

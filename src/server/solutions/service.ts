@@ -10,7 +10,10 @@ export function validateSetup(raw: unknown): LeadSetupDraft {
     || d.channels.some((v) => !["telegram","vk"].includes(v)) || new Set(d.channels).size !== d.channels.length
     || d.fields.some((v) => !LEAD_FIELDS.some((f) => f.id === v)) || new Set(d.fields).size !== d.fields.length || !d.fields.includes("name")
     || (d.step > 0 && !d.channels.length)) throw new AppError(400,"INVALID_SETUP","Проверьте площадки и вопросы заявки.");
-  return { version:1, step:d.step, channels:[...d.channels], fields:LEAD_FIELDS.filter((f)=>d.fields.includes(f.id)).map((f)=>f.id) };
+  const copy=(key:'title'|'greeting'|'finalMessage',max:number)=>{const v=d[key];if(v!==undefined&&(typeof v!=='string'||v.length>max))throw new AppError(400,'INVALID_SETUP','Проверьте тексты сценария.');return v?.trim();};
+  const fieldOptions:NonNullable<LeadSetupDraft['fieldOptions']>={};
+  if(d.fieldOptions)for(const field of d.fields){const o=d.fieldOptions[field];if(o){if(typeof o.label!=='string'||!o.label.trim()||o.label.length>150||typeof o.required!=='boolean')throw new AppError(400,'INVALID_SETUP','Проверьте вопросы.');fieldOptions[field]={label:o.label.trim(),required:field==='name'||o.required};}}
+  return { ...(d.title!==undefined?{title:copy('title',100)}:{}),...(d.greeting!==undefined?{greeting:copy('greeting',2000)}:{}),...(d.finalMessage!==undefined?{finalMessage:copy('finalMessage',2000)}:{}),...(d.fieldOptions?{fieldOptions}:{}), version:1, step:d.step, channels:[...d.channels], fields:LEAD_FIELDS.filter((f)=>d.fields.includes(f.id)).map((f)=>f.id) };
 }
 export class SolutionService {
  constructor(private readonly db: Kysely<Database>, private readonly telegramEnabled = false) {}
@@ -36,9 +39,7 @@ export class SolutionService {
    if((current?.revision??0)!==body.revision)throw new AppError(409,"SETUP_CONFLICT","Настройка изменена в другой вкладке. Обновите страницу перед сохранением.");
    const revision=Number(body.revision)+1;
    await tx.insertInto("lead_setup").values({business_id:id,draft:JSON.stringify(draft),revision,updated_at:new Date()}).onConflict(oc=>oc.column("business_id").doUpdateSet({draft:JSON.stringify(draft),revision,updated_at:new Date()})).execute();
-   // An edited configuration needs explicit restart; never silently change a running dialogue.
-   const connections=await tx.selectFrom("business_connection").select("id").where("business_id","=",id).execute();
-   for(const c of connections)await tx.deleteFrom("telegram_runtime").where("connection_id","=",c.id).execute();
+   if(draft.step===3)await tx.insertInto('business_solution').values({business_id:id,solution_code:'leads',status:'active',starts_at:new Date(),expires_at:null}).onConflict(oc=>oc.columns(['business_id','solution_code']).doUpdateSet({status:'active',expires_at:null,updated_at:new Date()})).execute();
    return {draft,revision};
   });
  }

@@ -3,10 +3,10 @@ import { sql, type Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { decryptSecret } from "../connections/crypto.ts";
-import { SolutionService, validateSetup } from "../solutions/service.ts";
+import { routeBot } from "../bot/router.ts";
+import { SolutionService } from "../solutions/service.ts";
 import { telegramCall, TelegramError } from "./api.ts";
 import { CommunicationService } from "../communications/service.ts";
-const questions:Record<string,string>={name:"Как к вам обращаться?",phone:"Оставьте номер телефона для связи или напишите /skip.",service:"Что вас интересует? Можно пропустить: /skip.",comment:"Хотите что-нибудь добавить? Можно пропустить: /skip."};
 export function webhookSecret(secret:string,id:string,generation:string){return createHmac("sha256",secret).update("telegram-webhook:"+id+":"+generation).digest("hex");}
 export class TelegramService {
  constructor(private readonly db:Kysely<Database>,private readonly secret:string,private readonly origin:string,private readonly enabled:boolean,private readonly transport:typeof fetch=fetch,private readonly communications?:CommunicationService){}
@@ -22,9 +22,8 @@ export class TelegramService {
    const connection=await tx.selectFrom("business_connection as c").innerJoin("connection_secret as s","s.connection_id","c.id").select(["c.id","s.encrypted_token"]).where("c.business_id","=",businessId).where("c.platform","=","telegram").where("c.status","=","connected").executeTakeFirst();
    if(!connection)throw new AppError(400,"CONNECTION_REQUIRED","Сначала подключите Telegram-бота в разделе «Подключения».");
    affected=connection.id;
-   await tx.deleteFrom("telegram_runtime").where("connection_id","=",connection.id).execute();
    const generation=randomUUID();
-   await tx.insertInto("telegram_runtime").values({connection_id:connection.id,generation,status:"pending"}).execute();
+   await tx.insertInto("telegram_runtime").values({connection_id:connection.id,generation,status:"pending"}).onConflict(oc=>oc.column("connection_id").doUpdateSet({generation,status:"pending",updated_at:new Date()})).execute();
    // Do not discard Telegram's pending updates. Failed DB commit leaves webhook
    // requests unacknowledged until configuration is retried with a new secret.
    await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"setWebhook",{url:this.origin+"/api/telegram/"+connection.id,secret_token:webhookSecret(this.secret,connection.id,generation),allowed_updates:["message"],max_connections:1},this.transport);
@@ -54,40 +53,7 @@ export class TelegramService {
    if(!unique)return {ok:true};
    const m=body.message as {chat?:{id?:number;type?:string};from?:{id?:number;is_bot?:boolean;username?:string};text?:string}|undefined;
    if(m?.chat?.type!=="private"||!Number.isSafeInteger(m.chat.id)||m.from?.id!==m.chat.id||m.from?.is_bot||typeof m.text!=="string")return {ok:true};
-   const chatId=String(m.chat.id);const text=m.text.trim();
-   const queue=async(message:string)=>{await tx.insertInto("telegram_outbox").values({connection_id:id,chat_id:chatId,message,delivered_at:null,last_error:null}).execute();};
-   if(this.communications){
-    const communication=await this.communications.recordInboundInTransaction(tx,{businessId:business.id,platform:"telegram",externalUserId:chatId,externalUsername:m.from?.username?`@${m.from.username}`:null,text,externalMessageId:`${id}:${updateId}`});
-    if(!communication.accepted){
-     await queue(communication.reason==="quota"?"Лимит бесплатных сообщений на этот месяц исчерпан. Владелец бизнеса получил уведомление.":"Сообщения временно ограничены. Попробуйте позже.");
-     return {ok:true};
-    }
-   }
-   const dialog=await tx.selectFrom("telegram_dialog").selectAll().where("connection_id","=",id).where("chat_id","=",chatId).executeTakeFirst();
-   if(dialog&&BigInt(updateId)<=BigInt(dialog.last_update_id))return {ok:true};
-   const remove=async()=>{await tx.deleteFrom("telegram_dialog").where("connection_id","=",id).where("chat_id","=",chatId).execute();};
-   const discardQueue=async()=>{await tx.deleteFrom("telegram_outbox").where("connection_id","=",id).where("chat_id","=",chatId).where("delivered_at","is",null).execute();};
-   if(text==="/cancel"){await discardQueue();await remove();await queue("Заявка отменена. Если захотите начать снова, напишите /start.");return {ok:true};}
-   if(text==="/start"||!dialog||dialog.updated_at.getTime()<Date.now()-86400000){
-    const setup=await tx.selectFrom("lead_setup").select("draft").where("business_id","=",business.id).executeTakeFirstOrThrow();
-    const fields=validateSetup(JSON.parse(setup.draft)).fields;
-    await discardQueue();await remove();await tx.insertInto("telegram_dialog").values({connection_id:id,chat_id:chatId,fields:JSON.stringify(fields),answers:"{}",position:0,last_update_id:updateId}).execute();
-    await queue("Здравствуйте! Это бот «Среды».\n\nОставьте заявку — мы зададим несколько коротких вопросов. В любой момент можно написать /cancel.\n\n"+questions[fields[0]!]);return {ok:true};
-   }
-   const fields=JSON.parse(dialog.fields) as string[];const field=fields[dialog.position]!;
-   const max=field==="name"?100:field==="phone"?40:900;
-   if(!text||text.length>max||(field==="name"&&text==="/skip")||(text.startsWith("/")&&text!=="/skip")||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)){
-    await queue(`Введите ответ до ${max} символов. ${questions[field]}`);
-    await tx.updateTable("telegram_dialog").set({last_update_id:updateId}).where("connection_id","=",id).where("chat_id","=",chatId).execute();return {ok:true};
-   }
-   const answers=JSON.parse(dialog.answers) as Record<string,string>;answers[field]=text==="/skip"?"":text;
-   const next=dialog.position+1;
-   if(next>=fields.length){
-    await tx.insertInto("lead").values({id:randomUUID(),business_id:business.id,source:"telegram",name:answers.name!,phone:answers.phone||null,message:[answers.service,answers.comment].filter(Boolean).join("\n\n")||null,status:"new",external_event_id:c.external_account_id+":"+updateId}).onConflict(oc=>oc.columns(["business_id","source","external_event_id"]).doNothing()).execute();
-    await remove();await queue("Спасибо! Ваша заявка принята. Мы передадим её сотрудникам компании и свяжемся с вами. Чтобы отправить новую заявку, напишите /start.");
-   }else{
-    await tx.updateTable("telegram_dialog").set({answers:JSON.stringify(answers),position:next,last_update_id:updateId,updated_at:new Date()}).where("connection_id","=",id).where("chat_id","=",chatId).execute();await queue(questions[fields[next]!]!);
-   }
+   await routeBot(tx,{businessId:business.id,connectionId:id,platform:'telegram',userId:String(m.chat.id),username:m.from?.username,eventId:updateId,text:m.text});
    return {ok:true};
   });
  }
@@ -101,7 +67,7 @@ export class TelegramService {
    const row=await tx.selectFrom("telegram_outbox").selectAll().where("id","=",candidate.id).where("delivered_at","is",null).where("available_at","<=",new Date()).forUpdate().executeTakeFirst();if(!row)return false;
    const connection=await tx.selectFrom("connection_secret as s").innerJoin("telegram_runtime as r","r.connection_id","s.connection_id").innerJoin("business_connection as c","c.id","s.connection_id").select("s.encrypted_token").where("s.connection_id","=",row.connection_id).where("r.status","=","ready").where("c.status","=","connected").executeTakeFirst();if(!connection)return false;
    try{
-    await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"sendMessage",{chat_id:row.chat_id,text:row.message},this.transport);
+    await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"sendMessage",{chat_id:row.chat_id,text:row.message,reply_markup:{keyboard:(row.buttons as string[]).map(text=>[{text}]),resize_keyboard:true}},this.transport);
     await tx.updateTable("telegram_outbox").set({delivered_at:new Date(),message:"",last_error:null}).where("id","=",row.id).execute();
    }catch(e){
     const failure=e instanceof TelegramError?e:new TelegramError();

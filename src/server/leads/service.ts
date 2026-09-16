@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { Kysely, Selectable } from "kysely";
+import type { Kysely, Selectable, Transaction } from "kysely";
 import { sql } from "kysely";
 import type { Database, LeadStatus } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 
+import { matchClient,clientActivity } from "../clients/service.ts";
+import { notify } from "../notifications/service.ts";
+import { requireBusiness } from "../access/permissions.ts";
 type Input = { source: "telegram" | "vk" | "max"; name: string; phone?: string | null; message?: string | null; externalEventId?: string | null };
 const statuses: LeadStatus[] = ["new", "processing", "closed"];
 function clean(input: unknown): Input {
@@ -39,17 +42,13 @@ export class LeadService {
     if (status) query = query.where("status", "=", status) as typeof query;
     return (await query.execute()).map((lead) => this.toLead(lead, publicBusinessId));
   }
-  async create(userId: string, businessId: string, raw: unknown) {
-    const publicBusinessId = businessId;
-    const input = clean(raw);
-    businessId = await this.resolve(userId, businessId);
-    if (input.externalEventId) {
-      const existing = await this.db.selectFrom("lead").selectAll().where("business_id", "=", businessId).where("source", "=", input.source).where("external_event_id", "=", input.externalEventId).executeTakeFirst();
-      if (existing) return this.toLead(existing, publicBusinessId);
-    }
-    const inserted = await this.db.insertInto("lead").values({ id: randomUUID(), business_id: businessId, source: input.source, name: input.name, phone: input.phone ?? null, message: input.message ?? null, status: "new", external_event_id: input.externalEventId ?? null }).onConflict((oc) => oc.columns(["business_id", "source", "external_event_id"]).doNothing()).returningAll().executeTakeFirst();
-    const row = inserted ?? await this.db.selectFrom("lead").selectAll().where("business_id", "=", businessId).where("source", "=", input.source).where("external_event_id", "=", input.externalEventId!).executeTakeFirstOrThrow();
-    return this.toLead(row, publicBusinessId);
+  async create(userId:string,publicId:string,raw:unknown){
+    const input=clean(raw);
+    return this.db.transaction().execute(async tx=>{
+      const b=await requireBusiness(tx,userId,publicId,'leads.write');
+      const lead=await createLead(tx,b.id,input);
+      return this.toLead(lead,publicId);
+    });
   }
   async updateStatus(userId: string, businessId: string, id: string, status: unknown) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new AppError(404, "LEAD_NOT_FOUND", "Заявка не найдена.");
@@ -57,9 +56,29 @@ export class LeadService {
     const internalBusinessId = await this.resolve(userId, businessId);
     const membership = await this.db.selectFrom("business_member").select("business_id").where("business_id", "=", internalBusinessId).where("user_id", "=", userId).where("status", "=", "active").where("role", "in", ["owner", "admin", "operator"]).executeTakeFirst();
     if (!membership) throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
-    const row = await this.db.updateTable("lead").set({ status: status as LeadStatus, updated_at: new Date() }).where("id", "=", id).where("business_id", "=", internalBusinessId).returningAll().executeTakeFirst();
-    if (!row) throw new AppError(404, "LEAD_NOT_FOUND", "Заявка не найдена.");
-    return this.toLead(row, businessId);
+    return this.db.transaction().execute(async tx=>{
+      await tx.selectFrom('business').select('id').where('id','=',internalBusinessId).forUpdate().execute();
+      await requireBusiness(tx,userId,businessId,'leads.write');
+      const current=await tx.selectFrom('lead').selectAll().where('business_id','=',internalBusinessId).where('id','=',id).forUpdate().executeTakeFirst();
+      if(!current)throw new AppError(404,'LEAD_NOT_FOUND','Заявка не найдена.');
+      if(status==='processing'&&current.processing_by&&current.processing_by!==userId)throw new AppError(409,'LEAD_ASSIGNED','Заявка уже в работе у другого сотрудника.');
+      const row=await tx.updateTable('lead').set({status:status as LeadStatus,updated_at:new Date(),...(status==='processing'?{processing_by:userId,processing_at:current.processing_at??new Date()}:{})}).where('id','=',id).returningAll().executeTakeFirstOrThrow();
+      if(current.status!==status){
+        if(row.client_id)await clientActivity(tx,internalBusinessId,row.client_id,'lead.'+status,randomUUID(),id,userId);
+        if(status==='processing'||status==='closed')await tx.insertInto('business_audit_log').values({id:randomUUID(),business_id:internalBusinessId,actor_user_id:userId,action:status==='processing'?'lead_taken':'lead_closed',target_user_id:null,details:id}).execute();
+      }
+      return this.toLead(row,businessId);
+    });
   }
-  private toLead(lead: Selectable<Database["lead"]>, businessId: string) { return { id: lead.id, businessId, source: lead.source, name: lead.name, phone: lead.phone ?? undefined, message: lead.message ?? undefined, status: lead.status, createdAt: lead.created_at.toISOString() }; }
+  private toLead(lead: Selectable<Database["lead"]>, businessId: string) { return { id: lead.id, businessId, source: lead.source, name: lead.name, phone: lead.phone ?? undefined, message: lead.message ?? undefined, status: lead.status, clientId:lead.client_id, processingBy:lead.processing_by, processingAt:lead.processing_at?.toISOString(), answers:lead.answers, updatedAt:lead.updated_at.toISOString(), createdAt: lead.created_at.toISOString() }; }
+}
+
+export async function createLead(tx:Transaction<Database>,businessId:string,input:Input & {platformUserId?:string;username?:string;answers?:Record<string,string>}){
+ await tx.selectFrom('business').select('id').where('id','=',businessId).forUpdate().execute();
+ if(input.externalEventId){const existing=await tx.selectFrom('lead').selectAll().where('business_id','=',businessId).where('source','=',input.source).where('external_event_id','=',input.externalEventId).executeTakeFirst();if(existing)return existing;}
+ const clientId=await matchClient(tx,businessId,{name:input.name,phone:input.phone,identities:input.platformUserId&&input.source!=='max'?[{kind:input.source,value:input.platformUserId,username:input.username}]:[]});
+ const lead=await tx.insertInto('lead').values({id:randomUUID(),business_id:businessId,client_id:clientId,source:input.source,name:input.name,phone:input.phone??null,message:input.message??null,status:'new',external_event_id:input.externalEventId??null,answers:JSON.stringify(input.answers??{})}).returningAll().executeTakeFirstOrThrow();
+ await clientActivity(tx,businessId,clientId,'lead.created','lead:'+lead.id,lead.id);
+ await notify(tx,businessId,'lead.created','lead:'+lead.id,'Новая заявка: '+input.name,'/leads');
+ return lead;
 }

@@ -641,35 +641,35 @@ test("Telegram activation requires saved configuration, verified token and enabl
 test("Telegram dialogue persists, isolates chats, deduplicates updates and creates a business lead", async () => {
   const f = await botFixture();
   await assert.rejects(f.telegram.receive(f.connection.id, "0".repeat(64), { update_id: 1 }), { status: 403 });
-  await f.send(1, "/start"); await f.send(2, "Анна"); await f.send(3, "/skip");
+  await f.send(1, "Оставить заявку"); await f.send(2, "Анна"); await f.send(3, "/skip");
   await f.send(4, "/start", 456);
-  await f.send(5, "Запись на завтра"); await f.send(5, "Запись на завтра");
+  await f.send(5, "Запись на завтра"); await f.send(5, "Запись на завтра"); await f.send(6,"Отправить"); await f.send(6,"Отправить");
   const leads = await new LeadService(db).list(f.owner.internalId, f.business.id);
   assert.equal(leads.length, 1); assert.equal(leads[0].name, "Анна"); assert.equal(leads[0].message, "Запись на завтра"); assert.equal(leads[0].phone, undefined);
   const dialogs = await db.selectFrom("telegram_dialog").selectAll().where("connection_id", "=", f.connection.id).execute();
-  assert.equal(dialogs.length, 1); assert.equal(dialogs[0].chat_id, "456");
+  assert.equal(dialogs.length, 2); assert.equal(dialogs.find(d=>d.chat_id==="123").mode,"menu");
   const anotherInstance = new TelegramService(db, secret, "https://sreda.test", true, f.transport);
   for(let i=0;i<20;i++) if(!await anotherInstance.deliverOne()) break;
   assert.ok(f.calls.some(c=>c.method==="sendMessage"&&c.body.text.includes("заявка принята")));
   assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "active");
   await f.solutions.save(f.owner.internalId, f.business.id, { draft: readyDraft, revision: 1 });
-  assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "setup_required");
-  await assert.rejects(f.send(6,"Ответ"), { status: 403 });
+  assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "active");
+  await f.send(7,"Спасибо");
   assert.equal((await new LeadService(db).list(f.owner.internalId, f.business.id)).length, 1);
 });
 
 test("Telegram updates, answers, lead and queued confirmation roll back together", async () => {
-  const f = await botFixture(["name"]); await f.send(10, "/start");
+  const f = await botFixture(["name"]); await f.send(9,"Оставить заявку");await f.send(10,"Анна");
   await sql`ALTER TABLE lead ADD CONSTRAINT reject_bot_test CHECK (source <> 'telegram') NOT VALID`.execute(db);
-  try { await assert.rejects(f.send(11, "Анна")); }
+  try { await assert.rejects(f.send(11, "Отправить")); }
   finally { await sql`ALTER TABLE lead DROP CONSTRAINT reject_bot_test`.execute(db); }
   assert.equal((await db.selectFrom("telegram_update").selectAll().where("connection_id","=",f.connection.id).where("update_id","=","11").execute()).length,0);
-  await f.send(11, "Анна");
+  await f.send(11, "Отправить");
   assert.equal((await new LeadService(db).list(f.owner.internalId, f.business.id)).length,1);
 });
 
 test("Telegram outbox retries without re-creating leads and preserves per-chat order", async () => {
-  const f = await botFixture(["name"]); await f.send(20,"/start"); await f.send(21,"Анна");
+  const f = await botFixture(["name"]); await f.send(20,"Оставить заявку"); await f.send(21,"Анна");await f.send(22,"Отправить");
   // Drain other test fixtures so the worker selects this connection.
   await db.updateTable("telegram_outbox").set({delivered_at:new Date()}).where("connection_id","!=",f.connection.id).execute();
   const failing = new TelegramService(db,secret,"https://sreda.test",true,async()=>Response.json({ok:false,parameters:{retry_after:30}},{status:429}));
@@ -678,14 +678,14 @@ test("Telegram outbox retries without re-creating leads and preserves per-chat o
   assert.equal(first[0].attempts,1); assert.equal(first[1].attempts,0);
   assert.equal(await failing.deliverOne(),false);
   await db.updateTable("telegram_outbox").set({available_at:new Date(0)}).where("id","=",first[0].id).execute();
-  await f.telegram.deliverOne(); await f.telegram.deliverOne();
+  await f.telegram.deliverOne(); await f.telegram.deliverOne();await f.telegram.deliverOne();
   assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
   assert.equal((await db.selectFrom("telegram_outbox").selectAll().where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute()).length,0);
 });
 
 test("a blocked Telegram recipient cannot pause other chats or delete accepted leads", async () => {
   const f = await botFixture(["name"]);
-  await f.send(80,"/start",123); await f.send(81,"Анна",123);
+  await f.send(78,"Оставить заявку",123); await f.send(79,"Анна",123);await f.send(80,"Отправить",123);
   await f.send(82,"/start",456);
   await db.updateTable("telegram_outbox").set({delivered_at:new Date()}).where("connection_id","!=",f.connection.id).execute();
   const worker = new TelegramService(db,secret,"https://sreda.test",true,async(url,init)=>{
@@ -699,10 +699,10 @@ test("a blocked Telegram recipient cannot pause other chats or delete accepted l
   assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
   assert.equal(await worker.deliverOne(),true);
   assert.equal(f.calls.at(-1).body.chat_id,"456");
-  await f.send(83,"Борис",456);
+  await f.send(83,"Оставить заявку",456);await f.send(84,"Борис",456);await f.send(85,"Отправить",456);
   assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,2);
-  await f.send(84,"/start",123);
-  await worker.deliverOne(); await worker.deliverOne();
+  await f.send(86,"/start",123);
+  for(let i=0;i<10;i++){if(!await worker.deliverOne())break;}
   assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).where("chat_id","=","123").execute()).length,0);
 });
 
@@ -715,8 +715,8 @@ test("Telegram disconnect cancels queued messages and rejects old webhook secret
 });
 
 test("parallel Telegram delivery creates only one lead on PostgreSQL", {skip:!process.env.TEST_DATABASE_URL&&"Requires PostgreSQL connections"}, async()=>{
- const f=await botFixture(["name"]);await f.send(40,"/start");
- await Promise.all([f.send(41,"Анна"),f.send(41,"Анна")]);
+ const f=await botFixture(["name"]);await f.send(39,"Оставить заявку");await f.send(40,"Анна");
+ await Promise.all([f.send(41,"Отправить"),f.send(41,"Отправить")]);
  assert.equal((await new LeadService(db).list(f.owner.internalId,f.business.id)).length,1);
 });
 
@@ -746,9 +746,9 @@ test("Telegram ignores group messages and cancel clears the pending dialogue", a
  await f.telegram.receive(f.connection.id,f.header,{update_id:60,message:{text:"/start",chat:{id:-123,type:"group"},from:{id:123}}});
  assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
  await f.send(61,"/start");await f.send(62,"/cancel");
- assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute()).length,0);
+ assert.equal((await db.selectFrom("telegram_dialog").selectAll().where("connection_id","=",f.connection.id).execute())[0].mode,"menu");
  const messages=await db.selectFrom("telegram_outbox").select("message").where("connection_id","=",f.connection.id).where("delivered_at","is",null).execute();
- assert.equal(messages.length,1);assert.match(messages[0].message,/отменена/);
+ assert.equal(messages.length,2);assert.match(messages[1].message,/отменено/);
 });
 
 async function configurePin(a, body = {}) {
