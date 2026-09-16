@@ -28,7 +28,9 @@ export interface LeadSetupDraft {
   title?: string;
   greeting?: string;
   finalMessage?: string;
-  fieldOptions?: Partial<Record<LeadFieldId,{label:string;required:boolean}>>;
+  fieldOptions?: Partial<
+    Record<LeadFieldId, { label: string; required: boolean }>
+  >;
   version: 1;
   step: 0 | 1 | 2 | 3;
   channels: SetupChannel[];
@@ -72,9 +74,40 @@ export function parseLeadSetupDraft(raw: string | null): LeadSetupDraft {
       channels.length
         ? (draft.step as LeadSetupDraft["step"])
         : 0;
-    const options:NonNullable<LeadSetupDraft['fieldOptions']>={};
-    if(draft.fieldOptions&&typeof draft.fieldOptions==='object')for(const field of fields){const o=(draft.fieldOptions as Record<string,unknown>)[field] as {label?:unknown;required?:unknown}|undefined;if(o&&typeof o.label==='string'&&o.label.trim()&&o.label.length<=150&&typeof o.required==='boolean')options[field]={label:o.label,required:field==='name'||o.required};}
-    return { version: 1, step, channels, fields,fieldOptions:options,...(typeof draft.title==='string'?{title:draft.title.slice(0,100)}:{}),...(typeof draft.greeting==='string'?{greeting:draft.greeting.slice(0,2000)}:{}),...(typeof draft.finalMessage==='string'?{finalMessage:draft.finalMessage.slice(0,2000)}:{}) };
+    const options: NonNullable<LeadSetupDraft["fieldOptions"]> = {};
+    if (draft.fieldOptions && typeof draft.fieldOptions === "object")
+      for (const field of fields) {
+        const o = (draft.fieldOptions as Record<string, unknown>)[field] as
+          | { label?: unknown; required?: unknown }
+          | undefined;
+        if (
+          o &&
+          typeof o.label === "string" &&
+          o.label.trim() &&
+          o.label.length <= 150 &&
+          typeof o.required === "boolean"
+        )
+          options[field] = {
+            label: o.label,
+            required: field === "name" || o.required,
+          };
+      }
+    return {
+      version: 1,
+      step,
+      channels,
+      fields,
+      fieldOptions: options,
+      ...(typeof draft.title === "string"
+        ? { title: draft.title.slice(0, 100) }
+        : {}),
+      ...(typeof draft.greeting === "string"
+        ? { greeting: draft.greeting.slice(0, 2000) }
+        : {}),
+      ...(typeof draft.finalMessage === "string"
+        ? { finalMessage: draft.finalMessage.slice(0, 2000) }
+        : {}),
+    };
   } catch {
     return fallback;
   }

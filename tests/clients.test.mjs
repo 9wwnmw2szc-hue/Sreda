@@ -1,35 +1,515 @@
-import { before,after,test } from 'node:test';
-import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
-import { Kysely,PGliteDialect } from 'kysely';
-import { PGlite } from '@electric-sql/pglite';
-import { migrate } from '../src/server/db/migrate.ts';
-import { matchClient,normalizeIdentity,ClientService } from '../src/server/clients/service.ts';
-import { allowed } from '../src/server/access/permissions.ts';
-import { notify,NotificationService } from '../src/server/notifications/service.ts';
-const db=new Kysely({dialect:new PGliteDialect({pglite:new PGlite()})});
-before(()=>migrate(db,new URL('../migrations',import.meta.url).pathname));after(()=>db.destroy());
-async function fixture(){const uid=randomUUID();await db.insertInto('user').values({id:uid,name:'Admin',email:uid+'@test.invalid',emailVerified:false,username:'u'+uid}).execute();const b=await db.insertInto('business').values({id:randomUUID(),name:'Business',timezone:'Europe/Kaliningrad'}).returningAll().executeTakeFirstOrThrow();await db.insertInto('business_member').values({business_id:b.id,user_id:uid,role:'owner',status:'active'}).execute();return {uid,b};}
-test('platform identities match inside business; names and unverified phones never merge',async()=>{const {b}=await fixture();const {b:other}=await fixture();const resolve=(biz,input)=>db.transaction().execute(tx=>matchClient(tx,biz,input));const input={name:'Иван',phone:'+79991234567',identities:[{kind:'telegram',value:'101'}]};const id=await resolve(b.id,input);assert.equal(await resolve(b.id,input),id);assert.notEqual(await resolve(other.id,input),id);assert.notEqual(await resolve(b.id,{...input,identities:[]}),id);assert.notEqual(await resolve(b.id,{...input,identities:[{kind:'telegram',value:'102'}]}),id);});
-test('conflicting verified identities roll back instead of merging clients',async()=>{const {b}=await fixture();await db.transaction().execute(tx=>matchClient(tx,b.id,{identities:[{kind:'telegram',value:'11'}]}));await db.transaction().execute(tx=>matchClient(tx,b.id,{identities:[{kind:'phone',value:'+79991234567'}]}));await assert.rejects(db.transaction().execute(tx=>matchClient(tx,b.id,{identities:[{kind:'telegram',value:'11'},{kind:'phone',value:'+79991234567'}]})),e=>e.code==='CLIENT_IDENTITY_CONFLICT');assert.equal((await db.selectFrom('client').selectAll().where('business_id','=',b.id).execute()).length,2);});
-test('client notes scoped, notifications deduplicated and read state isolated',async()=>{const {uid,b}=await fixture();const other=await fixture();const svc=new ClientService(db);const {id}=await svc.save(uid,b.public_id,{name:'Иван'});await svc.note(uid,b.public_id,id,'Внутренняя заметка');await assert.rejects(svc.detail(other.uid,b.public_id,id),e=>e.code==='BUSINESS_NOT_FOUND');await db.transaction().execute(tx=>notify(tx,b.id,'lead.created','lead:1','Новая заявка','/leads'));await db.transaction().execute(tx=>notify(tx,b.id,'lead.created','lead:1','Новая заявка','/leads'));const ns=new NotificationService(db);const items=await ns.list(uid,b.public_id);assert.equal(items.length,1);assert.equal(items[0].read_at,null);await ns.read(uid,b.public_id,items[0].id);assert.ok((await ns.list(uid,b.public_id))[0].read_at);assert.equal((await svc.detail(uid,b.public_id,id)).notes.length,1);});
-test('permissions and contact normalization',()=>{assert.equal(allowed('operator','connections.manage'),false);assert.equal(allowed('operator','booking.write'),true);assert.equal(allowed('admin','posts.manage'),true);assert.equal(normalizeIdentity({kind:'phone',value:'+7 (999) 123-45-67'}).value,'+79991234567');assert.throws(()=>normalizeIdentity({kind:'phone',value:'123'}));assert.throws(()=>normalizeIdentity({kind:'telegram',value:'-10'}));});
+import { before, after, test } from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { Kysely, PGliteDialect } from "kysely";
+import { PGlite } from "@electric-sql/pglite";
+import { migrate } from "../src/server/db/migrate.ts";
+import {
+  matchClient,
+  normalizeIdentity,
+  ClientService,
+} from "../src/server/clients/service.ts";
+import { allowed } from "../src/server/access/permissions.ts";
+import {
+  notify,
+  NotificationService,
+} from "../src/server/notifications/service.ts";
+const db = new Kysely({ dialect: new PGliteDialect({ pglite: new PGlite() }) });
+before(() => migrate(db, new URL("../migrations", import.meta.url).pathname));
+after(() => db.destroy());
+async function fixture() {
+  const uid = randomUUID();
+  await db
+    .insertInto("user")
+    .values({
+      id: uid,
+      name: "Admin",
+      email: uid + "@test.invalid",
+      emailVerified: false,
+      username: "u" + uid,
+    })
+    .execute();
+  const b = await db
+    .insertInto("business")
+    .values({
+      id: randomUUID(),
+      name: "Business",
+      timezone: "Europe/Kaliningrad",
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  await db
+    .insertInto("business_member")
+    .values({
+      business_id: b.id,
+      user_id: uid,
+      role: "owner",
+      status: "active",
+    })
+    .execute();
+  return { uid, b };
+}
+test("platform identities match inside business; names and unverified phones never merge", async () => {
+  const { b } = await fixture();
+  const { b: other } = await fixture();
+  const resolve = (biz, input) =>
+    db.transaction().execute((tx) => matchClient(tx, biz, input));
+  const input = {
+    name: "Иван",
+    phone: "+79991234567",
+    identities: [{ kind: "telegram", value: "101" }],
+  };
+  const id = await resolve(b.id, input);
+  assert.equal(await resolve(b.id, input), id);
+  assert.notEqual(await resolve(other.id, input), id);
+  assert.notEqual(await resolve(b.id, { ...input, identities: [] }), id);
+  assert.notEqual(
+    await resolve(b.id, {
+      ...input,
+      identities: [{ kind: "telegram", value: "102" }],
+    }),
+    id,
+  );
+});
+test("conflicting verified identities roll back instead of merging clients", async () => {
+  const { b } = await fixture();
+  await db
+    .transaction()
+    .execute((tx) =>
+      matchClient(tx, b.id, {
+        identities: [{ kind: "telegram", value: "11" }],
+      }),
+    );
+  await db
+    .transaction()
+    .execute((tx) =>
+      matchClient(tx, b.id, {
+        identities: [{ kind: "phone", value: "+79991234567" }],
+      }),
+    );
+  await assert.rejects(
+    db.transaction().execute((tx) =>
+      matchClient(tx, b.id, {
+        identities: [
+          { kind: "telegram", value: "11" },
+          { kind: "phone", value: "+79991234567" },
+        ],
+      }),
+    ),
+    (e) => e.code === "CLIENT_IDENTITY_CONFLICT",
+  );
+  assert.equal(
+    (
+      await db
+        .selectFrom("client")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .execute()
+    ).length,
+    2,
+  );
+});
+test("client notes scoped, notifications deduplicated and read state isolated", async () => {
+  const { uid, b } = await fixture();
+  const other = await fixture();
+  const svc = new ClientService(db);
+  const { id } = await svc.save(uid, b.public_id, { name: "Иван" });
+  await svc.note(uid, b.public_id, id, "Внутренняя заметка");
+  await assert.rejects(
+    svc.detail(other.uid, b.public_id, id),
+    (e) => e.code === "BUSINESS_NOT_FOUND",
+  );
+  await db
+    .transaction()
+    .execute((tx) =>
+      notify(tx, b.id, "lead.created", "lead:1", "Новая заявка", "/leads"),
+    );
+  await db
+    .transaction()
+    .execute((tx) =>
+      notify(tx, b.id, "lead.created", "lead:1", "Новая заявка", "/leads"),
+    );
+  const ns = new NotificationService(db);
+  const items = await ns.list(uid, b.public_id);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].read_at, null);
+  await ns.read(uid, b.public_id, items[0].id);
+  assert.ok((await ns.list(uid, b.public_id))[0].read_at);
+  assert.equal((await svc.detail(uid, b.public_id, id)).notes.length, 1);
+});
+test("permissions and contact normalization", () => {
+  assert.equal(allowed("operator", "connections.manage"), false);
+  assert.equal(allowed("operator", "booking.write"), true);
+  assert.equal(allowed("admin", "posts.manage"), true);
+  assert.equal(
+    normalizeIdentity({ kind: "phone", value: "+7 (999) 123-45-67" }).value,
+    "+79991234567",
+  );
+  assert.throws(() => normalizeIdentity({ kind: "phone", value: "123" }));
+  assert.throws(() => normalizeIdentity({ kind: "telegram", value: "-10" }));
+});
 
-test('lead and conversation share a platform client; duplicate message leaves history unchanged',async()=>{
- const {CommunicationService}=await import('../src/server/communications/service.ts');const {createLead}=await import('../src/server/leads/service.ts');const {b}=await fixture();
- const lead=await db.transaction().execute(tx=>createLead(tx,b.id,{source:'telegram',name:'Анна',platformUserId:'222',externalEventId:'lead-event'}));
- const cs=new CommunicationService(db);const input={businessId:b.id,platform:'telegram',externalUserId:'222',text:'Уточните время',externalMessageId:'message-event'};
- await cs.recordInbound(input);await cs.recordInbound(input);
- const conversation=await db.selectFrom('communication_conversation').selectAll().where('business_id','=',b.id).executeTakeFirstOrThrow();assert.equal(conversation.client_id,lead.client_id);
- assert.equal((await db.selectFrom('client_activity').selectAll().where('business_id','=',b.id).execute()).length,2);
- assert.equal((await db.selectFrom('communication_message').selectAll().where('business_id','=',b.id).execute()).length,1);
+test("lead and conversation share a platform client; duplicate message leaves history unchanged", async () => {
+  const { CommunicationService } = await import(
+    "../src/server/communications/service.ts"
+  );
+  const { createLead } = await import("../src/server/leads/service.ts");
+  const { b } = await fixture();
+  const lead = await db
+    .transaction()
+    .execute((tx) =>
+      createLead(tx, b.id, {
+        source: "telegram",
+        name: "Анна",
+        platformUserId: "222",
+        externalEventId: "lead-event",
+      }),
+    );
+  const cs = new CommunicationService(db);
+  const input = {
+    businessId: b.id,
+    platform: "telegram",
+    externalUserId: "222",
+    text: "Уточните время",
+    externalMessageId: "message-event",
+  };
+  await cs.recordInbound(input);
+  await cs.recordInbound(input);
+  const conversation = await db
+    .selectFrom("communication_conversation")
+    .selectAll()
+    .where("business_id", "=", b.id)
+    .executeTakeFirstOrThrow();
+  assert.equal(conversation.client_id, lead.client_id);
+  assert.equal(
+    (
+      await db
+        .selectFrom("client_activity")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .execute()
+    ).length,
+    2,
+  );
+  assert.equal(
+    (
+      await db
+        .selectFrom("communication_message")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .execute()
+    ).length,
+    1,
+  );
 });
-test('VK community verification and callback setup preserve event ledger and accept nested message',async()=>{
- const {ConnectionService}=await import('../src/server/connections/service.ts');const {VKService,callbackSecret}=await import('../src/server/vk/service.ts');const {uid,b}=await fixture();let confirmation;
- const transport=async(url,init)=>{const method=url.split('/').at(-1);const params=new URLSearchParams(init.body);if(method==='groups.getTokenPermissions')return Response.json({response:{permissions:[{name:'messages',setting:1},{name:'manage',setting:1}]}});if(method==='groups.getById')return Response.json({response:{groups:[{id:555,name:'VK Business'}]}});if(method==='groups.getCallbackConfirmationCode')return Response.json({response:{code:'confirm-fixture'}});if(method==='groups.getCallbackServers')return Response.json({response:{items:[]}});if(method==='groups.addCallbackServer'){assert.ok(params.get('secret_key').length<=50);const id=params.get('url').split('/').at(-1);confirmation=await vk.receive(id,{type:'confirmation',group_id:555,secret:params.get('secret_key')});return Response.json({response:{server_id:1}});}return Response.json({response:1});};
- const cs=new ConnectionService(db,'test-secret-key-'.repeat(4),transport);await cs.connect(uid,b.public_id,{platform:'vk',token:'test-token-vk-12345'});const c=(await cs.list(uid,b.public_id))[0];const vk=new VKService(db,'test-secret-key-'.repeat(4),true,undefined,transport);await vk.start(uid,b.public_id,'https://fixture.test');assert.deepEqual(confirmation,{confirmation:'confirm-fixture'});
- const runtime=await db.selectFrom('vk_runtime').selectAll().where('connection_id','=',c.id).executeTakeFirstOrThrow();const secret=callbackSecret('test-secret-key-'.repeat(4),c.id,runtime.generation).slice(0,48);const update={type:'message_new',event_id:'evt1',group_id:555,secret,object:{message:{from_id:333,peer_id:333,text:'/start'}}};await vk.receive(c.id,update);await vk.receive(c.id,update);assert.equal((await db.selectFrom('vk_outbox').selectAll().where('connection_id','=',c.id).execute()).length,1);await assert.rejects(vk.receive(c.id,{...update,group_id:777}),e=>e.code==='INVALID_WEBHOOK');
+test("VK community verification and callback setup preserve event ledger and accept nested message", async () => {
+  const { ConnectionService } = await import(
+    "../src/server/connections/service.ts"
+  );
+  const { VKService, callbackSecret } = await import(
+    "../src/server/vk/service.ts"
+  );
+  const { uid, b } = await fixture();
+  let confirmation;
+  const transport = async (url, init) => {
+    const method = url.split("/").at(-1);
+    const params = new URLSearchParams(init.body);
+    if (method === "groups.getTokenPermissions")
+      return Response.json({
+        response: {
+          permissions: [
+            { name: "messages", setting: 1 },
+            { name: "manage", setting: 1 },
+          ],
+        },
+      });
+    if (method === "groups.getById")
+      return Response.json({
+        response: { groups: [{ id: 555, name: "VK Business" }] },
+      });
+    if (method === "groups.getCallbackConfirmationCode")
+      return Response.json({ response: { code: "confirm-fixture" } });
+    if (method === "groups.getCallbackServers")
+      return Response.json({ response: { items: [] } });
+    if (method === "groups.addCallbackServer") {
+      assert.ok(params.get("secret_key").length <= 50);
+      const id = params.get("url").split("/").at(-1);
+      confirmation = await vk.receive(id, {
+        type: "confirmation",
+        group_id: 555,
+        secret: params.get("secret_key"),
+      });
+      return Response.json({ response: { server_id: 1 } });
+    }
+    return Response.json({ response: 1 });
+  };
+  const cs = new ConnectionService(db, "test-secret-key-".repeat(4), transport);
+  await cs.connect(uid, b.public_id, {
+    platform: "vk",
+    token: "test-token-vk-12345",
+  });
+  const c = (await cs.list(uid, b.public_id))[0];
+  const vk = new VKService(
+    db,
+    "test-secret-key-".repeat(4),
+    true,
+    undefined,
+    transport,
+  );
+  await vk.start(uid, b.public_id, "https://fixture.test");
+  assert.deepEqual(confirmation, { confirmation: "confirm-fixture" });
+  const runtime = await db
+    .selectFrom("vk_runtime")
+    .selectAll()
+    .where("connection_id", "=", c.id)
+    .executeTakeFirstOrThrow();
+  const secret = callbackSecret(
+    "test-secret-key-".repeat(4),
+    c.id,
+    runtime.generation,
+  ).slice(0, 48);
+  const update = {
+    type: "message_new",
+    event_id: "evt1",
+    group_id: 555,
+    secret,
+    object: { message: { from_id: 333, peer_id: 333, text: "/start" } },
+  };
+  await vk.receive(c.id, update);
+  await vk.receive(c.id, update);
+  assert.equal(
+    (
+      await db
+        .selectFrom("vk_outbox")
+        .selectAll()
+        .where("connection_id", "=", c.id)
+        .execute()
+    ).length,
+    1,
+  );
+  await assert.rejects(
+    vk.receive(c.id, { ...update, group_id: 777 }),
+    (e) => e.code === "INVALID_WEBHOOK",
+  );
 });
-test('employee Telegram binding is one-time, scoped and delivery respects revoked membership',async()=>{const {NotificationSettings,bindNotification}=await import('../src/server/notifications/settings.ts');const {queueNotification,notificationValid}=await import('../src/server/notifications/worker.ts');const {uid,b}=await fixture();const connection=randomUUID();await db.insertInto('business_connection').values({id:connection,business_id:b.id,platform:'telegram',external_account_id:'staffbot'+randomUUID(),display_name:'Bot',status:'connected'}).execute();await db.insertInto('telegram_runtime').values({connection_id:connection,generation:randomUUID(),status:'ready'}).execute();const service=new NotificationSettings(db);const issued=await service.save(uid,b.public_id,{action:'connect'});const code=issued.command.slice(14);assert.equal(code.length,32);const stored=await db.selectFrom('notification_binding').selectAll().where('business_id','=',b.id).executeTakeFirstOrThrow();assert.notEqual(stored.code_hash,code);const other=await fixture();assert.equal(await db.transaction().execute(tx=>bindNotification(tx,other.b.id,connection,'123',code)),false);assert.equal(await db.transaction().execute(tx=>bindNotification(tx,b.id,connection,'123',code)),true);assert.equal(await db.transaction().execute(tx=>bindNotification(tx,b.id,connection,'123',code)),false);await db.transaction().execute(tx=>notify(tx,b.id,'lead.created','staff-event','New lead','/leads'));await queueNotification(db,'https://fixture.test');await queueNotification(db,'https://fixture.test');const jobs=await db.selectFrom('telegram_outbox').selectAll().where('connection_id','=',connection).execute();assert.equal(jobs.length,1);assert.equal(await db.transaction().execute(tx=>notificationValid(tx,jobs[0].notification_id,uid,connection,'123')),true);await service.save(uid,b.public_id,{action:'preferences',user_id:uid,type:'lead.created',enabled:false});assert.equal(await db.transaction().execute(tx=>notificationValid(tx,jobs[0].notification_id,uid,connection,'123')),false);await service.save(uid,b.public_id,{action:'preferences',user_id:uid,type:'lead.created',enabled:true});await db.updateTable('business_member').set({status:'revoked'}).where('business_id','=',b.id).where('user_id','=',uid).execute();assert.equal(await db.transaction().execute(tx=>notificationValid(tx,jobs[0].notification_id,uid,connection,'123')),false);});
-test('CRM filters distinguish new clients, leads and open conversations',async()=>{const {uid,b}=await fixture();const svc=new ClientService(db);const first=await svc.save(uid,b.public_id,{name:'Иван',phone:'+79991112233'});await svc.save(uid,b.public_id,{name:'Мария'});assert.equal((await svc.list(uid,b.public_id,'Иван'))[0].id,first.id);assert.equal((await svc.list(uid,b.public_id,'',undefined,'new')).length,2);assert.equal((await svc.list(uid,b.public_id,'',undefined,'leads')).length,0);await db.insertInto('lead').values({id:randomUUID(),business_id:b.id,client_id:first.id,source:'telegram',name:'Иван',phone:null,message:null,external_event_id:null}).execute();const rows=await svc.list(uid,b.public_id,'',undefined,'leads');assert.equal(rows.length,1);assert.equal(rows[0].lead_count,1);assert.equal(rows[0].booking_count,0);assert.deepEqual((await svc.detail(uid,b.public_id,first.id)).bookings,[]);await assert.rejects(svc.list(uid,b.public_id,'',undefined,'wrong'),e=>e.code==='INVALID_FILTER');});
-test('legacy CRM migration preserves history and never merges by a shared name',async()=>{const {b}=await fixture();const lead=randomUUID(),conversation=randomUUID();await db.insertInto('lead').values({id:lead,business_id:b.id,name:'Иван',phone:null,message:'Старая заявка',source:'telegram',external_event_id:null}).execute();await db.insertInto('communication_conversation').values({id:conversation,business_id:b.id,platform:'telegram',external_user_id:'555',external_username:'Иван',status:'open',assigned_member_user_id:null,closed_at:null}).execute();await db.deleteFrom('sreda_migration').where('name','=','029_crm_history_backfill.sql').execute();await migrate(db,new URL('../migrations',import.meta.url).pathname);const l=await db.selectFrom('lead').select('client_id').where('id','=',lead).executeTakeFirstOrThrow();const c=await db.selectFrom('communication_conversation').select('client_id').where('id','=',conversation).executeTakeFirstOrThrow();assert.ok(l.client_id);assert.ok(c.client_id);assert.notEqual(l.client_id,c.client_id);const identity=await db.selectFrom('client_identity').select('client_id').where('business_id','=',b.id).where('kind','=','telegram').where('value','=','555').executeTakeFirstOrThrow();assert.equal(identity.client_id,c.client_id);assert.equal((await db.selectFrom('client_activity').select('id').where('business_id','=',b.id).execute()).length,2);});
+test("employee Telegram binding is one-time, scoped and delivery respects revoked membership", async () => {
+  const { NotificationSettings, bindNotification } = await import(
+    "../src/server/notifications/settings.ts"
+  );
+  const { queueNotification, notificationValid } = await import(
+    "../src/server/notifications/worker.ts"
+  );
+  const { uid, b } = await fixture();
+  const connection = randomUUID();
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: connection,
+      business_id: b.id,
+      platform: "telegram",
+      external_account_id: "staffbot" + randomUUID(),
+      display_name: "Bot",
+      status: "connected",
+    })
+    .execute();
+  await db
+    .insertInto("telegram_runtime")
+    .values({
+      connection_id: connection,
+      generation: randomUUID(),
+      status: "ready",
+    })
+    .execute();
+  const service = new NotificationSettings(db);
+  const issued = await service.save(uid, b.public_id, { action: "connect" });
+  const code = issued.command.slice(14);
+  assert.equal(code.length, 32);
+  const stored = await db
+    .selectFrom("notification_binding")
+    .selectAll()
+    .where("business_id", "=", b.id)
+    .executeTakeFirstOrThrow();
+  assert.notEqual(stored.code_hash, code);
+  const other = await fixture();
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) =>
+        bindNotification(tx, other.b.id, connection, "123", code),
+      ),
+    false,
+  );
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) => bindNotification(tx, b.id, connection, "123", code)),
+    true,
+  );
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) => bindNotification(tx, b.id, connection, "123", code)),
+    false,
+  );
+  await db
+    .transaction()
+    .execute((tx) =>
+      notify(tx, b.id, "lead.created", "staff-event", "New lead", "/leads"),
+    );
+  await queueNotification(db, "https://fixture.test");
+  await queueNotification(db, "https://fixture.test");
+  const jobs = await db
+    .selectFrom("telegram_outbox")
+    .selectAll()
+    .where("connection_id", "=", connection)
+    .execute();
+  assert.equal(jobs.length, 1);
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) =>
+        notificationValid(tx, jobs[0].notification_id, uid, connection, "123"),
+      ),
+    true,
+  );
+  await service.save(uid, b.public_id, {
+    action: "preferences",
+    user_id: uid,
+    type: "lead.created",
+    enabled: false,
+  });
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) =>
+        notificationValid(tx, jobs[0].notification_id, uid, connection, "123"),
+      ),
+    false,
+  );
+  await service.save(uid, b.public_id, {
+    action: "preferences",
+    user_id: uid,
+    type: "lead.created",
+    enabled: true,
+  });
+  await db
+    .updateTable("business_member")
+    .set({ status: "revoked" })
+    .where("business_id", "=", b.id)
+    .where("user_id", "=", uid)
+    .execute();
+  assert.equal(
+    await db
+      .transaction()
+      .execute((tx) =>
+        notificationValid(tx, jobs[0].notification_id, uid, connection, "123"),
+      ),
+    false,
+  );
+});
+test("CRM filters distinguish new clients, leads and open conversations", async () => {
+  const { uid, b } = await fixture();
+  const svc = new ClientService(db);
+  const first = await svc.save(uid, b.public_id, {
+    name: "Иван",
+    phone: "+79991112233",
+  });
+  await svc.save(uid, b.public_id, { name: "Мария" });
+  assert.equal((await svc.list(uid, b.public_id, "Иван"))[0].id, first.id);
+  assert.equal(
+    (await svc.list(uid, b.public_id, "", undefined, "new")).length,
+    2,
+  );
+  assert.equal(
+    (await svc.list(uid, b.public_id, "", undefined, "leads")).length,
+    0,
+  );
+  await db
+    .insertInto("lead")
+    .values({
+      id: randomUUID(),
+      business_id: b.id,
+      client_id: first.id,
+      source: "telegram",
+      name: "Иван",
+      phone: null,
+      message: null,
+      external_event_id: null,
+    })
+    .execute();
+  const rows = await svc.list(uid, b.public_id, "", undefined, "leads");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].lead_count, 1);
+  assert.equal(rows[0].booking_count, 0);
+  assert.deepEqual((await svc.detail(uid, b.public_id, first.id)).bookings, []);
+  await assert.rejects(
+    svc.list(uid, b.public_id, "", undefined, "wrong"),
+    (e) => e.code === "INVALID_FILTER",
+  );
+});
+test("legacy CRM migration preserves history and never merges by a shared name", async () => {
+  const { b } = await fixture();
+  const lead = randomUUID(),
+    conversation = randomUUID();
+  await db
+    .insertInto("lead")
+    .values({
+      id: lead,
+      business_id: b.id,
+      name: "Иван",
+      phone: null,
+      message: "Старая заявка",
+      source: "telegram",
+      external_event_id: null,
+    })
+    .execute();
+  await db
+    .insertInto("communication_conversation")
+    .values({
+      id: conversation,
+      business_id: b.id,
+      platform: "telegram",
+      external_user_id: "555",
+      external_username: "Иван",
+      status: "open",
+      assigned_member_user_id: null,
+      closed_at: null,
+    })
+    .execute();
+  await db
+    .deleteFrom("sreda_migration")
+    .where("name", "=", "029_crm_history_backfill.sql")
+    .execute();
+  await migrate(db, new URL("../migrations", import.meta.url).pathname);
+  const l = await db
+    .selectFrom("lead")
+    .select("client_id")
+    .where("id", "=", lead)
+    .executeTakeFirstOrThrow();
+  const c = await db
+    .selectFrom("communication_conversation")
+    .select("client_id")
+    .where("id", "=", conversation)
+    .executeTakeFirstOrThrow();
+  assert.ok(l.client_id);
+  assert.ok(c.client_id);
+  assert.notEqual(l.client_id, c.client_id);
+  const identity = await db
+    .selectFrom("client_identity")
+    .select("client_id")
+    .where("business_id", "=", b.id)
+    .where("kind", "=", "telegram")
+    .where("value", "=", "555")
+    .executeTakeFirstOrThrow();
+  assert.equal(identity.client_id, c.client_id);
+  assert.equal(
+    (
+      await db
+        .selectFrom("client_activity")
+        .select("id")
+        .where("business_id", "=", b.id)
+        .execute()
+    ).length,
+    2,
+  );
+});

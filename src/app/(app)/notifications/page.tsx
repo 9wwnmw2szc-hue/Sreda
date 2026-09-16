@@ -1,2 +1,4 @@
-import { NotificationsView } from '@/components/notifications/NotificationsView';
-export default function Page(){return <NotificationsView/>;}
+import { NotificationsView } from "@/components/notifications/NotificationsView";
+export default function Page() {
+  return <NotificationsView />;
+}

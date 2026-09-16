@@ -1,2 +1,82 @@
-import {randomUUID} from 'node:crypto';import type {Transaction} from 'kysely';import type {Database} from '../db/schema.ts';import {notify} from '../notifications/service.ts';
-export async function postDeliveryResult(tx:Transaction<Database>,id:string,status:'published'|'failed'|'uncertain',externalId:string|null=null,error:string|null=null){if(status==='published'){const telegram=await tx.selectFrom('telegram_outbox').select(['delivery_state','external_message_id']).where('post_delivery_id','=',id).execute();const vk=await tx.selectFrom('vk_outbox').select(['delivery_state','external_message_id']).where('post_delivery_id','=',id).execute();const jobs=[...telegram,...vk];if(jobs.some(j=>j.delivery_state!=='sent'))return;externalId=jobs.map(j=>j.external_message_id).filter(Boolean).join(',')||externalId;}const d=await tx.updateTable('post_delivery').set({status,external_message_id:externalId,last_error:error}).where('id','=',id).returningAll().executeTakeFirst();if(!d)return;const items=await tx.selectFrom('post_delivery').select('status').where('post_id','=',d.post_id).execute();const all=items.every(i=>i.status==='published');const pending=items.some(i=>i.status==='pending'||i.status==='publishing');const any=items.some(i=>i.status==='published');const result=all?'published':pending?'publishing':any?'partial':'failed';const p=await tx.updateTable('post').set({status:result,updated_at:new Date()}).where('id','=',d.post_id).returning(['created_by','status']).executeTakeFirstOrThrow();if(all)await tx.insertInto('business_audit_log').values({id:randomUUID(),business_id:d.business_id,actor_user_id:p.created_by,action:'post_published',target_user_id:null,details:d.post_id}).execute();if(status!=='published')await notify(tx,d.business_id,'post.failed','post-failed:'+id,'Ошибка публикации','/posts');}
+import { randomUUID } from "node:crypto";
+import type { Transaction } from "kysely";
+import type { Database } from "../db/schema.ts";
+import { notify } from "../notifications/service.ts";
+export async function postDeliveryResult(
+  tx: Transaction<Database>,
+  id: string,
+  status: "published" | "failed" | "uncertain",
+  externalId: string | null = null,
+  error: string | null = null,
+) {
+  if (status === "published") {
+    const telegram = await tx
+      .selectFrom("telegram_outbox")
+      .select(["delivery_state", "external_message_id"])
+      .where("post_delivery_id", "=", id)
+      .execute();
+    const vk = await tx
+      .selectFrom("vk_outbox")
+      .select(["delivery_state", "external_message_id"])
+      .where("post_delivery_id", "=", id)
+      .execute();
+    const jobs = [...telegram, ...vk];
+    if (jobs.some((j) => j.delivery_state !== "sent")) return;
+    externalId =
+      jobs
+        .map((j) => j.external_message_id)
+        .filter(Boolean)
+        .join(",") || externalId;
+  }
+  const d = await tx
+    .updateTable("post_delivery")
+    .set({ status, external_message_id: externalId, last_error: error })
+    .where("id", "=", id)
+    .returningAll()
+    .executeTakeFirst();
+  if (!d) return;
+  const items = await tx
+    .selectFrom("post_delivery")
+    .select("status")
+    .where("post_id", "=", d.post_id)
+    .execute();
+  const all = items.every((i) => i.status === "published");
+  const pending = items.some(
+    (i) => i.status === "pending" || i.status === "publishing",
+  );
+  const any = items.some((i) => i.status === "published");
+  const result = all
+    ? "published"
+    : pending
+      ? "publishing"
+      : any
+        ? "partial"
+        : "failed";
+  const p = await tx
+    .updateTable("post")
+    .set({ status: result, updated_at: new Date() })
+    .where("id", "=", d.post_id)
+    .returning(["created_by", "status"])
+    .executeTakeFirstOrThrow();
+  if (all)
+    await tx
+      .insertInto("business_audit_log")
+      .values({
+        id: randomUUID(),
+        business_id: d.business_id,
+        actor_user_id: p.created_by,
+        action: "post_published",
+        target_user_id: null,
+        details: d.post_id,
+      })
+      .execute();
+  if (status !== "published")
+    await notify(
+      tx,
+      d.business_id,
+      "post.failed",
+      "post-failed:" + id,
+      "Ошибка публикации",
+      "/posts",
+    );
+}

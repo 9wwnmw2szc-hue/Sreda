@@ -1,22 +1,211 @@
 "use client";
-import Link from 'next/link';
-import {useEffect,useState} from 'react';
-import {useBusinessContext} from '@/hooks/useBusinessContext';
-import {apiRequest} from '@/lib/apiClient';
-type Platform='telegram'|'vk';
-type Connection={id:string;platform:Platform;displayName:string|null;status:string};
-export function ConnectionsView(){const {currentBusiness}=useBusinessContext();if(!currentBusiness)return <p>Выберите бизнес.</p>;if(currentBusiness.role==='operator')return <p>Подключениями управляет владелец или администратор.</p>;return <Connections key={currentBusiness.id} id={currentBusiness.id}/>;}
-function Connections({id}:{id:string}){
- const [connections,setConnections]=useState<Connection[]>([]),[tokens,setTokens]=useState({telegram:'',vk:''}),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirmation,setConfirmation]=useState<Platform|null>(null);const base=`/api/v1/businesses/${id}`;
- useEffect(()=>{let alive=true;void apiRequest<Connection[]>(base+'/connections').then(c=>{if(alive)setConnections(c);}).catch(e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[base]);
- async function act(platform:Platform,action:'connect'|'start'|'disconnect'){
-  if(busy)return;if(action==='connect'&&!tokens[platform].trim()){setError('Вставьте токен '+(platform==='telegram'?'бота из @BotFather.':'сообщества VK.'));return;}
-  setBusy(true);setError('');setNotice('');try{
-   if(action==='connect'){const token=tokens[platform].trim();setTokens(v=>({...v,[platform]:''}));await apiRequest(base+'/connections',{method:'POST',body:JSON.stringify({platform,token})});setNotice('Токен проверен и сохранён. Подключите нужные решения и нажмите «Запустить бота».');}
-   else if(action==='start'){await apiRequest(base+'/'+platform+'/start',{method:'POST'});setNotice('Приём событий настроен. Проверьте ответ бота; доставка также зависит от работающего обработчика сообщений.');}
-   else{await apiRequest(base+'/connections?platform='+platform,{method:'DELETE'});setConfirmation(null);setNotice('Подключение отключено, токен удалён.');}
-   setConnections(await apiRequest<Connection[]>(base+'/connections'));
-  }catch(e){setError(e instanceof Error?e.message:'Не удалось выполнить действие.');}finally{setBusy(false);}
- }
- return <div className="connections-page"><header><h1>Подключения</h1><p>Один бот бизнеса для заявок, общения и онлайн-записи.</p></header>{error&&<p role="alert" className="account-error">{error}</p>}{notice&&<p role="status" className="account-notice">{notice}</p>}{(['telegram','vk'] as const).map(platform=>{const connection=connections.find(c=>c.platform===platform);return <section className="panel connection-setup" key={platform}><h2>{platform==='telegram'?'Telegram':'ВКонтакте'}</h2>{connection?.status==='connected'?<><p>Токен проверен: {connection.displayName}</p><div className="message-actions"><Link className="button button--outline" href="/solutions">Настроить решения</Link><button className="button button--primary" disabled={busy} onClick={()=>void act(platform,'start')}>Запустить бота</button><button className="button button--outline" disabled={busy} onClick={()=>setConfirmation(platform)}>Отключить</button></div></>:<form className="connection-token-form" onSubmit={e=>{e.preventDefault();void act(platform,'connect');}}><p>{platform==='telegram'?<>Получите токен своего бота в <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">@BotFather</a>.</>:'Создайте ключ доступа сообщества VK с правами сообщений и управления. Включите сообщения сообщества в настройках VK.'}</p><label htmlFor={'token-'+platform}>Токен {platform==='telegram'?'бота':'сообщества'}</label><input id={'token-'+platform} type="password" autoComplete="off" autoCapitalize="none" spellCheck={false} value={tokens[platform]} onChange={e=>setTokens({...tokens,[platform]:e.target.value})} disabled={busy}/><p>Токен хранится на сервере в зашифрованном виде.</p><button className="button button--primary" disabled={busy}>{busy?'Проверяем…':'Подключить'}</button></form>}</section>;})}{confirmation&&<section className="panel crm-panel" role="dialog" aria-modal="true" aria-label="Отключение интеграции"><h2>Отключить {confirmation==='telegram'?'Telegram':'VK'}?</h2><p>Приём и отправка сообщений остановятся. Для повторного подключения понадобится токен.</p><button className="button button--primary" disabled={busy} onClick={()=>void act(confirmation,'disconnect')}>Да, отключить</button><button className="button button--outline" disabled={busy} onClick={()=>setConfirmation(null)}>Назад</button></section>}</div>;
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useBusinessContext } from "@/hooks/useBusinessContext";
+import { apiRequest } from "@/lib/apiClient";
+type Platform = "telegram" | "vk";
+type Connection = {
+  id: string;
+  platform: Platform;
+  displayName: string | null;
+  status: string;
+};
+export function ConnectionsView() {
+  const { currentBusiness } = useBusinessContext();
+  if (!currentBusiness) return <p>Выберите бизнес.</p>;
+  if (currentBusiness.role === "operator")
+    return <p>Подключениями управляет владелец или администратор.</p>;
+  return <Connections key={currentBusiness.id} id={currentBusiness.id} />;
+}
+function Connections({ id }: { id: string }) {
+  const [connections, setConnections] = useState<Connection[]>([]),
+    [tokens, setTokens] = useState({ telegram: "", vk: "" }),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [confirmation, setConfirmation] = useState<Platform | null>(null);
+  const base = `/api/v1/businesses/${id}`;
+  useEffect(() => {
+    let alive = true;
+    void apiRequest<Connection[]>(base + "/connections")
+      .then((c) => {
+        if (alive) setConnections(c);
+      })
+      .catch((e) => {
+        if (alive) setError(e.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [base]);
+  async function act(
+    platform: Platform,
+    action: "connect" | "start" | "disconnect",
+  ) {
+    if (busy) return;
+    if (action === "connect" && !tokens[platform].trim()) {
+      setError(
+        "Вставьте токен " +
+          (platform === "telegram" ? "бота из @BotFather." : "сообщества VK."),
+      );
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      if (action === "connect") {
+        const token = tokens[platform].trim();
+        setTokens((v) => ({ ...v, [platform]: "" }));
+        await apiRequest(base + "/connections", {
+          method: "POST",
+          body: JSON.stringify({ platform, token }),
+        });
+        setNotice(
+          "Токен проверен и сохранён. Подключите нужные решения и нажмите «Запустить бота».",
+        );
+      } else if (action === "start") {
+        await apiRequest(base + "/" + platform + "/start", { method: "POST" });
+        setNotice(
+          "Приём событий настроен. Проверьте ответ бота; доставка также зависит от работающего обработчика сообщений.",
+        );
+      } else {
+        await apiRequest(base + "/connections?platform=" + platform, {
+          method: "DELETE",
+        });
+        setConfirmation(null);
+        setNotice("Подключение отключено, токен удалён.");
+      }
+      setConnections(await apiRequest<Connection[]>(base + "/connections"));
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Не удалось выполнить действие.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="connections-page">
+      <header>
+        <h1>Подключения</h1>
+        <p>Один бот бизнеса для заявок, общения и онлайн-записи.</p>
+      </header>
+      {error && (
+        <p role="alert" className="account-error">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="account-notice">
+          {notice}
+        </p>
+      )}
+      {(["telegram", "vk"] as const).map((platform) => {
+        const connection = connections.find((c) => c.platform === platform);
+        return (
+          <section className="panel connection-setup" key={platform}>
+            <h2>{platform === "telegram" ? "Telegram" : "ВКонтакте"}</h2>
+            {connection?.status === "connected" ? (
+              <>
+                <p>Токен проверен: {connection.displayName}</p>
+                <div className="message-actions">
+                  <Link className="button button--outline" href="/solutions">
+                    Настроить решения
+                  </Link>
+                  <button
+                    className="button button--primary"
+                    disabled={busy}
+                    onClick={() => void act(platform, "start")}
+                  >
+                    Запустить бота
+                  </button>
+                  <button
+                    className="button button--outline"
+                    disabled={busy}
+                    onClick={() => setConfirmation(platform)}
+                  >
+                    Отключить
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form
+                className="connection-token-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void act(platform, "connect");
+                }}
+              >
+                <p>
+                  {platform === "telegram" ? (
+                    <>
+                      Получите токен своего бота в{" "}
+                      <a
+                        href="https://t.me/BotFather"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        @BotFather
+                      </a>
+                      .
+                    </>
+                  ) : (
+                    "Создайте ключ доступа сообщества VK с правами сообщений и управления. Включите сообщения сообщества в настройках VK."
+                  )}
+                </p>
+                <label htmlFor={"token-" + platform}>
+                  Токен {platform === "telegram" ? "бота" : "сообщества"}
+                </label>
+                <input
+                  id={"token-" + platform}
+                  type="password"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={tokens[platform]}
+                  onChange={(e) =>
+                    setTokens({ ...tokens, [platform]: e.target.value })
+                  }
+                  disabled={busy}
+                />
+                <p>Токен хранится на сервере в зашифрованном виде.</p>
+                <button className="button button--primary" disabled={busy}>
+                  {busy ? "Проверяем…" : "Подключить"}
+                </button>
+              </form>
+            )}
+          </section>
+        );
+      })}
+      {confirmation && (
+        <section
+          className="panel crm-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Отключение интеграции"
+        >
+          <h2>Отключить {confirmation === "telegram" ? "Telegram" : "VK"}?</h2>
+          <p>
+            Приём и отправка сообщений остановятся. Для повторного подключения
+            понадобится токен.
+          </p>
+          <button
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => void act(confirmation, "disconnect")}
+          >
+            Да, отключить
+          </button>
+          <button
+            className="button button--outline"
+            disabled={busy}
+            onClick={() => setConfirmation(null)}
+          >
+            Назад
+          </button>
+        </section>
+      )}
+    </div>
+  );
 }

@@ -1,18 +1,260 @@
-import type {Kysely} from 'kysely';import type {Database} from '../db/schema.ts';import {AttachmentService} from './service.ts';import {TelegramError,telegramCall} from '../telegram/api.ts';import {VKError,vkCall} from '../vk/api.ts';
-export async function sendTelegramMedia(db:Kysely<Database>,secret:string,businessId:string,token:string,chatId:string,text:string,ids:string[],payload:Record<string,unknown>,transport:typeof fetch=fetch){
- let files;try{files=await Promise.all(ids.map(id=>new AttachmentService(db,secret,undefined,transport).load(businessId,id)));}catch{throw new TelegramError(30);}
- if(!files.length)return telegramCall(token,'sendMessage',{chat_id:chatId,text,...payload},transport);
- const form=new FormData();form.set('chat_id',chatId);let method:string;
- if(files.length>1){method='sendMediaGroup';form.set('media',JSON.stringify(files.map((file,i)=>({type:file.type==='video'?'video':'photo',media:'attach://file'+i,...(i===0&&text?{caption:text}:{})}))));files.forEach((file,i)=>form.set('file'+i,new Blob([new Uint8Array(file.bytes)],{type:file.mime}),file.filename));}
- else{const file=files[0]!;const field=file.type==='image'?'photo':file.type==='video'?'video':file.type==='voice'?'voice':'document';method='send'+field[0]!.toUpperCase()+field.slice(1);form.set(field,new Blob([new Uint8Array(file.bytes)],{type:file.mime}),file.filename);if(text)form.set('caption',text);if(payload.reply_markup)form.set('reply_markup',JSON.stringify(payload.reply_markup));}
- try{const response=await transport(`https://api.telegram.org/bot${encodeURIComponent(token)}/${method}`,{method:'POST',body:form,redirect:'error',signal:AbortSignal.timeout(60000)});const body=await response.json().catch(()=>null) as {ok?:boolean;result?:{message_id:number}|{message_id:number}[];parameters?:{retry_after?:number}}|null;if(!body)throw new TelegramError(0,false,false,true);if(!response.ok||!body.ok)throw new TelegramError(body.parameters?.retry_after??0,[400,401,403,404].includes(response.status),response.status===403);const values=Array.isArray(body.result)?body.result:[body.result];if(values.some(v=>!v?.message_id))throw new TelegramError(0,false,false,true);return {message_id:values.map(v=>v!.message_id).join(',')};}catch(e){if(e instanceof TelegramError)throw e;throw new TelegramError(0,false,false,true);}
+import type { Kysely } from "kysely";
+import type { Database } from "../db/schema.ts";
+import { AttachmentService } from "./service.ts";
+import { TelegramError, telegramCall } from "../telegram/api.ts";
+import { VKError, vkCall } from "../vk/api.ts";
+export async function sendTelegramMedia(
+  db: Kysely<Database>,
+  secret: string,
+  businessId: string,
+  token: string,
+  chatId: string,
+  text: string,
+  ids: string[],
+  payload: Record<string, unknown>,
+  transport: typeof fetch = fetch,
+) {
+  let files;
+  try {
+    files = await Promise.all(
+      ids.map((id) =>
+        new AttachmentService(db, secret, undefined, transport).load(
+          businessId,
+          id,
+        ),
+      ),
+    );
+  } catch {
+    throw new TelegramError(30);
+  }
+  if (!files.length)
+    return telegramCall(
+      token,
+      "sendMessage",
+      { chat_id: chatId, text, ...payload },
+      transport,
+    );
+  const form = new FormData();
+  form.set("chat_id", chatId);
+  let method: string;
+  if (files.length > 1) {
+    method = "sendMediaGroup";
+    form.set(
+      "media",
+      JSON.stringify(
+        files.map((file, i) => ({
+          type: file.type === "video" ? "video" : "photo",
+          media: "attach://file" + i,
+          ...(i === 0 && text ? { caption: text } : {}),
+        })),
+      ),
+    );
+    files.forEach((file, i) =>
+      form.set(
+        "file" + i,
+        new Blob([new Uint8Array(file.bytes)], { type: file.mime }),
+        file.filename,
+      ),
+    );
+  } else {
+    const file = files[0]!;
+    const field =
+      file.type === "image"
+        ? "photo"
+        : file.type === "video"
+          ? "video"
+          : file.type === "voice"
+            ? "voice"
+            : "document";
+    method = "send" + field[0]!.toUpperCase() + field.slice(1);
+    form.set(
+      field,
+      new Blob([new Uint8Array(file.bytes)], { type: file.mime }),
+      file.filename,
+    );
+    if (text) form.set("caption", text);
+    if (payload.reply_markup)
+      form.set("reply_markup", JSON.stringify(payload.reply_markup));
+  }
+  try {
+    const response = await transport(
+      `https://api.telegram.org/bot${encodeURIComponent(token)}/${method}`,
+      {
+        method: "POST",
+        body: form,
+        redirect: "error",
+        signal: AbortSignal.timeout(60000),
+      },
+    );
+    const body = (await response.json().catch(() => null)) as {
+      ok?: boolean;
+      result?: { message_id: number } | { message_id: number }[];
+      parameters?: { retry_after?: number };
+    } | null;
+    if (!body) throw new TelegramError(0, false, false, true);
+    if (!response.ok || !body.ok)
+      throw new TelegramError(
+        body.parameters?.retry_after ?? 0,
+        [400, 401, 403, 404].includes(response.status),
+        response.status === 403,
+      );
+    const values = Array.isArray(body.result) ? body.result : [body.result];
+    if (values.some((v) => !v?.message_id))
+      throw new TelegramError(0, false, false, true);
+    return { message_id: values.map((v) => v!.message_id).join(",") };
+  } catch (e) {
+    if (e instanceof TelegramError) throw e;
+    throw new TelegramError(0, false, false, true);
+  }
 }
-async function upload(url:string,field:string,bytes:Uint8Array,mime:string,filename:string,transport:typeof fetch){const u=new URL(url);if(u.protocol!=='https:'||!/(^|\.)(vk\.com|userapi\.com|vkuserlive\.net|vkuser\.net)$/.test(u.hostname))throw new VKError(0,true);const form=new FormData();form.set(field,new Blob([new Uint8Array(bytes)],{type:mime}),filename);const response=await transport(url,{method:'POST',body:form,redirect:'error',signal:AbortSignal.timeout(60000)});if(!response.ok)throw new VKError();return await response.json() as Record<string,unknown>;}
-export async function prepareVKMedia(db:Kysely<Database>,secret:string,businessId:string,token:string,publishToken:string|undefined,peerId:string,ids:string[],wall:boolean,transport:typeof fetch=fetch){
- const result:string[]=[];try{for(const id of ids){const file=await new AttachmentService(db,secret,undefined,transport).load(businessId,id);if(file.type==='image'){
-  const key=wall?publishToken:token;if(!key)throw new VKError(0,true);const server=await vkCall(key,wall?'photos.getWallUploadServer':'photos.getMessagesUploadServer',wall?{group_id:Math.abs(Number(peerId))}:{peer_id:peerId},transport) as {upload_url:string};const uploaded=await upload(server.upload_url,'photo',file.bytes,file.mime,file.filename,transport);const saved=await vkCall(key,wall?'photos.saveWallPhoto':'photos.saveMessagesPhoto',{...uploaded,...(wall?{group_id:Math.abs(Number(peerId))}:{})},transport) as {owner_id:number;id:number;access_key?:string}[];const photo=saved[0];if(!photo)throw new VKError();result.push(`photo${photo.owner_id}_${photo.id}${photo.access_key?'_'+photo.access_key:''}`);
- }else if(file.type==='video'){
-  if(!publishToken)throw new VKError(0,true);const saved=await vkCall(publishToken,'video.save',{name:file.filename,...(wall?{group_id:Math.abs(Number(peerId))}:{}),wallpost:0,auto_publish:0},transport) as {upload_url:string;owner_id:number;video_id:number;access_key?:string};await upload(saved.upload_url,'video_file',file.bytes,file.mime,file.filename,transport);result.push(`video${saved.owner_id}_${saved.video_id}${saved.access_key?'_'+saved.access_key:''}`);
- }else{if(wall)throw new VKError(0,true);const server=await vkCall(token,'docs.getMessagesUploadServer',{peer_id:peerId,type:file.type==='voice'?'audio_message':'doc'},transport) as {upload_url:string};const uploaded=await upload(server.upload_url,'file',file.bytes,file.mime,file.filename,transport);const saved=await vkCall(token,'docs.save',{file:uploaded.file,title:file.filename},transport) as {doc?:{owner_id:number;id:number;access_key?:string};audio_message?:{owner_id:number;id:number;access_key?:string}};const doc=saved.doc??saved.audio_message;if(!doc)throw new VKError();result.push(`doc${doc.owner_id}_${doc.id}${doc.access_key?'_'+doc.access_key:''}`);}
- }return result.join(',');}catch(error){if(error instanceof VKError)throw new VKError(error.retryAfter,error.permanent,false,false);throw new VKError(30);}
+async function upload(
+  url: string,
+  field: string,
+  bytes: Uint8Array,
+  mime: string,
+  filename: string,
+  transport: typeof fetch,
+) {
+  const u = new URL(url);
+  if (
+    u.protocol !== "https:" ||
+    !/(^|\.)(vk\.com|userapi\.com|vkuserlive\.net|vkuser\.net)$/.test(
+      u.hostname,
+    )
+  )
+    throw new VKError(0, true);
+  const form = new FormData();
+  form.set(field, new Blob([new Uint8Array(bytes)], { type: mime }), filename);
+  const response = await transport(url, {
+    method: "POST",
+    body: form,
+    redirect: "error",
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!response.ok) throw new VKError();
+  return (await response.json()) as Record<string, unknown>;
+}
+export async function prepareVKMedia(
+  db: Kysely<Database>,
+  secret: string,
+  businessId: string,
+  token: string,
+  publishToken: string | undefined,
+  peerId: string,
+  ids: string[],
+  wall: boolean,
+  transport: typeof fetch = fetch,
+) {
+  const result: string[] = [];
+  try {
+    for (const id of ids) {
+      const file = await new AttachmentService(
+        db,
+        secret,
+        undefined,
+        transport,
+      ).load(businessId, id);
+      if (file.type === "image") {
+        const key = wall ? publishToken : token;
+        if (!key) throw new VKError(0, true);
+        const server = (await vkCall(
+          key,
+          wall
+            ? "photos.getWallUploadServer"
+            : "photos.getMessagesUploadServer",
+          wall ? { group_id: Math.abs(Number(peerId)) } : { peer_id: peerId },
+          transport,
+        )) as { upload_url: string };
+        const uploaded = await upload(
+          server.upload_url,
+          "photo",
+          file.bytes,
+          file.mime,
+          file.filename,
+          transport,
+        );
+        const saved = (await vkCall(
+          key,
+          wall ? "photos.saveWallPhoto" : "photos.saveMessagesPhoto",
+          {
+            ...uploaded,
+            ...(wall ? { group_id: Math.abs(Number(peerId)) } : {}),
+          },
+          transport,
+        )) as { owner_id: number; id: number; access_key?: string }[];
+        const photo = saved[0];
+        if (!photo) throw new VKError();
+        result.push(
+          `photo${photo.owner_id}_${photo.id}${photo.access_key ? "_" + photo.access_key : ""}`,
+        );
+      } else if (file.type === "video") {
+        if (!publishToken) throw new VKError(0, true);
+        const saved = (await vkCall(
+          publishToken,
+          "video.save",
+          {
+            name: file.filename,
+            ...(wall ? { group_id: Math.abs(Number(peerId)) } : {}),
+            wallpost: 0,
+            auto_publish: 0,
+          },
+          transport,
+        )) as {
+          upload_url: string;
+          owner_id: number;
+          video_id: number;
+          access_key?: string;
+        };
+        await upload(
+          saved.upload_url,
+          "video_file",
+          file.bytes,
+          file.mime,
+          file.filename,
+          transport,
+        );
+        result.push(
+          `video${saved.owner_id}_${saved.video_id}${saved.access_key ? "_" + saved.access_key : ""}`,
+        );
+      } else {
+        if (wall) throw new VKError(0, true);
+        const server = (await vkCall(
+          token,
+          "docs.getMessagesUploadServer",
+          {
+            peer_id: peerId,
+            type: file.type === "voice" ? "audio_message" : "doc",
+          },
+          transport,
+        )) as { upload_url: string };
+        const uploaded = await upload(
+          server.upload_url,
+          "file",
+          file.bytes,
+          file.mime,
+          file.filename,
+          transport,
+        );
+        const saved = (await vkCall(
+          token,
+          "docs.save",
+          { file: uploaded.file, title: file.filename },
+          transport,
+        )) as {
+          doc?: { owner_id: number; id: number; access_key?: string };
+          audio_message?: { owner_id: number; id: number; access_key?: string };
+        };
+        const doc = saved.doc ?? saved.audio_message;
+        if (!doc) throw new VKError();
+        result.push(
+          `doc${doc.owner_id}_${doc.id}${doc.access_key ? "_" + doc.access_key : ""}`,
+        );
+      }
+    }
+    return result.join(",");
+  } catch (error) {
+    if (error instanceof VKError)
+      throw new VKError(error.retryAfter, error.permanent, false, false);
+    throw new VKError(30);
+  }
 }

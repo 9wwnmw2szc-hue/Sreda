@@ -68,47 +68,108 @@ export function LeadsSetupView({ price }: { price: number }) {
           </button>
         </section>
       ) : (
-        <ServerLeadsWizard key={`${business.id}:${business.role}`} business={business} price={price} />
+        <ServerLeadsWizard
+          key={`${business.id}:${business.role}`}
+          business={business}
+          price={price}
+        />
       )}
     </div>
   );
 }
-function ServerLeadsWizard({business,price}:{business:Business;price:number}) {
-  const [value,setValue]=useState<{draft:LeadSetupDraft;revision:number}|null>(null);
-  const [failure,setFailure]=useState("");
-  useEffect(()=>{
-    if(isDemoMode)return;
-    let cancelled=false;
-    void apiRequest<{draft:LeadSetupDraft;revision:number}>(`/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`).then(result=>{if(!cancelled)setValue(result);}).catch(e=>{if(!cancelled)setFailure(e instanceof Error?e.message:"Не удалось загрузить настройку.");});
-    return ()=>{cancelled=true;};
-  },[business.id]);
-  if(failure)return <section className="panel"><p role="alert">{failure}</p><button className="button button--outline" onClick={()=>window.location.reload()}>Обновить страницу</button></section>;
-  if(!isDemoMode&&!value)return <LoadingPanel label="Загружаем сохранённую настройку" />;
-  return <LeadsWizard business={business} price={price} initialDraft={value?.draft} initialRevision={value?.revision??0} />;
+function ServerLeadsWizard({
+  business,
+  price,
+}: {
+  business: Business;
+  price: number;
+}) {
+  const [value, setValue] = useState<{
+    draft: LeadSetupDraft;
+    revision: number;
+  } | null>(null);
+  const [failure, setFailure] = useState("");
+  useEffect(() => {
+    if (isDemoMode) return;
+    let cancelled = false;
+    void apiRequest<{ draft: LeadSetupDraft; revision: number }>(
+      `/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`,
+    )
+      .then((result) => {
+        if (!cancelled) setValue(result);
+      })
+      .catch((e) => {
+        if (!cancelled)
+          setFailure(
+            e instanceof Error ? e.message : "Не удалось загрузить настройку.",
+          );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [business.id]);
+  if (failure)
+    return (
+      <section className="panel">
+        <p role="alert">{failure}</p>
+        <button
+          className="button button--outline"
+          onClick={() => window.location.reload()}
+        >
+          Обновить страницу
+        </button>
+      </section>
+    );
+  if (!isDemoMode && !value)
+    return <LoadingPanel label="Загружаем сохранённую настройку" />;
+  return (
+    <LeadsWizard
+      business={business}
+      price={price}
+      initialDraft={value?.draft}
+      initialRevision={value?.revision ?? 0}
+    />
+  );
 }
 function LeadsWizard({
   business,
-  price, initialDraft, initialRevision,
+  price,
+  initialDraft,
+  initialRevision,
 }: {
   business: Business;
-  price: number; initialDraft?: LeadSetupDraft; initialRevision: number;
+  price: number;
+  initialDraft?: LeadSetupDraft;
+  initialRevision: number;
 }) {
-  const [draft, setDraft] = useState<LeadSetupDraft>(() =>
-    initialDraft ?? loadDraft(business.id),
+  const [draft, setDraft] = useState<LeadSetupDraft>(
+    () => initialDraft ?? loadDraft(business.id),
   );
   const [storage, setStorage] = useState<"unchanged" | "saved" | "unavailable">(
     "unchanged",
   );
   const [error, setError] = useState("");
-  const [revision,setRevision]=useState(initialRevision);
-  const [busy,setBusy]=useState(false);
-  const [started,setStarted]=useState(false);
-  const canWrite=isDemoMode||business.role==="owner"||business.role==="admin";
-  async function startTelegram(){
-    setBusy(true);setError("");
-    try {await apiRequest(`/api/v1/businesses/${encodeURIComponent(business.id)}/telegram/start`,{method:"POST",body:"{}"});setStarted(true);}
-    catch(e){setError(e instanceof Error?e.message:"Не удалось запустить Telegram.");}
-    finally{setBusy(false);}
+  const [revision, setRevision] = useState(initialRevision);
+  const [busy, setBusy] = useState(false);
+  const [started, setStarted] = useState(false);
+  const canWrite =
+    isDemoMode || business.role === "owner" || business.role === "admin";
+  async function startTelegram() {
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(
+        `/api/v1/businesses/${encodeURIComponent(business.id)}/telegram/start`,
+        { method: "POST", body: "{}" },
+      );
+      setStarted(true);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Не удалось запустить Telegram.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
   const [previewChannel, setPreviewChannel] = useState<SetupChannel>(
     draft.channels[0] ?? "telegram",
@@ -125,14 +186,30 @@ function LeadsWizard({
     }
   }, [draft.step]);
   async function update(next: LeadSetupDraft) {
-    if(busy||!canWrite)return;
-    if(!isDemoMode){
-      setBusy(true);setError("");
+    if (busy || !canWrite) return;
+    if (!isDemoMode) {
+      setBusy(true);
+      setError("");
       try {
-        const result=await apiRequest<{draft:LeadSetupDraft;revision:number}>(`/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`,{method:"POST",body:JSON.stringify({draft:next,revision})});
-        setDraft(result.draft);setRevision(result.revision);setStorage("saved");setStarted(false);setTestSent(false);
-      }catch(e){setError(e instanceof Error?e.message:"Не удалось сохранить настройку.");}
-      finally{setBusy(false);}
+        const result = await apiRequest<{
+          draft: LeadSetupDraft;
+          revision: number;
+        }>(`/api/v1/businesses/${encodeURIComponent(business.id)}/lead-setup`, {
+          method: "POST",
+          body: JSON.stringify({ draft: next, revision }),
+        });
+        setDraft(result.draft);
+        setRevision(result.revision);
+        setStorage("saved");
+        setStarted(false);
+        setTestSent(false);
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "Не удалось сохранить настройку.",
+        );
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     setDraft(next);
@@ -206,7 +283,9 @@ function LeadsWizard({
       </header>
       <p className="prototype-banner">
         <ShieldCheck size={18} />
-        {isDemoMode ? "Предпросмотр настройки. Подключения и оплата не выполняются." : "Настройка сохраняется для этого бизнеса. Изменения останавливают сценарий до повторного запуска. Оплата пока не подключена."}
+        {isDemoMode
+          ? "Предпросмотр настройки. Подключения и оплата не выполняются."
+          : "Настройка сохраняется для этого бизнеса. Изменения останавливают сценарий до повторного запуска. Оплата пока не подключена."}
       </p>
       <ol className="setup-steps" aria-label="Шаги настройки">
         {STEPS.map((step, index) => (
@@ -221,268 +300,396 @@ function LeadsWizard({
         ))}
       </ol>
       <div className="setup-layout">
-        <section className="panel setup-form"><fieldset className="setup-editor" disabled={busy || !canWrite}>
-          <span className="eyebrow">
-            Шаг {draft.step + 1} из 4 · {business.name}
-          </span>
-          <h2 ref={heading} tabIndex={-1}>
-            {
-              [
-                "Где клиенты будут оставлять заявки?",
-                "Что спросим у клиента?",
-                "Посмотрите глазами клиента",
-                "Настройка подготовлена",
-              ][draft.step]
-            }
-          </h2>
-          {draft.step === 0 && (
-            <>
-              <p className="setup-description">
-                Выберите одну или обе площадки. Все заявки будут собраны в одном
-                месте.
-              </p>
-              <fieldset
-                className="setup-options"
-                aria-describedby={error ? "setup-error" : undefined}
-              >
-                <legend className="sr-only">Площадки для заявок</legend>
-                {(["telegram", "vk"] as const).map((channel, index) => (
-                  <label
-                    key={channel}
-                    className={`setup-option ${draft.channels.includes(channel) ? "is-selected" : ""}`}
-                  >
-                    <PlatformBadge platform={channel} compact />
-                    <span>
-                      <strong>
-                        {channel === "telegram" ? "Telegram" : "ВКонтакте"}
-                      </strong>
-                      <small>
-                        {channel === "telegram"
-                          ? "Ваш бот для клиентов"
-                          : "Сообщество вашего бизнеса"}
-                      </small>
-                    </span>
+        <section className="panel setup-form">
+          <fieldset className="setup-editor" disabled={busy || !canWrite}>
+            <span className="eyebrow">
+              Шаг {draft.step + 1} из 4 · {business.name}
+            </span>
+            <h2 ref={heading} tabIndex={-1}>
+              {
+                [
+                  "Где клиенты будут оставлять заявки?",
+                  "Что спросим у клиента?",
+                  "Посмотрите глазами клиента",
+                  "Настройка подготовлена",
+                ][draft.step]
+              }
+            </h2>
+            {draft.step === 0 && (
+              <>
+                <p className="setup-description">
+                  Выберите одну или обе площадки. Все заявки будут собраны в
+                  одном месте.
+                </p>
+                <fieldset
+                  className="setup-options"
+                  aria-describedby={error ? "setup-error" : undefined}
+                >
+                  <legend className="sr-only">Площадки для заявок</legend>
+                  {(["telegram", "vk"] as const).map((channel, index) => (
+                    <label
+                      key={channel}
+                      className={`setup-option ${draft.channels.includes(channel) ? "is-selected" : ""}`}
+                    >
+                      <PlatformBadge platform={channel} compact />
+                      <span>
+                        <strong>
+                          {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                        </strong>
+                        <small>
+                          {channel === "telegram"
+                            ? "Ваш бот для клиентов"
+                            : "Сообщество вашего бизнеса"}
+                        </small>
+                      </span>
+                      <input
+                        ref={index === 0 ? firstChannel : undefined}
+                        type="checkbox"
+                        checked={draft.channels.includes(channel)}
+                        onChange={() => toggleChannel(channel)}
+                        aria-label={
+                          channel === "telegram" ? "Telegram" : "ВКонтакте"
+                        }
+                      />
+                    </label>
+                  ))}
+                </fieldset>
+                <p className="setup-hint">
+                  Выберите каналы приёма заявок. Подключение и запуск
+                  выполняются в разделе «Подключения».
+                </p>
+              </>
+            )}
+            {draft.step === 1 && (
+              <>
+                <p className="setup-description">
+                  Оставьте только нужные вопросы. Чем короче заявка, тем проще
+                  её заполнить.
+                </p>
+                <div className="crm-panel">
+                  <label>
+                    Название сценария
                     <input
-                      ref={index === 0 ? firstChannel : undefined}
-                      type="checkbox"
-                      checked={draft.channels.includes(channel)}
-                      onChange={() => toggleChannel(channel)}
-                      aria-label={
-                        channel === "telegram" ? "Telegram" : "ВКонтакте"
+                      maxLength={100}
+                      disabled={busy || !canWrite}
+                      value={draft.title ?? "Оставить заявку"}
+                      onChange={(e) =>
+                        setDraft({ ...draft, title: e.target.value })
                       }
                     />
                   </label>
-                ))}
-              </fieldset>
-              <p className="setup-hint">
-                Выберите каналы приёма заявок. Подключение и запуск выполняются в разделе «Подключения».
-              </p>
-            </>
-          )}
-          {draft.step === 1 && (
-            <>
-              <p className="setup-description">
-                Оставьте только нужные вопросы. Чем короче заявка, тем проще её
-                заполнить.
-              </p>
-              <div className="crm-panel">
-              <label>Название сценария<input maxLength={100} disabled={busy||!canWrite} value={draft.title??'Оставить заявку'} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
-              <label>Приветствие<textarea maxLength={2000} disabled={busy||!canWrite} value={draft.greeting??''} placeholder="По умолчанию бот представится от имени бизнеса" onChange={e=>setDraft({...draft,greeting:e.target.value})}/></label>
-              <label>Сообщение после отправки<textarea maxLength={2000} disabled={busy||!canWrite} value={draft.finalMessage??''} placeholder="Спасибо! Ваша заявка принята." onChange={e=>setDraft({...draft,finalMessage:e.target.value})}/></label>
-              </div>
-              <fieldset className="setup-options">
-                <legend className="sr-only">Поля заявки</legend>
-                {LEAD_FIELDS.map((field) => (
-                  <label
-                    className={`field-option ${draft.fields.includes(field.id) ? "is-selected" : ""}`}
-                    key={field.id}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={draft.fields.includes(field.id)}
-                      disabled={field.required}
-                      onChange={() => toggleField(field.id)}
+                  <label>
+                    Приветствие
+                    <textarea
+                      maxLength={2000}
+                      disabled={busy || !canWrite}
+                      value={draft.greeting ?? ""}
+                      placeholder="По умолчанию бот представится от имени бизнеса"
+                      onChange={(e) =>
+                        setDraft({ ...draft, greeting: e.target.value })
+                      }
                     />
-                    <span>
-                      <strong>{field.label}</strong>
-                      {field.required && <small>Обязательное поле</small>}
-                    </span>
                   </label>
-                ))}
-              </fieldset>
-              <div className="crm-panel">{LEAD_FIELDS.filter(f=>draft.fields.includes(f.id)).map(f=><fieldset key={f.id}><legend>{f.label}</legend><label>Текст вопроса<input maxLength={150} disabled={busy||!canWrite} value={draft.fieldOptions?.[f.id]?.label??f.label} onChange={e=>setDraft({...draft,fieldOptions:{...draft.fieldOptions,[f.id]:{label:e.target.value,required:f.required||draft.fieldOptions?.[f.id]?.required||false}}})}/></label><label><input type="checkbox" disabled={busy||!canWrite||f.required} checked={f.required||draft.fieldOptions?.[f.id]?.required||false} onChange={e=>setDraft({...draft,fieldOptions:{...draft.fieldOptions,[f.id]:{label:draft.fieldOptions?.[f.id]?.label||f.label,required:e.target.checked}}})}/>Обязательный ответ</label></fieldset>)}<button className="button button--outline" disabled={busy||!canWrite} onClick={()=>void update(draft)}>Сохранить тексты и вопросы</button><p>Получателей можно выбрать в разделе «Уведомления».</p></div>
-              <p className="setup-hint">
-                Выбрано вопросов: {fields.length}. Порядок вопросов показан в
-                предпросмотре.
-              </p>
-            </>
-          )}
-          {draft.step === 2 && (
-            <>
-              <p className="setup-description">
-                Это пример диалога с вымышленными ответами. Реальные сообщения
-                не отправляются.
-              </p>
-              <div
-                className="preview-channel-switch"
-                aria-label="Площадка предпросмотра"
-              >
-                {draft.channels.map((channel) => (
+                  <label>
+                    Сообщение после отправки
+                    <textarea
+                      maxLength={2000}
+                      disabled={busy || !canWrite}
+                      value={draft.finalMessage ?? ""}
+                      placeholder="Спасибо! Ваша заявка принята."
+                      onChange={(e) =>
+                        setDraft({ ...draft, finalMessage: e.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <fieldset className="setup-options">
+                  <legend className="sr-only">Поля заявки</legend>
+                  {LEAD_FIELDS.map((field) => (
+                    <label
+                      className={`field-option ${draft.fields.includes(field.id) ? "is-selected" : ""}`}
+                      key={field.id}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={draft.fields.includes(field.id)}
+                        disabled={field.required}
+                        onChange={() => toggleField(field.id)}
+                      />
+                      <span>
+                        <strong>{field.label}</strong>
+                        {field.required && <small>Обязательное поле</small>}
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div className="crm-panel">
+                  {LEAD_FIELDS.filter((f) => draft.fields.includes(f.id)).map(
+                    (f) => (
+                      <fieldset key={f.id}>
+                        <legend>{f.label}</legend>
+                        <label>
+                          Текст вопроса
+                          <input
+                            maxLength={150}
+                            disabled={busy || !canWrite}
+                            value={draft.fieldOptions?.[f.id]?.label ?? f.label}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                fieldOptions: {
+                                  ...draft.fieldOptions,
+                                  [f.id]: {
+                                    label: e.target.value,
+                                    required:
+                                      f.required ||
+                                      draft.fieldOptions?.[f.id]?.required ||
+                                      false,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          <input
+                            type="checkbox"
+                            disabled={busy || !canWrite || f.required}
+                            checked={
+                              f.required ||
+                              draft.fieldOptions?.[f.id]?.required ||
+                              false
+                            }
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                fieldOptions: {
+                                  ...draft.fieldOptions,
+                                  [f.id]: {
+                                    label:
+                                      draft.fieldOptions?.[f.id]?.label ||
+                                      f.label,
+                                    required: e.target.checked,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                          Обязательный ответ
+                        </label>
+                      </fieldset>
+                    ),
+                  )}
                   <button
-                    key={channel}
                     className="button button--outline"
-                    aria-pressed={activePreviewChannel === channel}
-                    onClick={() => {
-                      setPreviewChannel(channel);
-                      setTestSent(false);
-                    }}
+                    disabled={busy || !canWrite}
+                    onClick={() => void update(draft)}
                   >
-                    <PlatformBadge platform={channel} compact />
-                    {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                    Сохранить тексты и вопросы
                   </button>
-                ))}
-              </div>
-              <div className="conversation-preview">
-                <div className="conversation-preview__heading">
-                  <PlatformBadge platform={activePreviewChannel} compact />
-                  <strong>{business.name}</strong>
-                  <span>Пример</span>
+                  <p>Получателей можно выбрать в разделе «Уведомления».</p>
                 </div>
-                <p className="chat-bubble">
-                  Здравствуйте! Оставьте заявку — мы свяжемся с вами.
+                <p className="setup-hint">
+                  Выбрано вопросов: {fields.length}. Порядок вопросов показан в
+                  предпросмотре.
                 </p>
-                {fields.map((field) => (
-                  <div key={field.id} className="chat-pair">
-                    <p className="chat-bubble">
-                      {field.label === "Имя"
-                        ? "Как к вам обращаться?"
-                        : field.label === "Телефон"
-                          ? "Оставьте номер телефона для связи."
-                          : field.label === "Что интересует"
-                            ? "Что вас интересует?"
-                            : "Хотите что-нибудь добавить?"}
-                    </p>
-                    <p className="chat-bubble chat-bubble--reply">
-                      {field.example}
-                    </p>
-                  </div>
-                ))}
-                <button
-                  className="button button--primary button--full"
-                  onClick={() => setTestSent(true)}
+              </>
+            )}
+            {draft.step === 2 && (
+              <>
+                <p className="setup-description">
+                  Это пример диалога с вымышленными ответами. Реальные сообщения
+                  не отправляются.
+                </p>
+                <div
+                  className="preview-channel-switch"
+                  aria-label="Площадка предпросмотра"
                 >
-                  <Send size={17} />
-                  Показать результат заявки
-                </button>
-                {testSent && (
-                  <div className="preview-success" role="status">
-                    <CheckCircle2 size={20} />
-                    <span>
-                      <strong>Так будет выглядеть подтверждение</strong>Спасибо!
-                      Ваша заявка принята. Мы скоро свяжемся с вами.
-                      <small>
-                        Это пример. Заявка в рабочем пространстве не
-                        создавалась.
-                      </small>
-                    </span>
+                  {draft.channels.map((channel) => (
+                    <button
+                      key={channel}
+                      className="button button--outline"
+                      aria-pressed={activePreviewChannel === channel}
+                      onClick={() => {
+                        setPreviewChannel(channel);
+                        setTestSent(false);
+                      }}
+                    >
+                      <PlatformBadge platform={channel} compact />
+                      {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                    </button>
+                  ))}
+                </div>
+                <div className="conversation-preview">
+                  <div className="conversation-preview__heading">
+                    <PlatformBadge platform={activePreviewChannel} compact />
+                    <strong>{business.name}</strong>
+                    <span>Пример</span>
                   </div>
+                  <p className="chat-bubble">
+                    Здравствуйте! Оставьте заявку — мы свяжемся с вами.
+                  </p>
+                  {fields.map((field) => (
+                    <div key={field.id} className="chat-pair">
+                      <p className="chat-bubble">
+                        {field.label === "Имя"
+                          ? "Как к вам обращаться?"
+                          : field.label === "Телефон"
+                            ? "Оставьте номер телефона для связи."
+                            : field.label === "Что интересует"
+                              ? "Что вас интересует?"
+                              : "Хотите что-нибудь добавить?"}
+                      </p>
+                      <p className="chat-bubble chat-bubble--reply">
+                        {field.example}
+                      </p>
+                    </div>
+                  ))}
+                  <button
+                    className="button button--primary button--full"
+                    onClick={() => setTestSent(true)}
+                  >
+                    <Send size={17} />
+                    Показать результат заявки
+                  </button>
+                  {testSent && (
+                    <div className="preview-success" role="status">
+                      <CheckCircle2 size={20} />
+                      <span>
+                        <strong>Так будет выглядеть подтверждение</strong>
+                        Спасибо! Ваша заявка принята. Мы скоро свяжемся с вами.
+                        <small>
+                          Это пример. Заявка в рабочем пространстве не
+                          создавалась.
+                        </small>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {draft.step === 3 && (
+              <>
+                <div className="setup-complete-mark">
+                  <CheckCircle2 size={34} />
+                </div>
+                <p className="setup-description">
+                  Вы выбрали площадки и вопросы для клиентов. Черновик относится
+                  к бизнесу {business.name}.
+                </p>
+                <div className="setup-review">
+                  <div>
+                    <span>Площадки</span>
+                    <strong>
+                      {draft.channels
+                        .map((c) =>
+                          c === "telegram" ? "Telegram" : "ВКонтакте",
+                        )
+                        .join(" + ")}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Поля заявки</span>
+                    <strong>
+                      {fields.map((field) => field.label).join(", ")}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Стоимость после запуска</span>
+                    <strong>{price} ₽/мес.</strong>
+                  </div>
+                </div>
+                <p className="prototype-banner">
+                  {isDemoMode
+                    ? "Предпросмотр завершён. Это демонстрация."
+                    : started
+                      ? "Telegram подтвердил подключение. Отправьте боту /start для проверки первой заявки. Для ответов должен работать обработчик сообщений."
+                      : "Подключите и запустите выбранные Telegram/VK-каналы в разделе «Подключения»."}
+                </p>
+                {!isDemoMode && (
+                  <>
+                    <Link
+                      href="/connections"
+                      className="button button--outline"
+                    >
+                      Подключения
+                    </Link>
+                    <button
+                      type="button"
+                      className="button button--primary"
+                      onClick={() => void startTelegram()}
+                    >
+                      Запустить Telegram
+                    </button>
+                  </>
                 )}
-              </div>
-            </>
-          )}
-          {draft.step === 3 && (
-            <>
-              <div className="setup-complete-mark">
-                <CheckCircle2 size={34} />
-              </div>
-              <p className="setup-description">
-                Вы выбрали площадки и вопросы для клиентов. Черновик относится к
-                бизнесу {business.name}.
+                <Link
+                  href="/dashboard"
+                  className="button button--primary button--full"
+                >
+                  В рабочее пространство
+                  <ArrowRight size={18} />
+                </Link>
+              </>
+            )}
+            {error && (
+              <p id="setup-error" className="setup-error" role="alert">
+                {error}
               </p>
-              <div className="setup-review">
-                <div>
-                  <span>Площадки</span>
-                  <strong>
-                    {draft.channels
-                      .map((c) => (c === "telegram" ? "Telegram" : "ВКонтакте"))
-                      .join(" + ")}
-                  </strong>
-                </div>
-                <div>
-                  <span>Поля заявки</span>
-                  <strong>
-                    {fields.map((field) => field.label).join(", ")}
-                  </strong>
-                </div>
-                <div>
-                  <span>Стоимость после запуска</span>
-                  <strong>{price} ₽/мес.</strong>
-                </div>
-              </div>
-              <p className="prototype-banner">
-                {isDemoMode ? "Предпросмотр завершён. Это демонстрация." : started ? "Telegram подтвердил подключение. Отправьте боту /start для проверки первой заявки. Для ответов должен работать обработчик сообщений." : "Подключите и запустите выбранные Telegram/VK-каналы в разделе «Подключения»."}
-              </p>
-              {!isDemoMode && <><Link href="/connections" className="button button--outline">Подключения</Link><button type="button" className="button button--primary" onClick={()=>void startTelegram()}>Запустить Telegram</button></>}
-              <Link
-                href="/dashboard"
-                className="button button--primary button--full"
-              >
-                В рабочее пространство
-                <ArrowRight size={18} />
-              </Link>
-            </>
-          )}
-          {error && (
-            <p id="setup-error" className="setup-error" role="alert">
-              {error}
+            )}
+            <div className="setup-footer">
+              {draft.step > 0 ? (
+                <button
+                  className="button button--outline"
+                  onClick={() =>
+                    update({
+                      ...draft,
+                      step: (draft.step - 1) as LeadSetupDraft["step"],
+                    })
+                  }
+                >
+                  <ArrowLeft size={17} />
+                  Назад
+                </button>
+              ) : (
+                <Link className="text-link" href="/solutions">
+                  Вернуться позже
+                </Link>
+              )}
+              {draft.step < 3 && (
+                <button className="button button--primary" onClick={nextStep}>
+                  {draft.step === 2
+                    ? isDemoMode
+                      ? "Завершить предпросмотр"
+                      : "Завершить настройку"
+                    : "Далее"}
+                  <ArrowRight size={17} />
+                </button>
+              )}
+            </div>
+            <p className="draft-status" role="status">
+              {!isDemoMode
+                ? busy
+                  ? "Сохраняем…"
+                  : "Настройка хранится на сервере отдельно для этого бизнеса."
+                : storage === "unavailable"
+                  ? "Браузер не позволяет сохранить черновик. Не закрывайте страницу, чтобы не потерять выбор."
+                  : storage === "saved"
+                    ? "Черновик сохранён в этом браузере для выбранного бизнеса."
+                    : "Ваш выбор сохраняется в этом браузере отдельно для каждого бизнеса."}
             </p>
-          )}
-          <div className="setup-footer">
-            {draft.step > 0 ? (
-              <button
-                className="button button--outline"
-                onClick={() =>
-                  update({
-                    ...draft,
-                    step: (draft.step - 1) as LeadSetupDraft["step"],
-                  })
-                }
-              >
-                <ArrowLeft size={17} />
-                Назад
-              </button>
-            ) : (
-              <Link className="text-link" href="/solutions">
-                Вернуться позже
-              </Link>
-            )}
-            {draft.step < 3 && (
-              <button className="button button--primary" onClick={nextStep}>
-                {draft.step === 2 ? (isDemoMode ? "Завершить предпросмотр" : "Завершить настройку") : "Далее"}
-                <ArrowRight size={17} />
-              </button>
-            )}
-          </div>
-          <p className="draft-status" role="status">
-            {!isDemoMode
-              ? (busy ? "Сохраняем…" : "Настройка хранится на сервере отдельно для этого бизнеса.")
-              : storage === "unavailable"
-              ? "Браузер не позволяет сохранить черновик. Не закрывайте страницу, чтобы не потерять выбор."
-              : storage === "saved"
-                ? "Черновик сохранён в этом браузере для выбранного бизнеса."
-                : "Ваш выбор сохраняется в этом браузере отдельно для каждого бизнеса."}
-          </p>
-          <button
-            className="text-link"
-            onClick={() => {
-              update(newLeadSetupDraft());
-              setPreviewChannel("telegram");
-            }}
-          >
-            <RotateCcw size={15} />
-            Начать настройку заново
-          </button>
-        </fieldset></section>
+            <button
+              className="text-link"
+              onClick={() => {
+                update(newLeadSetupDraft());
+                setPreviewChannel("telegram");
+              }}
+            >
+              <RotateCcw size={15} />
+              Начать настройку заново
+            </button>
+          </fieldset>
+        </section>
         <aside className="setup-summary panel">
           <Image
             src="/assets/sreda/v2/module-leads.webp"

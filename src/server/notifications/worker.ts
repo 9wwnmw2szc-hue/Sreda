@@ -1,3 +1,124 @@
-import type {Kysely,Transaction} from 'kysely';import type {Database} from '../db/schema.ts';
-export async function queueNotification(db:Kysely<Database>,origin:string){const next=await db.selectFrom('notification_recipient as r').innerJoin('notification_binding as n',j=>j.onRef('n.business_id','=','r.business_id').onRef('n.user_id','=','r.user_id')).innerJoin('notification as e','e.id','r.notification_id').select(['r.business_id','r.user_id','r.notification_id']).where('r.telegram_queued','=',false).where('n.chat_id','is not',null).where('e.created_at','>=',new Date(Date.now()-86400000)).orderBy('e.created_at').executeTakeFirst();if(!next)return false;return db.transaction().execute(async tx=>{await tx.selectFrom('business').select('id').where('id','=',next.business_id).forUpdate().execute();const r=await tx.selectFrom('notification_recipient').select('telegram_queued').where('notification_id','=',next.notification_id).where('user_id','=',next.user_id).forUpdate().executeTakeFirst();if(!r||r.telegram_queued)return false;const n=await tx.selectFrom('notification_binding').selectAll().where('business_id','=',next.business_id).where('user_id','=',next.user_id).executeTakeFirst();if(!n?.chat_id)return false;const business=await tx.selectFrom('business').select(['name','public_name']).where('id','=',next.business_id).executeTakeFirstOrThrow();const event=await tx.selectFrom('notification').selectAll().where('id','=',next.notification_id).executeTakeFirstOrThrow();const valid=await notificationValid(tx,next.notification_id,next.user_id,n.connection_id,n.chat_id);if(valid)await tx.insertInto('telegram_outbox').values({connection_id:n.connection_id,chat_id:n.chat_id,message:(business.public_name||business.name)+'\n'+event.title+'\n'+new URL(event.target_path,origin).href,notification_id:event.id,notification_user_id:n.user_id,delivered_at:null,last_error:null}).onConflict(oc=>oc.columns(['notification_id','notification_user_id']).doNothing()).execute();await tx.updateTable('notification_recipient').set({telegram_queued:true}).where('notification_id','=',event.id).where('user_id','=',n.user_id).execute();return true;});}
-export async function notificationValid(tx:Transaction<Database>,id:string,user:string,connection:string,chat:string){const event=await tx.selectFrom('notification').select(['business_id','type']).where('id','=',id).executeTakeFirst();if(!event)return false;const member=await tx.selectFrom('business_member').select('status').where('business_id','=',event.business_id).where('user_id','=',user).where('status','=','active').executeTakeFirst();const binding=await tx.selectFrom('notification_binding').select('chat_id').where('business_id','=',event.business_id).where('user_id','=',user).where('connection_id','=',connection).where('chat_id','=',chat).executeTakeFirst();const pref=await tx.selectFrom('notification_preference').select('enabled').where('business_id','=',event.business_id).where('user_id','=',user).where('type','=',event.type).executeTakeFirst();return !!member&&!!binding&&pref?.enabled!==false;}
+import type { Kysely, Transaction } from "kysely";
+import type { Database } from "../db/schema.ts";
+export async function queueNotification(db: Kysely<Database>, origin: string) {
+  const next = await db
+    .selectFrom("notification_recipient as r")
+    .innerJoin("notification_binding as n", (j) =>
+      j
+        .onRef("n.business_id", "=", "r.business_id")
+        .onRef("n.user_id", "=", "r.user_id"),
+    )
+    .innerJoin("notification as e", "e.id", "r.notification_id")
+    .select(["r.business_id", "r.user_id", "r.notification_id"])
+    .where("r.telegram_queued", "=", false)
+    .where("n.chat_id", "is not", null)
+    .where("e.created_at", ">=", new Date(Date.now() - 86400000))
+    .orderBy("e.created_at")
+    .executeTakeFirst();
+  if (!next) return false;
+  return db.transaction().execute(async (tx) => {
+    await tx
+      .selectFrom("business")
+      .select("id")
+      .where("id", "=", next.business_id)
+      .forUpdate()
+      .execute();
+    const r = await tx
+      .selectFrom("notification_recipient")
+      .select("telegram_queued")
+      .where("notification_id", "=", next.notification_id)
+      .where("user_id", "=", next.user_id)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!r || r.telegram_queued) return false;
+    const n = await tx
+      .selectFrom("notification_binding")
+      .selectAll()
+      .where("business_id", "=", next.business_id)
+      .where("user_id", "=", next.user_id)
+      .executeTakeFirst();
+    if (!n?.chat_id) return false;
+    const business = await tx
+      .selectFrom("business")
+      .select(["name", "public_name"])
+      .where("id", "=", next.business_id)
+      .executeTakeFirstOrThrow();
+    const event = await tx
+      .selectFrom("notification")
+      .selectAll()
+      .where("id", "=", next.notification_id)
+      .executeTakeFirstOrThrow();
+    const valid = await notificationValid(
+      tx,
+      next.notification_id,
+      next.user_id,
+      n.connection_id,
+      n.chat_id,
+    );
+    if (valid)
+      await tx
+        .insertInto("telegram_outbox")
+        .values({
+          connection_id: n.connection_id,
+          chat_id: n.chat_id,
+          message:
+            (business.public_name || business.name) +
+            "\n" +
+            event.title +
+            "\n" +
+            new URL(event.target_path, origin).href,
+          notification_id: event.id,
+          notification_user_id: n.user_id,
+          delivered_at: null,
+          last_error: null,
+        })
+        .onConflict((oc) =>
+          oc.columns(["notification_id", "notification_user_id"]).doNothing(),
+        )
+        .execute();
+    await tx
+      .updateTable("notification_recipient")
+      .set({ telegram_queued: true })
+      .where("notification_id", "=", event.id)
+      .where("user_id", "=", n.user_id)
+      .execute();
+    return true;
+  });
+}
+export async function notificationValid(
+  tx: Transaction<Database>,
+  id: string,
+  user: string,
+  connection: string,
+  chat: string,
+) {
+  const event = await tx
+    .selectFrom("notification")
+    .select(["business_id", "type"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (!event) return false;
+  const member = await tx
+    .selectFrom("business_member")
+    .select("status")
+    .where("business_id", "=", event.business_id)
+    .where("user_id", "=", user)
+    .where("status", "=", "active")
+    .executeTakeFirst();
+  const binding = await tx
+    .selectFrom("notification_binding")
+    .select("chat_id")
+    .where("business_id", "=", event.business_id)
+    .where("user_id", "=", user)
+    .where("connection_id", "=", connection)
+    .where("chat_id", "=", chat)
+    .executeTakeFirst();
+  const pref = await tx
+    .selectFrom("notification_preference")
+    .select("enabled")
+    .where("business_id", "=", event.business_id)
+    .where("user_id", "=", user)
+    .where("type", "=", event.type)
+    .executeTakeFirst();
+  return !!member && !!binding && pref?.enabled !== false;
+}

@@ -1,4 +1,100 @@
-import type {InboundAttachment} from './service.ts';
-function object(value:unknown):Record<string,unknown>{return value&&typeof value==='object'?value as Record<string,unknown>:{};}
-export function telegramAttachments(raw:unknown):InboundAttachment[]{const m=object(raw);const files:InboundAttachment[]=[];const photos=Array.isArray(m.photo)?m.photo:[];const photo=object(photos.at(-1));if(typeof photo.file_id==='string')files.push({type:'image',filename:'photo.jpg',mime:'image/jpeg',size:typeof photo.file_size==='number'?photo.file_size:undefined,external:{file_id:photo.file_id}});for(const key of ['video','document','voice'] as const){const f=object(m[key]);if(typeof f.file_id!=='string')continue;files.push({type:key==='document'?'document':key,filename:typeof f.file_name==='string'?f.file_name:key==='voice'?'voice.ogg':key==='video'?'video.mp4':'document',mime:typeof f.mime_type==='string'?f.mime_type:key==='voice'?'audio/ogg':key==='video'?'video/mp4':'application/octet-stream',size:typeof f.file_size==='number'?f.file_size:undefined,external:{file_id:f.file_id}});}return files;}
-export function vkAttachments(raw:unknown):InboundAttachment[]{const m=object(raw);if(!Array.isArray(m.attachments))return [];const files:InboundAttachment[]=[];for(const a of m.attachments.slice(0,10)){const attachment=object(a),type=attachment.type;if(typeof type!=='string')continue;const f=object(attachment[type]);if(type==='photo'){const sizes=Array.isArray(f.sizes)?f.sizes.map(object):[];const best=sizes.sort((a,b)=>Number(b.width)*Number(b.height)-Number(a.width)*Number(a.height))[0];if(typeof best?.url==='string')files.push({type:'image',filename:'photo.jpg',mime:'image/jpeg',external:{url:best.url}});}else if(type==='doc'&&typeof f.url==='string')files.push({type:'document',filename:typeof f.title==='string'?f.title:'document',mime:'application/octet-stream',size:typeof f.size==='number'?f.size:undefined,external:{url:f.url}});else if(type==='audio_message'&&typeof f.link_ogg==='string')files.push({type:'voice',filename:'voice.ogg',mime:'audio/ogg',external:{url:f.link_ogg}});else if(type==='video'&&typeof f.owner_id==='number'&&typeof f.id==='number')files.push({type:'video',filename:'video.mp4',mime:'video/mp4',external:{video:`${f.owner_id}_${f.id}${typeof f.access_key==='string'?'_'+f.access_key:''}`}});}return files;}
+import type { InboundAttachment } from "./service.ts";
+function object(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+export function telegramAttachments(raw: unknown): InboundAttachment[] {
+  const m = object(raw);
+  const files: InboundAttachment[] = [];
+  const photos = Array.isArray(m.photo) ? m.photo : [];
+  const photo = object(photos.at(-1));
+  if (typeof photo.file_id === "string")
+    files.push({
+      type: "image",
+      filename: "photo.jpg",
+      mime: "image/jpeg",
+      size: typeof photo.file_size === "number" ? photo.file_size : undefined,
+      external: { file_id: photo.file_id },
+    });
+  for (const key of ["video", "document", "voice"] as const) {
+    const f = object(m[key]);
+    if (typeof f.file_id !== "string") continue;
+    files.push({
+      type: key === "document" ? "document" : key,
+      filename:
+        typeof f.file_name === "string"
+          ? f.file_name
+          : key === "voice"
+            ? "voice.ogg"
+            : key === "video"
+              ? "video.mp4"
+              : "document",
+      mime:
+        typeof f.mime_type === "string"
+          ? f.mime_type
+          : key === "voice"
+            ? "audio/ogg"
+            : key === "video"
+              ? "video/mp4"
+              : "application/octet-stream",
+      size: typeof f.file_size === "number" ? f.file_size : undefined,
+      external: { file_id: f.file_id },
+    });
+  }
+  return files;
+}
+export function vkAttachments(raw: unknown): InboundAttachment[] {
+  const m = object(raw);
+  if (!Array.isArray(m.attachments)) return [];
+  const files: InboundAttachment[] = [];
+  for (const a of m.attachments.slice(0, 10)) {
+    const attachment = object(a),
+      type = attachment.type;
+    if (typeof type !== "string") continue;
+    const f = object(attachment[type]);
+    if (type === "photo") {
+      const sizes = Array.isArray(f.sizes) ? f.sizes.map(object) : [];
+      const best = sizes.sort(
+        (a, b) =>
+          Number(b.width) * Number(b.height) -
+          Number(a.width) * Number(a.height),
+      )[0];
+      if (typeof best?.url === "string")
+        files.push({
+          type: "image",
+          filename: "photo.jpg",
+          mime: "image/jpeg",
+          external: { url: best.url },
+        });
+    } else if (type === "doc" && typeof f.url === "string")
+      files.push({
+        type: "document",
+        filename: typeof f.title === "string" ? f.title : "document",
+        mime: "application/octet-stream",
+        size: typeof f.size === "number" ? f.size : undefined,
+        external: { url: f.url },
+      });
+    else if (type === "audio_message" && typeof f.link_ogg === "string")
+      files.push({
+        type: "voice",
+        filename: "voice.ogg",
+        mime: "audio/ogg",
+        external: { url: f.link_ogg },
+      });
+    else if (
+      type === "video" &&
+      typeof f.owner_id === "number" &&
+      typeof f.id === "number"
+    )
+      files.push({
+        type: "video",
+        filename: "video.mp4",
+        mime: "video/mp4",
+        external: {
+          video: `${f.owner_id}_${f.id}${typeof f.access_key === "string" ? "_" + f.access_key : ""}`,
+        },
+      });
+  }
+  return files;
+}
