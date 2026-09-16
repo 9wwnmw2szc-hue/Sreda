@@ -15,13 +15,12 @@ type VKResponse = { response?: unknown; error?: { error_code?: number; error_msg
 
 export async function vkCall(
   token: string,
-  method: "messages.send",
-  body: { peer_id: string; random_id: number; message: string; keyboard?:string },
+  method: "messages.send" | "groups.getTokenPermissions" | "groups.getById" | "groups.getCallbackConfirmationCode" | "groups.getCallbackServers" | "groups.addCallbackServer" | "groups.editCallbackServer" | "groups.setCallbackSettings",
+  body: Record<string,unknown>,
   transport: typeof fetch = fetch,
 ) {
   try {
-    const params = new URLSearchParams({ access_token: token, v: "5.199", peer_id: body.peer_id, random_id: String(body.random_id), message: body.message });
-    if(body.keyboard)params.set("keyboard",body.keyboard);
+    const params=new URLSearchParams({access_token:token,v:'5.199'});for(const [key,value] of Object.entries(body))if(value!==undefined)params.set(key,typeof value==='object'?JSON.stringify(value):String(value));
     const response = await transport(`https://api.vk.com/method/${method}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params, redirect: "error", signal: AbortSignal.timeout(5000), cache: "no-store" });
     const data = await response.json().catch(() => null) as VKResponse | null;
     if (!response.ok || data?.error) {

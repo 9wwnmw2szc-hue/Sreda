@@ -1,7 +1,8 @@
 import { reminderValid } from "../booking/worker.ts";
 import { claimDelivery,expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { requireBusiness } from "../access/permissions.ts";
+import { createHmac, randomUUID,timingSafeEqual } from "node:crypto";
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
@@ -18,21 +19,38 @@ export function callbackSecret(secret: string, connectionId: string, generation:
 export class VKService {
   constructor(private readonly db: Kysely<Database>, private readonly secret: string, private readonly enabled: boolean, private readonly communications?: CommunicationService, private readonly transport: typeof fetch = fetch) {}
 
+  async start(userId:string,publicId:string,origin:string){
+    if(!this.enabled)throw new AppError(503,'VK_DISABLED','Обработка VK ещё не включена на сервере.');
+    const prepared=await this.db.transaction().execute(async tx=>{const b=await requireBusiness(tx,userId,publicId,'connections.manage');await tx.selectFrom('business').select('id').where('id','=',b.id).forUpdate().execute();await requireBusiness(tx,userId,publicId,'connections.manage');const c=await tx.selectFrom('business_connection as c').innerJoin('connection_secret as s','s.connection_id','c.id').select(['c.id','c.external_account_id','s.encrypted_token']).where('c.business_id','=',b.id).where('c.platform','=','vk').where('c.status','=','connected').executeTakeFirst();if(!c?.external_account_id)throw new AppError(400,'CONNECTION_REQUIRED','Сначала подключите токен сообщества.');const old=await tx.selectFrom('vk_runtime').selectAll().where('connection_id','=',c.id).executeTakeFirst();if(old?.setup_lock_until&&+old.setup_lock_until>Date.now())throw new AppError(409,'VK_SETUP_RUNNING','Подключение уже настраивается. Подождите.');const generation=randomUUID();const row={connection_id:c.id,generation,status:'pending' as const,setup_lock_until:new Date(Date.now()+300000),confirmation_code:null,updated_at:new Date()};await tx.insertInto('vk_runtime').values(row).onConflict(oc=>oc.column('connection_id').doUpdateSet(row)).execute();return {...c,generation};});
+    const token=decryptSecret(prepared.encrypted_token,this.secret);const group_id=prepared.external_account_id;const url=origin+'/api/vk/'+prepared.id;
+    try{
+      const result=await vkCall(token,'groups.getCallbackConfirmationCode',{group_id},this.transport) as {code?:string};if(!result.code)throw new AppError(503,'VK_CONFIRMATION_FAILED','VK не вернул код подтверждения.');
+      await this.db.updateTable('vk_runtime').set({confirmation_code:result.code}).where('connection_id','=',prepared.id).where('generation','=',prepared.generation).execute();
+      const servers=await vkCall(token,'groups.getCallbackServers',{group_id},this.transport) as {items?:{id:number;url:string}[]};const existing=servers.items?.find(s=>s.url===url);let server_id=existing?.id;const body={group_id,url,title:'Sreda',secret_key:callbackSecret(this.secret,prepared.id,prepared.generation).slice(0,48)};
+      if(server_id)await vkCall(token,'groups.editCallbackServer',{...body,server_id},this.transport);else server_id=(await vkCall(token,'groups.addCallbackServer',body,this.transport) as {server_id:number}).server_id;
+      if(!Number.isSafeInteger(server_id))throw new AppError(503,'VK_SETUP_FAILED','Не удалось добавить сервер VK.');await vkCall(token,'groups.setCallbackSettings',{group_id,server_id,api_version:'5.199',message_new:1},this.transport);
+      await this.db.updateTable('vk_runtime').set({status:'ready',server_id,setup_lock_until:null,updated_at:new Date()}).where('connection_id','=',prepared.id).where('generation','=',prepared.generation).execute();return {ok:true};
+    }catch(error){await this.db.updateTable('vk_runtime').set({status:'error',setup_lock_until:null,updated_at:new Date()}).where('connection_id','=',prepared.id).where('generation','=',prepared.generation).execute();throw error;}
+  }
+
   async receive(id: string, body: Record<string, unknown>) {
     if (!this.enabled) throw new AppError(503, "VK_DISABLED", "Обработка VK временно недоступна.");
     if (!/^[a-f0-9-]{36}$/i.test(id)) throw new AppError(404, "NOT_FOUND", "Подключение не найдено.");
     return this.db.transaction().execute(async (tx) => {
       const runtime = await tx.selectFrom("vk_runtime as r")
         .innerJoin("business_connection as c", "c.id", "r.connection_id")
-        .select(["r.generation", "r.status", "c.business_id", "c.status as connectionStatus", "c.platform"])
+        .select(["r.generation", "r.status", "c.business_id", "c.status as connectionStatus", "c.platform", "c.external_account_id", "r.confirmation_code"])
         .where("r.connection_id", "=", id)
         .executeTakeFirst();
       const provided = typeof body.secret === "string" ? body.secret : "";
-      const expected = runtime ? callbackSecret(this.secret, id, runtime.generation) : "";
-      const validSecret = /^[a-f0-9]{64}$/.test(provided) && /^[a-f0-9]{64}$/.test(expected) && timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-      if (!runtime || runtime.platform !== "vk" || runtime.connectionStatus !== "connected" || runtime.status !== "ready" || !validSecret) throw new AppError(403, "INVALID_WEBHOOK", "Запрос не подтверждён.");
+      const full=runtime?callbackSecret(this.secret,id,runtime.generation):"";
+      const expected=provided.length===48?full.slice(0,48):full;
+      const validSecret = /^[a-f0-9]{48}$|^[a-f0-9]{64}$/.test(provided) && provided.length===expected.length && timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+      if (!runtime || runtime.platform !== "vk" || runtime.connectionStatus !== "connected" || !validSecret || String(body.group_id)!==runtime.external_account_id) throw new AppError(403, "INVALID_WEBHOOK", "Запрос не подтверждён.");
       const type = body.type;
-      if (type === "confirmation") return { type: "confirmation", ok: true };
+      if(type==='confirmation'&&runtime.confirmation_code)return {confirmation:runtime.confirmation_code};
+      if(runtime.status!=='ready')throw new AppError(503,'CHANNEL_PAUSED','Канал ещё не готов.');
+      const business=await tx.selectFrom('business').select('id').where('id','=',runtime.business_id).where('archived_at','is',null).forUpdate().executeTakeFirst();const fresh=await tx.selectFrom('vk_runtime').select(['generation','status']).where('connection_id','=',id).executeTakeFirst();if(!business||fresh?.generation!==runtime.generation||fresh.status!=='ready')throw new AppError(503,'CHANNEL_PAUSED','Канал временно недоступен.');
       if (type !== "message_new") return { ok: true };
       const eventId = typeof body.event_id === "string" ? body.event_id : "";
       if (!eventId || eventId.length > 200) throw new AppError(400, "INVALID_EVENT", "Некорректное событие VK.");
@@ -40,7 +58,7 @@ export class VKService {
       if (!unique) return { ok: true, duplicate: true };
       const object=body.object as {message?:VKMessage}|undefined;
       const message = object?.message ?? body.object as VKMessage | undefined;
-      if (!message || typeof message.from_id !== "number" || typeof message.peer_id !== "number" || !Number.isSafeInteger(message.from_id) || !Number.isSafeInteger(message.peer_id) || typeof message.text !== "string" || message.from_id <= 0 || message.peer_id <= 0) return { ok: true };
+      if (!message || typeof message.from_id !== "number" || typeof message.peer_id !== "number" || !Number.isSafeInteger(message.from_id) || !Number.isSafeInteger(message.peer_id) || typeof message.text !== "string" || message.from_id <= 0 || message.peer_id <= 0 || message.from_id !== message.peer_id) return { ok: true };
       await routeBot(tx,{businessId:runtime.business_id,connectionId:id,platform:'vk',userId:String(message.from_id),eventId,text:message.text});
       return { ok: true, accepted: true };
     });

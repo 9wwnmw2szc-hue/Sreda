@@ -16,7 +16,7 @@ export interface Database extends ClientTables, BookingTables {
   telegram_dialog: { mode: Generated<string>; config: Generated<string>; connection_id: string; chat_id: string; fields: string; answers: string; position: number; last_update_id: string; updated_at: Generated<Date> };
   telegram_update: { connection_id: string; update_id: string; created_at: Generated<Date> };
   telegram_outbox: { booking_reminder_id:Generated<string|null>; delivery_state:Generated<"pending"|"sending"|"sent"|"failed"|"uncertain">; claimed_at:Generated<Date|null>; external_message_id:Generated<string|null>; communication_message_id:Generated<string|null>;  buttons: Generated<unknown>; id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
-  vk_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
+  vk_runtime: { confirmation_code:Generated<string|null>; server_id:Generated<number|null>; setup_lock_until:Generated<Date|null>; connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
   vk_update: { connection_id: string; event_id: string; created_at: Generated<Date> };
   vk_outbox: { booking_reminder_id:Generated<string|null>; delivery_state:Generated<"pending"|"sending"|"sent"|"failed"|"uncertain">; claimed_at:Generated<Date|null>; external_message_id:Generated<string|null>; communication_message_id:Generated<string|null>;  buttons: Generated<unknown>; id: Generated<string>; connection_id: string; peer_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
 
@@ -52,7 +52,7 @@ export interface Database extends ClientTables, BookingTables {
     display_name: string | null; status: "pending" | "connected" | "error" | "disconnected";
     created_at: Generated<Date>; updated_at: Generated<Date>;
   };
-  connection_secret: { connection_id: string; encrypted_token: string; key_version: number; updated_at: Generated<Date> };
+  connection_secret: { encrypted_publish_token:Generated<string|null>; connection_id: string; encrypted_token: string; key_version: number; updated_at: Generated<Date> };
   lead: {
     processing_by: Generated<string|null>; processing_at: Generated<Date|null>; answers: Generated<unknown>;
     client_id: Generated<string|null>;

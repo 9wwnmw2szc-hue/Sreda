@@ -1,3 +1,5 @@
+import { cancelConnectionDeliveries } from "../outbox/cancel-connection.ts";
+import { vkCall } from "../vk/api.ts";
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -35,14 +37,24 @@ export class ConnectionService {
         externalAccountId = String(payload.result.id); displayName = payload.result.username ? `@${payload.result.username}` : payload.result.first_name ?? "Telegram"; status = "connected";
       } catch (error) { if (error instanceof AppError) throw error; throw new AppError(503, "CHANNEL_UNAVAILABLE", "Telegram временно недоступен. Попробуйте позже."); } finally { clearTimeout(timer); }
     }
+    if(platform==='vk'){
+      const permissions=await vkCall(token,'groups.getTokenPermissions',{},this.fetchTelegram) as {permissions?:{name:string;setting:number}[]};
+      if(!permissions.permissions?.some(p=>p.name==='messages'&&p.setting>0)||!permissions.permissions?.some(p=>p.name==='manage'&&p.setting>0))throw new AppError(400,'VK_PERMISSIONS_REQUIRED','Для ключа сообщества нужны права сообщений и управления.');
+      const result=await vkCall(token,'groups.getById',{},this.fetchTelegram) as {groups?:{id:number;name:string}[]};const group=result.groups?.[0];if(!group||!Number.isSafeInteger(group.id)||group.id<=0)throw new AppError(400,'INVALID_CONNECTION','VK не подтвердил сообщество этого токена.');externalAccountId=String(group.id);displayName=group.name;status='connected';
+    }
     const id = randomUUID();
     try {
       await this.db.transaction().execute(async (tx) => {
         await tx.selectFrom("business").select("id").where("id", "=", businessId).forUpdate().execute();
         await new ConnectionService(tx, this.secret, this.fetchTelegram).business(userId, publicId);
+        const previous=await tx.selectFrom("business_connection").select(["id","external_account_id"]).where("business_id","=",businessId).where("platform","=",platform).executeTakeFirst();
         await tx.insertInto("business_connection").values({ id, business_id: businessId, platform, external_account_id: externalAccountId, display_name: displayName, status }).onConflict((oc) => oc.columns(["business_id", "platform"]).doUpdateSet({ external_account_id: externalAccountId, display_name: displayName, status, updated_at: new Date() })).execute();
         const connection = await tx.selectFrom("business_connection").select("id").where("business_id", "=", businessId).where("platform", "=", platform).executeTakeFirstOrThrow();
-        await tx.deleteFrom("telegram_runtime").where("connection_id", "=", connection.id).execute();
+        if(previous&&previous.external_account_id!==externalAccountId){
+          await cancelConnectionDeliveries(tx,connection.id);
+          await tx.deleteFrom('telegram_runtime').where('connection_id','=',connection.id).execute();await tx.deleteFrom('vk_runtime').where('connection_id','=',connection.id).execute();await tx.updateTable('connection_secret').set({encrypted_publish_token:null}).where('connection_id','=',connection.id).execute();
+        }else if(platform==='telegram')await tx.updateTable('telegram_runtime').set({status:'pending',updated_at:new Date()}).where('connection_id','=',connection.id).execute();
+        else await tx.updateTable('vk_runtime').set({status:'pending',updated_at:new Date()}).where('connection_id','=',connection.id).execute();
         await tx.insertInto("connection_secret").values({ connection_id: connection.id, encrypted_token: encryptSecret(token, this.secret), key_version: 1 }).onConflict((oc) => oc.column("connection_id").doUpdateSet({ encrypted_token: encryptSecret(token, this.secret), key_version: 1, updated_at: new Date() })).execute();
         await this.audit(tx, businessId, userId, "connection_connected");
       });
@@ -58,7 +70,9 @@ export class ConnectionService {
     await this.db.transaction().execute(async (tx) => {
       await tx.selectFrom("business").select("id").where("id", "=", businessId).forUpdate().execute();
       await new ConnectionService(tx, this.secret, this.fetchTelegram).business(userId, publicId);
+      await cancelConnectionDeliveries(tx,row.id);
       await tx.deleteFrom("telegram_runtime").where("connection_id", "=", row.id).execute();
+      await tx.deleteFrom("vk_runtime").where("connection_id","=",row.id).execute();
       await tx.deleteFrom("connection_secret").where("connection_id", "=", row.id).execute();
       await tx.updateTable("business_connection").set({ status: "disconnected", external_account_id: null, updated_at: new Date() }).where("id", "=", row.id).execute();
       await this.audit(tx, businessId, userId, "connection_disconnected");
