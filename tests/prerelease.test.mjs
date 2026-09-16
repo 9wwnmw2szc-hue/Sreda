@@ -321,6 +321,45 @@ test("revoked employee loses binding and live assignments, other business and hi
   );
 });
 
+test("only the assigned employee can change a lead and reopening releases it", async () => {
+  const f = await fixture(),
+    other = await user(),
+    leads = new LeadService(db);
+  await db
+    .insertInto("business_member")
+    .values({
+      business_id: f.b.id,
+      user_id: other.id,
+      role: "operator",
+      status: "active",
+    })
+    .execute();
+  const lead = await leads.create(f.owner.id, f.b.public_id, {
+    source: "telegram",
+    name: "Клиент",
+  });
+  await leads.updateStatus(f.operator.id, f.b.public_id, lead.id, "processing");
+  await assert.rejects(
+    leads.updateStatus(other.id, f.b.public_id, lead.id, "closed"),
+    (error) => error.code === "LEAD_ASSIGNED",
+  );
+  const reopened = await leads.updateStatus(
+    f.operator.id,
+    f.b.public_id,
+    lead.id,
+    "new",
+  );
+  assert.equal(reopened.processingBy, null);
+  assert.equal(reopened.processingAt, undefined);
+  const claimed = await leads.updateStatus(
+    other.id,
+    f.b.public_id,
+    lead.id,
+    "processing",
+  );
+  assert.equal(claimed.processingBy, other.id);
+});
+
 test("long replies and full lead review are split without losing Unicode text or duplicating logical messages", async () => {
   const { messageChunks } = await import("../src/server/outbox/text.ts");
   const text = "А".repeat(3999) + "😀" + "Б".repeat(4500);

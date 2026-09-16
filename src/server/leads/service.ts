@@ -227,11 +227,7 @@ export class LeadService {
         .executeTakeFirst();
       if (!current)
         throw new AppError(404, "LEAD_NOT_FOUND", "Заявка не найдена.");
-      if (
-        status === "processing" &&
-        current.processing_by &&
-        current.processing_by !== userId
-      )
+      if (current.processing_by && current.processing_by !== userId)
         throw new AppError(
           409,
           "LEAD_ASSIGNED",
@@ -247,6 +243,8 @@ export class LeadService {
                 processing_by: userId,
                 processing_at: current.processing_at ?? new Date(),
               }
+            : status === "new"
+              ? { processing_by: null, processing_at: null }
             : {}),
         })
         .where("id", "=", id)
