@@ -32,10 +32,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run lint
-      - run: npm run build
       - run: npm run typecheck
+      - run: npm run build
       - run: npm run test:http
       - name: Build deployment image and check worker imports
         run: |
           docker build -t sreda-ci .
-          docker run --rm --entrypoint node sreda-ci --import tsx --input-type=module -e 'await import("./src/server/telegram/service.ts"); await import("./src/server/solutions/service.ts");'
+          docker run --rm --entrypoint node sreda-ci --import tsx --input-type=module -e 'await Promise.all([import("./src/server/telegram/service.ts"), import("./src/server/vk/service.ts"), import("./src/server/booking/service.ts"), import("./src/server/posts/service.ts"), import("./src/server/solutions/service.ts")]);'

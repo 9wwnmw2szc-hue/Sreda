@@ -17,7 +17,9 @@ export function stagingConfiguration(
         protocols.includes(url.protocol) &&
         (!originOnly || url.origin === value) &&
         !url.username &&
-        !url.password
+        !url.password &&
+        !url.search &&
+        !url.hash
       );
     } catch {
       return false;

@@ -134,6 +134,18 @@ test("staging diagnostics expose missing names, never secret values, and require
     ).ok,
     false,
   );
+  for (const endpoint of [
+    "https://user:password@s3.example.invalid",
+    "https://s3.example.invalid?token=secret",
+    "https://s3.example.invalid#fragment",
+  ])
+    assert.equal(
+      stagingConfiguration({ ...env, S3_ENDPOINT: endpoint }).find(
+        (c) => c.name === "S3_ENDPOINT",
+      ).ok,
+      false,
+      endpoint,
+    );
 });
 
 test("deployment definitions keep Telegram and VK workers independently enabled", async () => {
