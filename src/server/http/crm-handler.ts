@@ -53,7 +53,12 @@ export function crmHandler(
       const p = new URL(request.url).searchParams;
       return json(
         id
-          ? await service.detail(user.id, businessId, id)
+          ? await service.detail(
+              user.id,
+              businessId,
+              id,
+              Number(p.get("page") ?? 0),
+            )
           : await service.list(
               user.id,
               businessId,

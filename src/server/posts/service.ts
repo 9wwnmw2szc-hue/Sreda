@@ -168,16 +168,42 @@ export class PostService {
         .executeTakeFirstOrThrow();
     });
   }
-  async list(user: string, publicId: string) {
+  async list(user: string, publicId: string, page = 0, filter = "all") {
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 0 ||
+      page > 100000 ||
+      !["all", "draft", "scheduled", "published", "failed"].includes(filter)
+    )
+      throw invalid("Проверьте фильтр и страницу.");
     const b = await requireBusiness(this.db, user, publicId, "posts.manage");
-    const posts = await this.db
+    let query = this.db
       .selectFrom("post")
       .selectAll()
       .where("business_id", "=", b.id)
       .where("deleted_at", "is", null)
       .orderBy("created_at", "desc")
+      .orderBy("id", "desc")
       .limit(100)
-      .execute();
+      .offset(page * 100);
+    if (filter === "failed")
+      query = query.where("status", "in", ["failed", "partial"]);
+    else if (filter === "scheduled")
+      query = query.where((eb) =>
+        eb.or([
+          eb("status", "=", "scheduled"),
+          eb.exists(
+            eb
+              .selectFrom("post_schedule")
+              .select("post_id")
+              .whereRef("post_schedule.post_id", "=", "post.id")
+              .where("active", "=", true),
+          ),
+        ]),
+      );
+    else if (filter !== "all")
+      query = query.where("status", "=", filter as "draft" | "published");
+    const posts = await query.execute();
     return Promise.all(
       posts.map(async (p) => ({
         ...p,
@@ -445,14 +471,12 @@ export class PostService {
             active: true,
           })
           .onConflict((oc) =>
-            oc
-              .column("post_id")
-              .doUpdateSet({
-                rule: JSON.stringify(rule),
-                next_at: next,
-                active: true,
-                revision: (old?.revision ?? 0) + 1,
-              }),
+            oc.column("post_id").doUpdateSet({
+              rule: JSON.stringify(rule),
+              next_at: next,
+              active: true,
+              revision: (old?.revision ?? 0) + 1,
+            }),
           )
           .execute();
       } else

@@ -62,7 +62,10 @@ export class CommunicationService {
     userId: string,
     publicId: string,
     status?: ConversationStatus,
+    page = 0,
   ) {
+    if (!Number.isSafeInteger(page) || page < 0 || page > 100000)
+      throw new AppError(400, "INVALID_PAGE", "Проверьте страницу.");
     const businessId = (await this.resolve(userId, publicId)).id;
     if (status && !["open", "assigned", "closed", "blocked"].includes(status)) {
       throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
@@ -74,6 +77,7 @@ export class CommunicationService {
         "platform",
         "external_user_id as externalUserId",
         "external_username as externalUsername",
+        "client_id as clientId",
         "status",
         "assigned_member_user_id as assignedMemberUserId",
         "last_message_at as lastMessageAt",
@@ -81,7 +85,9 @@ export class CommunicationService {
       ])
       .where("business_id", "=", businessId)
       .orderBy("last_message_at", "desc")
-      .limit(100);
+      .orderBy("id", "desc")
+      .limit(100)
+      .offset(page * 100);
     if (status) query = query.where("status", "=", status) as typeof query;
     const conversations = await query.execute();
     return Promise.all(
@@ -113,8 +119,17 @@ export class CommunicationService {
               .where("id", "=", row.assignedMemberUserId)
               .executeTakeFirst()
           : null;
+        const client = row.clientId
+          ? await this.db
+              .selectFrom("client")
+              .select("name")
+              .where("business_id", "=", businessId)
+              .where("id", "=", row.clientId)
+              .executeTakeFirst()
+          : null;
         return {
           ...row,
+          clientName: client?.name,
           unread: Number(unread.count),
           lastMessage: last?.text ?? "",
           assignedName: employee?.name,
@@ -125,7 +140,14 @@ export class CommunicationService {
     );
   }
 
-  async listMessages(userId: string, publicId: string, conversationId: string) {
+  async listMessages(
+    userId: string,
+    publicId: string,
+    conversationId: string,
+    page = 0,
+  ) {
+    if (!Number.isSafeInteger(page) || page < 0 || page > 100000)
+      throw new AppError(400, "INVALID_PAGE", "Проверьте страницу.");
     const businessId = (await this.resolve(userId, publicId)).id;
     const conversation = await this.db
       .selectFrom("communication_conversation")
@@ -150,7 +172,9 @@ export class CommunicationService {
       .where("conversation_id", "=", conversationId)
       .where("business_id", "=", businessId)
       .orderBy("created_at", "desc")
+      .orderBy("id", "desc")
       .limit(500)
+      .offset(page * 500)
       .execute();
     const latest = rows[0]?.createdAt;
     if (latest)
@@ -163,36 +187,32 @@ export class CommunicationService {
           read_at: latest,
         })
         .onConflict((oc) =>
-          oc
-            .columns(["conversation_id", "user_id"])
-            .doUpdateSet((eb) => ({
-              read_at: eb.fn<Date>("greatest", [
-                eb.ref("conversation_read_state.read_at"),
-                eb.val(latest),
-              ]),
-            })),
+          oc.columns(["conversation_id", "user_id"]).doUpdateSet((eb) => ({
+            read_at: eb.fn<Date>("greatest", [
+              eb.ref("conversation_read_state.read_at"),
+              eb.val(latest),
+            ]),
+          })),
         )
         .execute();
     return Promise.all(
-      rows
-        .reverse()
-        .map(async (row) => ({
-          ...row,
-          createdAt: row.createdAt.toISOString(),
-          attachments: await this.db
-            .selectFrom("communication_attachment as ca")
-            .innerJoin("attachment as a", "a.id", "ca.attachment_id")
-            .select([
-              "a.id",
-              "a.type",
-              "a.filename",
-              "a.mime_type as mime",
-              "a.size_bytes as size",
-            ])
-            .where("ca.message_id", "=", row.id)
-            .where("ca.business_id", "=", businessId)
-            .execute(),
-        })),
+      rows.reverse().map(async (row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+        attachments: await this.db
+          .selectFrom("communication_attachment as ca")
+          .innerJoin("attachment as a", "a.id", "ca.attachment_id")
+          .select([
+            "a.id",
+            "a.type",
+            "a.filename",
+            "a.mime_type as mime",
+            "a.size_bytes as size",
+          ])
+          .where("ca.message_id", "=", row.id)
+          .where("ca.business_id", "=", businessId)
+          .execute(),
+      })),
     );
   }
 

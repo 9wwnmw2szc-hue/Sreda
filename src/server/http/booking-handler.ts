@@ -52,6 +52,7 @@ export function bookingHandler(
           publicId,
           p.get("from") ?? undefined,
           p.get("until") ?? undefined,
+          Number(p.get("page") ?? 0),
         ),
       );
     if (request.method === "POST")

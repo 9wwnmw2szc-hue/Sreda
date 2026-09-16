@@ -429,3 +429,33 @@ test("deleting a draft hides it while retaining audit and forbids later publicat
       .executeTakeFirst(),
   );
 });
+
+test("post filters apply before pagination and keep older drafts reachable", async () => {
+  const f = await fixture();
+  await db
+    .insertInto("post")
+    .values(
+      Array.from({ length: 103 }, (_, i) => ({
+        id: randomUUID(),
+        business_id: f.b.id,
+        created_by: f.uid,
+        text: "Draft " + i,
+        request_key: randomUUID(),
+        request_hash: "fixture",
+        status: "draft",
+        buttons: JSON.stringify([]),
+        scheduled_at: null,
+      })),
+    )
+    .execute();
+  const first = await f.svc.list(f.uid, f.b.public_id, 0, "draft");
+  const second = await f.svc.list(f.uid, f.b.public_id, 1, "draft");
+  assert.equal(first.length, 100);
+  assert.equal(second.length, 3);
+  assert.equal(new Set([...first, ...second].map((p) => p.id)).size, 103);
+  assert.deepEqual(await f.svc.list(f.uid, f.b.public_id, 0, "published"), []);
+  await assert.rejects(
+    f.svc.list(f.uid, f.b.public_id, -1),
+    (e) => e.code === "INVALID_POST",
+  );
+});

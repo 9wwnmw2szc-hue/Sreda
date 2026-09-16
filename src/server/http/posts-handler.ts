@@ -28,7 +28,14 @@ export function postsHandler(
             ),
       );
     if (request.method === "GET")
-      return json(await service.list(user.id, publicId));
+      return json(
+        await service.list(
+          user.id,
+          publicId,
+          Number(new URL(request.url).searchParams.get("page") ?? 0),
+          new URL(request.url).searchParams.get("filter") ?? "all",
+        ),
+      );
     const body = await readJson(request, 20000);
     if (id && request.method === "POST")
       return json(await service.action(user.id, publicId, id, body.action));

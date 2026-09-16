@@ -261,7 +261,9 @@ export class ClientService {
       })),
     );
   }
-  async detail(userId: string, publicId: string, id: string) {
+  async detail(userId: string, publicId: string, id: string, page = 0) {
+    if (!Number.isSafeInteger(page) || page < 0 || page > 100000)
+      throw new AppError(400, "INVALID_PAGE", "Проверьте страницу истории.");
     const b = await requireBusiness(this.db, userId, publicId, "clients.read");
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -291,7 +293,9 @@ export class ClientService {
           .where("business_id", "=", b.id)
           .where("client_id", "=", id)
           .orderBy("created_at", "desc")
+          .orderBy("id", "desc")
           .limit(100)
+          .offset(page * 100)
           .execute(),
         this.db
           .selectFrom("communication_conversation")
@@ -305,7 +309,9 @@ export class ClientService {
           .where("business_id", "=", b.id)
           .where("client_id", "=", id)
           .orderBy("created_at", "desc")
+          .orderBy("id", "desc")
           .limit(100)
+          .offset(page * 100)
           .execute(),
         this.db
           .selectFrom("client_note")
@@ -313,7 +319,9 @@ export class ClientService {
           .where("business_id", "=", b.id)
           .where("client_id", "=", id)
           .orderBy("created_at", "desc")
+          .orderBy("id", "desc")
           .limit(100)
+          .offset(page * 100)
           .execute(),
         this.db
           .selectFrom("booking as k")
@@ -324,10 +332,15 @@ export class ClientService {
           .where("k.business_id", "=", b.id)
           .where("k.client_id", "=", id)
           .orderBy("k.starts_at", "desc")
+          .orderBy("k.id", "desc")
           .limit(100)
+          .offset(page * 100)
           .execute(),
       ]);
     return {
+      hasMore: [leads, activity, notes, bookings].some(
+        (rows) => rows.length === 100,
+      ),
       client,
       identities,
       leads,

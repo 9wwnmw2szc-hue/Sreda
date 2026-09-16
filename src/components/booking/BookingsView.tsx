@@ -98,6 +98,7 @@ function Calendar({
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [mode, setMode] = useState("day"),
+    [page, setPage] = useState(0),
     [date, setDate] = useState(dateAt(new Date(), timezone)),
     [service, setService] = useState(""),
     [specialist, setSpecialist] = useState(""),
@@ -105,17 +106,28 @@ function Calendar({
     [slots, setSlots] = useState<string[]>([]),
     [clients, setClients] = useState<{ id: string; name: string }[]>([]),
     [client, setClient] = useState(""),
+    [clientSearch, setClientSearch] = useState(""),
     [clientName, setClientName] = useState(""),
     [clientPhone, setClientPhone] = useState(""),
     [reschedule, setReschedule] = useState<Booking | null>(null),
     [cancel, setCancel] = useState<Booking | null>(null),
     [selected, setSelected] = useState<Booking | null>(null);
   const requestKey = useRef("");
+  const range =
+    mode === "list"
+      ? ""
+      : "&from=" +
+        new Date(Date.parse(date) - 86400000).toISOString() +
+        "&until=" +
+        new Date(
+          Date.parse(date) + (mode === "week" ? 8 : 2) * 86400000,
+        ).toISOString();
+  const bookingUrl = base + "/bookings?page=" + page + range;
   useEffect(() => {
     let alive = true;
     void Promise.all([
       apiRequest<Catalog>(base + "/booking-config"),
-      apiRequest<Booking[]>(base + "/bookings"),
+      apiRequest<Booking[]>(bookingUrl),
       apiRequest<{ id: string; name: string }[]>(base + "/clients"),
     ])
       .then(([c, b, cl]) => {
@@ -131,7 +143,7 @@ function Calendar({
     return () => {
       alive = false;
     };
-  }, [base]);
+  }, [base, bookingUrl]);
   useEffect(() => {
     if (!service || !specialist) return;
     let alive = true;
@@ -156,7 +168,7 @@ function Calendar({
     let alive = true;
     const timer = setInterval(
       () =>
-        void apiRequest<Booking[]>(base + "/bookings")
+        void apiRequest<Booking[]>(bookingUrl)
           .then((b) => {
             if (alive) setBookings(b);
           })
@@ -167,11 +179,32 @@ function Calendar({
       alive = false;
       clearInterval(timer);
     };
-  }, [base]);
+  }, [base, bookingUrl]);
   async function refresh() {
-    setBookings(await apiRequest<Booking[]>(base + "/bookings"));
+    setBookings(await apiRequest<Booking[]>(bookingUrl));
     setCatalog(await apiRequest<Catalog>(base + "/booking-config"));
   }
+  useEffect(() => {
+    let alive = true;
+    const timer = setTimeout(() => {
+      void apiRequest<{ id: string; name: string }[]>(
+        base + "/clients?search=" + encodeURIComponent(clientSearch),
+      )
+        .then((rows) => {
+          if (alive) setClients(rows);
+        })
+        .catch((e) => {
+          if (alive)
+            setError(
+              e instanceof Error ? e.message : "Не удалось найти клиента.",
+            );
+        });
+    }, 250);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [base, clientSearch]);
   async function create() {
     setBusy(true);
     setError("");
@@ -243,6 +276,18 @@ function Calendar({
     <div>
       <h1>Онлайн-запись</h1>
       <p>Часовой пояс: {timezone}</p>
+      <nav aria-label="Страницы записей">
+        <button disabled={page === 0 || busy} onClick={() => setPage(page - 1)}>
+          Предыдущая
+        </button>
+        <span> Страница {page + 1} </span>
+        <button
+          disabled={bookings.length < 500 || busy}
+          onClick={() => setPage(page + 1)}
+        >
+          Следующая
+        </button>
+      </nav>
       {error && (
         <p role="alert" className="account-error">
           {error}
@@ -266,7 +311,10 @@ function Calendar({
                   key={v}
                   className="button button--outline"
                   aria-pressed={mode === v}
-                  onClick={() => setMode(v)}
+                  onClick={() => {
+                    setMode(v);
+                    setPage(0);
+                  }}
                 >
                   {t}
                 </button>
@@ -278,7 +326,8 @@ function Calendar({
                 type="date"
                 value={date}
                 onChange={(e) => {
-                  setDate(e.target.value);
+                  if (e.target.value) setDate(e.target.value);
+                  setPage(0);
                   setSlot("");
                   requestKey.current = "";
                 }}
@@ -353,6 +402,18 @@ function Calendar({
             >
               {!reschedule && (
                 <>
+                  <label>
+                    Найти клиента
+                    <input
+                      value={clientSearch}
+                      placeholder="Имя, телефон или username"
+                      onChange={(e) => {
+                        setClientSearch(e.target.value);
+                        setClient("");
+                        requestKey.current = "";
+                      }}
+                    />
+                  </label>
                   <label>
                     Клиент
                     <select

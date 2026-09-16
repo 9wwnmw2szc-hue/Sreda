@@ -441,7 +441,14 @@ export class BookingService {
       exclude,
     );
   }
-  async list(userId: string, publicId: string, from?: string, until?: string) {
+  async list(
+    userId: string,
+    publicId: string,
+    from?: string,
+    until?: string,
+    page = 0,
+  ) {
+    if (!Number.isSafeInteger(page) || page < 0 || page > 100000) throw fail();
     const b = await requireBusiness(this.db, userId, publicId, "clients.read");
     let q = this.db
       .selectFrom("booking as b")
@@ -457,7 +464,9 @@ export class BookingService {
       ])
       .where("b.business_id", "=", b.id)
       .orderBy("b.starts_at")
-      .limit(500);
+      .orderBy("b.id")
+      .limit(500)
+      .offset(page * 500);
     if (from) {
       if (!Number.isFinite(Date.parse(from))) throw fail();
       q = q.where("b.starts_at", ">=", new Date(from));

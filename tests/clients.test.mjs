@@ -73,20 +73,16 @@ test("platform identities match inside business; names and unverified phones nev
 });
 test("conflicting verified identities roll back instead of merging clients", async () => {
   const { b } = await fixture();
-  await db
-    .transaction()
-    .execute((tx) =>
-      matchClient(tx, b.id, {
-        identities: [{ kind: "telegram", value: "11" }],
-      }),
-    );
-  await db
-    .transaction()
-    .execute((tx) =>
-      matchClient(tx, b.id, {
-        identities: [{ kind: "phone", value: "+79991234567" }],
-      }),
-    );
+  await db.transaction().execute((tx) =>
+    matchClient(tx, b.id, {
+      identities: [{ kind: "telegram", value: "11" }],
+    }),
+  );
+  await db.transaction().execute((tx) =>
+    matchClient(tx, b.id, {
+      identities: [{ kind: "phone", value: "+79991234567" }],
+    }),
+  );
   await assert.rejects(
     db.transaction().execute((tx) =>
       matchClient(tx, b.id, {
@@ -155,16 +151,14 @@ test("lead and conversation share a platform client; duplicate message leaves hi
   );
   const { createLead } = await import("../src/server/leads/service.ts");
   const { b } = await fixture();
-  const lead = await db
-    .transaction()
-    .execute((tx) =>
-      createLead(tx, b.id, {
-        source: "telegram",
-        name: "Анна",
-        platformUserId: "222",
-        externalEventId: "lead-event",
-      }),
-    );
+  const lead = await db.transaction().execute((tx) =>
+    createLead(tx, b.id, {
+      source: "telegram",
+      name: "Анна",
+      platformUserId: "222",
+      externalEventId: "lead-event",
+    }),
+  );
   const cs = new CommunicationService(db);
   const input = {
     businessId: b.id,
@@ -511,5 +505,43 @@ test("legacy CRM migration preserves history and never merges by a shared name",
         .execute()
     ).length,
     2,
+  );
+});
+
+test("CRM history pages retain older records without mixing businesses", async () => {
+  const { uid, b } = await fixture();
+  const id = await db
+    .transaction()
+    .execute((tx) =>
+      matchClient(tx, b.id, { name: "History client", identities: [] }),
+    );
+  const timestamp = new Date();
+  await db
+    .insertInto("client_note")
+    .values(
+      Array.from({ length: 105 }, (_, i) => ({
+        id: randomUUID(),
+        business_id: b.id,
+        client_id: id,
+        actor_user_id: uid,
+        text: "Note " + i,
+        created_at: timestamp,
+      })),
+    )
+    .execute();
+  const svc = new ClientService(db);
+  const first = await svc.detail(uid, b.public_id, id);
+  const second = await svc.detail(uid, b.public_id, id, 1);
+  assert.equal(first.notes.length, 100);
+  assert.equal(second.notes.length, 5);
+  assert.equal(first.hasMore, true);
+  assert.equal(second.hasMore, false);
+  assert.equal(
+    new Set([...first.notes, ...second.notes].map((n) => n.id)).size,
+    105,
+  );
+  await assert.rejects(
+    svc.detail(uid, b.public_id, id, -1),
+    (e) => e.code === "INVALID_PAGE",
   );
 });

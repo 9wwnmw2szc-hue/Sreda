@@ -74,6 +74,7 @@ function Editor({
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [filter, setFilter] = useState("all"),
+    [page, setPage] = useState(0),
     [text, setText] = useState(""),
     [chosen, setChosen] = useState<string[]>([]),
     [buttons, setButtons] = useState<{ text: string; url: string }[]>([]),
@@ -91,9 +92,10 @@ function Editor({
       null,
     );
   const key = useRef("");
+  const postsUrl = base + "/posts?filter=" + filter + "&page=" + page;
   async function refresh() {
     const [p, t] = await Promise.all([
-      apiRequest<Post[]>(base + "/posts"),
+      apiRequest<Post[]>(postsUrl),
       apiRequest<Target[]>(base + "/post-targets"),
     ]);
     setPosts(p);
@@ -104,7 +106,7 @@ function Editor({
     async function load() {
       try {
         const [p, t] = await Promise.all([
-          apiRequest<Post[]>(base + "/posts"),
+          apiRequest<Post[]>(postsUrl),
           apiRequest<Target[]>(base + "/post-targets"),
         ]);
         if (active) {
@@ -125,7 +127,7 @@ function Editor({
       active = false;
       clearInterval(timer);
     };
-  }, [base]);
+  }, [base, postsUrl]);
   function reset() {
     setEditing(null);
     setText("");
@@ -515,9 +517,30 @@ function Editor({
         </section>
         <section className="panel crm-panel">
           <h2>История публикаций</h2>
+          <nav aria-label="Страницы публикаций">
+            <button
+              disabled={page === 0 || busy}
+              onClick={() => setPage(page - 1)}
+            >
+              Предыдущая
+            </button>
+            <span> Страница {page + 1} </span>
+            <button
+              disabled={posts.length < 100 || busy}
+              onClick={() => setPage(page + 1)}
+            >
+              Следующая
+            </button>
+          </nav>
           <label>
             Фильтр
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <select
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(0);
+              }}
+            >
               {Object.entries({
                 all: "Все",
                 draft: "Черновики",

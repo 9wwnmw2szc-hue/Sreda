@@ -1,3 +1,4 @@
+import { AppError } from "../http/errors.ts";
 import { bindNotification } from "../notifications/settings.ts";
 import type { InboundAttachment } from "../attachments/service.ts";
 import { bookingFlow } from "./booking-flow.ts";
@@ -154,7 +155,20 @@ export async function routeBot(
     await showMenu("Действие отменено. Выберите действие.");
     return;
   }
-  if (codes.has("booking") && (await bookingFlow(tx, input, queue))) return;
+  if (codes.has("booking")) {
+    try {
+      if (await bookingFlow(tx, input, queue)) return;
+    } catch (error) {
+      if (
+        !(error instanceof AppError) ||
+        error.status >= 500 ||
+        error.status === 429
+      )
+        throw error;
+      await showMenu(error.message + " Выберите действие заново.");
+      return;
+    }
+  }
   if (text === "Связаться с администрацией" && codes.has("admin_messages")) {
     await save("messages");
     await queue("Напишите ваш вопрос.", ["Главное меню"]);

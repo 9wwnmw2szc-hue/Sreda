@@ -16,6 +16,7 @@ type Client = {
   last_seen_at: string;
 };
 type Detail = {
+  hasMore: boolean;
   bookings: {
     id: string;
     starts_at: string;
@@ -55,6 +56,7 @@ function Clients({
     [more, setMore] = useState(false),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
+    [historyPage, setHistoryPage] = useState(0),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -95,6 +97,7 @@ function Clients({
       .then((x) => {
         if (alive) {
           setDetail(x);
+          setHistoryPage(0);
           setForm({
             name: x.client.name,
             phone: x.client.phone ?? "",
@@ -129,6 +132,34 @@ function Clients({
       setBusy(false);
     }
   }
+  async function moreHistory() {
+    if (!detail) return;
+    setBusy(true);
+    try {
+      const next = await apiRequest<Detail>(
+        base + "/" + selected + "?page=" + (historyPage + 1),
+      );
+      const unique = <T extends { id: string }>(a: T[], b: T[]) => [
+        ...a,
+        ...b.filter((v) => !a.some((old) => old.id === v.id)),
+      ];
+      setDetail({
+        ...detail,
+        hasMore: next.hasMore,
+        leads: unique(detail.leads, next.leads),
+        bookings: unique(detail.bookings, next.bookings),
+        notes: unique(detail.notes, next.notes),
+        activity: unique(detail.activity, next.activity),
+      });
+      setHistoryPage(historyPage + 1);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Не удалось загрузить историю.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function save() {
     setBusy(true);
     setError("");
@@ -140,6 +171,7 @@ function Clients({
       setClients(await apiRequest<Client[]>(base));
       setSelected(result.id);
       setDetail(await apiRequest<Detail>(base + "/" + result.id));
+      setHistoryPage(0);
       setNotice("Данные клиента сохранены.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить.");
@@ -156,6 +188,7 @@ function Clients({
       });
       setNote("");
       setDetail(await apiRequest<Detail>(base + "/" + selected));
+      setHistoryPage(0);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Не удалось сохранить заметку.",
@@ -367,6 +400,11 @@ function Clients({
                 </button>
               </form>
               <h3>Активность</h3>
+              {detail.hasMore && (
+                <button disabled={busy} onClick={() => void moreHistory()}>
+                  Загрузить более раннюю историю
+                </button>
+              )}
               {detail.activity.map((a) => (
                 <p key={a.id}>
                   {new Date(a.created_at).toLocaleString("ru", {

@@ -9,6 +9,7 @@ import { useBusinessContext } from "@/hooks/useBusinessContext";
 type Conversation = {
   id: string;
   platform: string;
+  clientName?: string;
   externalUserId: string;
   externalUsername: string | null;
   status: string;
@@ -28,12 +29,22 @@ type Message = {
 export function MessagesView() {
   const { currentBusiness } = useBusinessContext();
   return currentBusiness ? (
-    <Inbox key={currentBusiness.id} businessId={currentBusiness.id} />
+    <Inbox
+      key={currentBusiness.id}
+      businessId={currentBusiness.id}
+      timezone={currentBusiness.timezone ?? "UTC"}
+    />
   ) : (
     <p>Выберите бизнес.</p>
   );
 }
-function Inbox({ businessId }: { businessId: string }) {
+function Inbox({
+  businessId,
+  timezone,
+}: {
+  businessId: string;
+  timezone: string;
+}) {
   const [files, setFiles] = useState<FileItem[]>([]),
     [uploading, setUploading] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]),
@@ -43,7 +54,9 @@ function Inbox({ businessId }: { businessId: string }) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loaded, setLoaded] = useState(false),
-    [filter, setFilter] = useState("");
+    [filter, setFilter] = useState(""),
+    [page, setPage] = useState(0),
+    [messagePage, setMessagePage] = useState(0);
   const requestKey = useRef("");
   const base = `/api/v1/businesses/${businessId}/conversations`;
   const current = conversations.find((c) => c.id === selected);
@@ -52,7 +65,7 @@ function Inbox({ businessId }: { businessId: string }) {
     async function refresh() {
       try {
         const list = await apiRequest<Conversation[]>(
-          base + (filter ? "?status=" + filter : ""),
+          base + "?status=" + filter + "&page=" + page,
         );
         if (active) {
           setConversations(list);
@@ -74,13 +87,15 @@ function Inbox({ businessId }: { businessId: string }) {
       active = false;
       clearInterval(timer);
     };
-  }, [base, filter]);
+  }, [base, filter, page]);
   useEffect(() => {
     if (!selected) return;
     let active = true;
     async function refresh() {
       try {
-        const list = await apiRequest<Message[]>(base + "/" + selected);
+        const list = await apiRequest<Message[]>(
+          base + "/" + selected + "?page=" + messagePage,
+        );
         if (active) setMessages(list);
       } catch (e) {
         if (active)
@@ -95,7 +110,7 @@ function Inbox({ businessId }: { businessId: string }) {
       active = false;
       clearInterval(timer);
     };
-  }, [base, selected]);
+  }, [base, selected, messagePage]);
   async function status(value: string) {
     setBusy(true);
     setError("");
@@ -104,7 +119,11 @@ function Inbox({ businessId }: { businessId: string }) {
         method: "PATCH",
         body: JSON.stringify({ status: value }),
       });
-      setConversations(await apiRequest<Conversation[]>(base));
+      setConversations(
+        await apiRequest<Conversation[]>(
+          base + "?status=" + filter + "&page=" + page,
+        ),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось изменить статус.");
     } finally {
@@ -128,6 +147,7 @@ function Inbox({ businessId }: { businessId: string }) {
       setText("");
       setFiles([]);
       requestKey.current = "";
+      setMessagePage(0);
       setMessages(await apiRequest<Message[]>(base + "/" + selected));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось отправить.");
@@ -145,9 +165,27 @@ function Inbox({ businessId }: { businessId: string }) {
       )}
       <div className="crm-columns">
         <section className="panel crm-panel">
+          <nav aria-label="Страницы диалогов">
+            <button disabled={!page} onClick={() => setPage(page - 1)}>
+              Предыдущая
+            </button>
+            <span> {page + 1} </span>
+            <button
+              disabled={conversations.length < 100}
+              onClick={() => setPage(page + 1)}
+            >
+              Следующая
+            </button>
+          </nav>
           <label>
             Статус
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <select
+              value={filter}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(0);
+              }}
+            >
               {[
                 ["", "Все"],
                 ["open", "Новые"],
@@ -173,6 +211,7 @@ function Inbox({ businessId }: { businessId: string }) {
                     aria-pressed={selected === c.id}
                     onClick={() => {
                       setSelected(c.id);
+                      setMessagePage(0);
                       setMessages([]);
                       setText("");
                       setFiles([]);
@@ -180,11 +219,14 @@ function Inbox({ businessId }: { businessId: string }) {
                     }}
                   >
                     <strong>
-                      {c.externalUsername || c.externalUserId} · {c.platform}
+                      {c.clientName || c.externalUsername || c.externalUserId} ·{" "}
+                      {c.platform}
                     </strong>
                     <span>{c.lastMessage.slice(0, 100)}</span>
                     <small>
-                      {new Date(c.lastMessageAt).toLocaleString("ru")}
+                      {new Date(c.lastMessageAt).toLocaleString("ru", {
+                        timeZone: timezone,
+                      })}
                       {c.unread > 0 ? " · Новых: " + c.unread : ""}
                     </small>
                     {c.assignedName && (
@@ -202,7 +244,8 @@ function Inbox({ businessId }: { businessId: string }) {
           ) : (
             <>
               <h2>
-                {current?.externalUsername ||
+                {current?.clientName ||
+                  current?.externalUsername ||
                   current?.externalUserId ||
                   "Диалог"}
               </h2>
@@ -222,6 +265,21 @@ function Inbox({ businessId }: { businessId: string }) {
                   Закрыть диалог
                 </button>
               </div>
+              <nav aria-label="История переписки">
+                <button
+                  disabled={messages.length < 500}
+                  onClick={() => setMessagePage(messagePage + 1)}
+                >
+                  Раньше
+                </button>
+                <span> {messagePage + 1} </span>
+                <button
+                  disabled={!messagePage}
+                  onClick={() => setMessagePage(messagePage - 1)}
+                >
+                  Позже
+                </button>
+              </nav>
               <div className="message-history" aria-live="polite">
                 {messages.map((m) => (
                   <article
@@ -239,7 +297,9 @@ function Inbox({ businessId }: { businessId: string }) {
                       </p>
                     ))}
                     <small>
-                      {new Date(m.createdAt).toLocaleString("ru")}{" "}
+                      {new Date(m.createdAt).toLocaleString("ru", {
+                        timeZone: timezone,
+                      })}{" "}
                       {m.direction === "outbound" &&
                         (
                           {

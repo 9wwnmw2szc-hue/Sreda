@@ -137,6 +137,7 @@ export function createApplication(options: {
               user.id,
               businessId,
               conversationId,
+              Number(new URL(request.url).searchParams.get("page") ?? 0),
             ),
           );
         if (request.method === "GET")
@@ -146,6 +147,7 @@ export function createApplication(options: {
               businessId,
               (new URL(request.url).searchParams.get("status") as never) ||
                 undefined,
+              Number(new URL(request.url).searchParams.get("page") ?? 0),
             ),
           );
         if (
