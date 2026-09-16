@@ -1,9 +1,10 @@
+import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
 export type LeadStatus = "new" | "processing" | "closed";
-export interface Database extends ClientTables {
+export interface Database extends ClientTables, BookingTables {
   account_pin: { user_id: string; pin_hash: string; failed_attempts: Generated<number>; locked_until: Date | null; updated_at: Generated<Date> };
   worker_heartbeat: { name: string; seen_at: Date };
   lead_setup: { business_id: string; draft: string; revision: number; updated_at: Date };
@@ -14,10 +15,10 @@ export interface Database extends ClientTables {
   vk_dialog: Database["telegram_dialog"];
   telegram_dialog: { mode: Generated<string>; config: Generated<string>; connection_id: string; chat_id: string; fields: string; answers: string; position: number; last_update_id: string; updated_at: Generated<Date> };
   telegram_update: { connection_id: string; update_id: string; created_at: Generated<Date> };
-  telegram_outbox: { buttons: Generated<unknown>; id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
+  telegram_outbox: { booking_reminder_id:Generated<string|null>; delivery_state:Generated<"pending"|"sending"|"sent"|"failed"|"uncertain">; claimed_at:Generated<Date|null>; external_message_id:Generated<string|null>; communication_message_id:Generated<string|null>;  buttons: Generated<unknown>; id: Generated<string>; connection_id: string; chat_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
   vk_runtime: { connection_id: string; generation: string; status: "pending" | "ready" | "error"; updated_at: Generated<Date> };
   vk_update: { connection_id: string; event_id: string; created_at: Generated<Date> };
-  vk_outbox: { buttons: Generated<unknown>; id: Generated<string>; connection_id: string; peer_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
+  vk_outbox: { booking_reminder_id:Generated<string|null>; delivery_state:Generated<"pending"|"sending"|"sent"|"failed"|"uncertain">; claimed_at:Generated<Date|null>; external_message_id:Generated<string|null>; communication_message_id:Generated<string|null>;  buttons: Generated<unknown>; id: Generated<string>; connection_id: string; peer_id: string; message: string; attempts: Generated<number>; available_at: Generated<Date>; delivered_at: Date | null; last_error: string | null; created_at: Generated<Date> };
 
   user: { id: string; public_id: string; name: string; username: string; };
   account: { id: string; userId: string; providerId: string; password: string | null; updatedAt: Date };
@@ -67,7 +68,7 @@ export interface Database extends ClientTables {
     assigned_member_user_id: string | null; last_message_at: Generated<Date>;
     created_at: Generated<Date>; closed_at: Date | null;
   };
-  communication_message: {
+  communication_message: { delivery_status:Generated<"queued"|"sent"|"failed"|"uncertain">; request_key:Generated<string|null>;
     id: string; conversation_id: string; business_id: string;
     direction: "inbound" | "outbound" | "internal"; text: string;
     external_message_id: string | null; actor_user_id: string | null;

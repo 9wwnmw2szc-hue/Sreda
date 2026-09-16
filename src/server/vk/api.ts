@@ -5,6 +5,7 @@ export class VKError extends AppError {
     public readonly retryAfter = 0,
     public readonly permanent = false,
     public readonly chatUnavailable = false,
+    public readonly uncertain = false,
   ) {
     super(503, "VK_UNAVAILABLE", "VK не подтвердил действие. Попробуйте позже.");
   }
@@ -29,10 +30,10 @@ export async function vkCall(
       const chatUnavailable = method === "messages.send" && [901, 902, 935].includes(code);
       throw new VKError(0, permanent, chatUnavailable);
     }
-    if (!data || !("response" in data)) throw new VKError();
+    if (!data || !("response" in data)) throw new VKError(0,false,false,true);
     return data.response;
   } catch (error) {
     if (error instanceof VKError) throw error;
-    throw new VKError();
+    throw new VKError(0,false,false,true);
   }
 }

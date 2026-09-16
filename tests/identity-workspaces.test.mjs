@@ -857,3 +857,23 @@ test("concurrent wrong PIN requests enforce one shared five-attempt lock on Post
   assert.equal(row.failed_attempts, 5); assert.ok(row.locked_until > new Date());
   assert.equal((await db.selectFrom("session").select("id").where("userId", "=", a.internalId).execute()).length, 1);
 });
+
+test('uncertain Telegram delivery is not blindly retried after a timeout',async()=>{
+ const f=await botFixture();await f.send(901,'/start');await db.updateTable('telegram_outbox').set({delivered_at:new Date(),delivery_state:'sent'}).where('connection_id','!=',f.connection.id).execute();
+ let calls=0;const worker=new TelegramService(db,secret,'https://sreda.test',true,async()=>{calls++;throw new Error('response lost after acceptance');});
+ await worker.deliverOne();await worker.deliverOne();assert.equal(calls,1);
+ assert.equal((await db.selectFrom('telegram_outbox').select('delivery_state').where('connection_id','=',f.connection.id).executeTakeFirstOrThrow()).delivery_state,'uncertain');
+});
+test('accepted Telegram send with database failure retains committed claim across restart',async()=>{
+ const f=await botFixture();await f.send(902,'/start');await db.updateTable('telegram_outbox').set({delivered_at:new Date(),delivery_state:'sent'}).where('connection_id','!=',f.connection.id).execute();
+ let calls=0;const worker=new TelegramService(db,secret,'https://sreda.test',true,async()=>{calls++;return Response.json({ok:true,result:{message_id:100}});});
+ await sql`ALTER TABLE telegram_outbox ADD CONSTRAINT reject_delivery_test CHECK (delivery_state <> 'sent') NOT VALID`.execute(db);
+ try{await assert.rejects(worker.deliverOne());}finally{await sql`ALTER TABLE telegram_outbox DROP CONSTRAINT reject_delivery_test`.execute(db);}
+ await db.updateTable('telegram_outbox').set({claimed_at:new Date(0)}).where('connection_id','=',f.connection.id).execute();await worker.deliverOne();assert.equal(calls,1);
+ assert.equal((await db.selectFrom('telegram_outbox').select('delivery_state').where('connection_id','=',f.connection.id).executeTakeFirstOrThrow()).delivery_state,'uncertain');
+});
+test('only one employee can claim a conversation concurrently on PostgreSQL',{skip:!process.env.TEST_DATABASE_URL&&'Requires PostgreSQL connections'},async()=>{
+ const {CommunicationService}=await import('../src/server/communications/service.ts');const owner=await login(),operator=await login();const business=await(await create(owner)).json();const invite=await invitations.create(owner.internalId,business.id,operator.user.id,'operator');await invitations.accept(operator.internalId,invite.id);
+ const internal=await db.selectFrom('business').select('id').where('public_id','=',business.id).executeTakeFirstOrThrow();const cs=new CommunicationService(db);const conversation=await cs.recordInbound({businessId:internal.id,platform:'telegram',externalUserId:'777',text:'Вопрос'});
+ const results=await Promise.allSettled([cs.updateStatus(owner.internalId,business.id,conversation.conversationId,{status:'assigned'}),cs.updateStatus(operator.internalId,business.id,conversation.conversationId,{status:'assigned'})]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(results.find(r=>r.status==='rejected').reason.code,'CONVERSATION_ASSIGNED');
+});

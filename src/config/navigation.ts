@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  MessageCircle,
   Bell,
   CreditCard,
   FileText,
@@ -26,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/clients", label: "Клиенты", icon: Users },
   { href: "/connections", label: "Подключения", icon: Link2 },
   { href: "/billing", label: "Тариф и оплата", icon: CreditCard },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/notifications", label: "Уведомления", icon: Bell },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];

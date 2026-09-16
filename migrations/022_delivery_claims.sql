@@ -1,0 +1,13 @@
+ALTER TABLE telegram_outbox ADD COLUMN delivery_state text NOT NULL DEFAULT 'pending' CHECK(delivery_state IN ('pending','sending','sent','failed','uncertain'));
+ALTER TABLE telegram_outbox ADD COLUMN claimed_at timestamptz;
+ALTER TABLE telegram_outbox ADD COLUMN external_message_id text;
+ALTER TABLE vk_outbox ADD COLUMN delivery_state text NOT NULL DEFAULT 'pending' CHECK(delivery_state IN ('pending','sending','sent','failed','uncertain'));
+ALTER TABLE vk_outbox ADD COLUMN claimed_at timestamptz;
+ALTER TABLE vk_outbox ADD COLUMN external_message_id text;
+UPDATE telegram_outbox SET delivery_state='sent' WHERE delivered_at IS NOT NULL;
+UPDATE vk_outbox SET delivery_state='sent' WHERE delivered_at IS NOT NULL;
+ALTER TABLE communication_message ADD COLUMN delivery_status text NOT NULL DEFAULT 'sent' CHECK(delivery_status IN ('queued','sent','failed','uncertain'));
+ALTER TABLE communication_message ADD COLUMN request_key text;
+CREATE UNIQUE INDEX communication_request_idempotency ON communication_message(business_id,request_key);
+ALTER TABLE telegram_outbox ADD COLUMN communication_message_id uuid REFERENCES communication_message(id);
+ALTER TABLE vk_outbox ADD COLUMN communication_message_id uuid REFERENCES communication_message(id);
