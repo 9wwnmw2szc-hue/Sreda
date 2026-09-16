@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { nextOccurrence } from "../src/server/posts/recurrence.ts";
 import { generatePost } from "../src/server/ai/posts.ts";
 test("recurrence respects timezone, skips missing DST time and invalid month days", () => {
@@ -133,4 +134,37 @@ test("staging diagnostics expose missing names, never secret values, and require
     ).ok,
     false,
   );
+});
+
+test("deployment definitions keep Telegram and VK workers independently enabled", async () => {
+  const compose = await readFile(
+    new URL("../deploy/compose.yml", import.meta.url),
+    "utf8",
+  );
+  const release = await readFile(
+    new URL("../deploy/release.sh", import.meta.url),
+    "utf8",
+  );
+  const env = await readFile(
+    new URL("../deploy/app.env.example", import.meta.url),
+    "utf8",
+  );
+  assert.match(compose, /telegram-worker:[\s\S]*scripts\/telegram-worker\.mts/);
+  assert.match(compose, /vk-worker:[\s\S]*scripts\/vk-worker\.mts/);
+  assert.match(release, /TELEGRAM_WEBHOOKS_ENABLED=true/);
+  assert.match(release, /VK_WEBHOOKS_ENABLED=true/);
+  for (const name of [
+    "NEXT_PUBLIC_DATA_SOURCE",
+    "TELEGRAM_WEBHOOKS_ENABLED",
+    "VK_WEBHOOKS_ENABLED",
+    "AI_API_TOKEN",
+    "AI_MODEL",
+    "ATTACHMENT_STORAGE",
+    "S3_ENDPOINT",
+    "S3_REGION",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+  ])
+    assert.match(env, new RegExp(`^${name}=`, "m"), name);
 });

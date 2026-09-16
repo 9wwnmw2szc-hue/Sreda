@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import {
   FileAttachmentStorage,
   S3AttachmentStorage,
+  attachmentStorage,
   readLimited,
 } from "../src/server/attachments/storage.ts";
 import { validateFile } from "../src/server/attachments/service.ts";
@@ -87,4 +88,42 @@ test("S3 adapter uses private object operations without exposing a public URL", 
         !c.input.ACL,
     ),
   );
+});
+
+test("storage configuration fails closed for incomplete or unsafe modes", () => {
+  const keys = [
+    "ATTACHMENT_STORAGE",
+    "ATTACHMENT_STORAGE_PATH",
+    "S3_ENDPOINT",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+  ];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.ATTACHMENT_STORAGE = "filesystem";
+    delete process.env.ATTACHMENT_STORAGE_PATH;
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+    process.env.ATTACHMENT_STORAGE = "public-url";
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+    process.env.ATTACHMENT_STORAGE = "s3";
+    process.env.S3_ENDPOINT = "https://user:password@s3.example.invalid";
+    process.env.S3_BUCKET = "private";
+    process.env.S3_ACCESS_KEY_ID = "key";
+    process.env.S3_SECRET_ACCESS_KEY = "secret";
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+  } finally {
+    for (const key of keys)
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+  }
 });

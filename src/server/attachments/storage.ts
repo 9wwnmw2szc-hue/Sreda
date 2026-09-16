@@ -97,11 +97,24 @@ export async function readLimited(
   return Buffer.concat(chunks);
 }
 export function attachmentStorage(): AttachmentStorage {
-  if (
-    process.env.ATTACHMENT_STORAGE === "filesystem" &&
-    process.env.ATTACHMENT_STORAGE_PATH
-  )
+  if (process.env.ATTACHMENT_STORAGE === "filesystem") {
+    if (!process.env.ATTACHMENT_STORAGE_PATH)
+      throw new AppError(
+        503,
+        "STORAGE_NOT_CONFIGURED",
+        "Для локального хранилища укажите абсолютный каталог.",
+      );
     return new FileAttachmentStorage(process.env.ATTACHMENT_STORAGE_PATH);
+  }
+  if (
+    process.env.ATTACHMENT_STORAGE &&
+    process.env.ATTACHMENT_STORAGE !== "s3"
+  )
+    throw new AppError(
+      503,
+      "STORAGE_NOT_CONFIGURED",
+      "Файловое хранилище настроено некорректно.",
+    );
   const endpoint = process.env.S3_ENDPOINT,
     bucket = process.env.S3_BUCKET,
     accessKeyId = process.env.S3_ACCESS_KEY_ID,
@@ -114,7 +127,13 @@ export function attachmentStorage(): AttachmentStorage {
     );
   let secure = false;
   try {
-    secure = new URL(endpoint).protocol === "https:";
+    const url = new URL(endpoint);
+    secure =
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash;
   } catch {}
   if (!secure)
     throw new AppError(
