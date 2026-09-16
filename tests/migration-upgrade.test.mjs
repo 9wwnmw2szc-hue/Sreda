@@ -226,6 +226,46 @@ test("upgrade populated schema 001–018 preserves every existing column and row
       outbox.find((x) => x.message === "Pending legacy").delivery_state,
       "pending",
     );
+    const anotherBusiness = randomUUID(),
+      anotherConnection = randomUUID();
+    await db
+      .insertInto("business")
+      .values({
+        id: anotherBusiness,
+        name: "Другой бизнес",
+        timezone: "Europe/Kaliningrad",
+      })
+      .execute();
+    await db
+      .insertInto("business_connection")
+      .values({
+        id: anotherConnection,
+        business_id: anotherBusiness,
+        platform: "telegram",
+        external_account_id: "222",
+        display_name: "Other bot",
+        status: "connected",
+      })
+      .execute();
+    await assert.rejects(
+      db
+        .insertInto("post_target")
+        .values({
+          id: randomUUID(),
+          business_id: business,
+          connection_id: anotherConnection,
+          platform: "telegram",
+          external_id: "-100123",
+          title: "Cross-business target",
+        })
+        .execute(),
+      /foreign key|violates/i,
+    );
+    await db
+      .deleteFrom("business_connection")
+      .where("id", "=", anotherConnection)
+      .execute();
+    await db.deleteFrom("business").where("id", "=", anotherBusiness).execute();
     const migrations = await db
       .selectFrom("sreda_migration")
       .selectAll()

@@ -45,6 +45,7 @@
 | 028_audit_context | actor_type, nullable actor_user_id, target_id, metadata, индекс target |
 | 029_crm_history_backfill | Перенос старых lead/conversation в CRM без объединения только по имени |
 | 030_post_archive | post.deleted_at и индекс видимых публикаций |
+| 031_post_target_connection_scope | Составной внешний ключ запрещает цель публикации через подключение другого бизнеса |
 
 Запуск: `npm run db:migrate`. Применять к staging-копии PostgreSQL перед разрешённым выпуском. Существующий migration runner управляет транзакциями; production schema вручную не менять.
 
