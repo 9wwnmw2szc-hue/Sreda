@@ -278,18 +278,16 @@ test("Telegram booking menu creates linked booking and queues only current remin
     .execute();
   let event = 1;
   const send = (text) =>
-    db
-      .transaction()
-      .execute((tx) =>
-        routeBot(tx, {
-          businessId: f.b.id,
-          connectionId: connection,
-          platform: "telegram",
-          userId: "999",
-          eventId: String(event++),
-          text,
-        }),
-      );
+    db.transaction().execute((tx) =>
+      routeBot(tx, {
+        businessId: f.b.id,
+        connectionId: connection,
+        platform: "telegram",
+        userId: "999",
+        eventId: String(event++),
+        text,
+      }),
+    );
   const choice = async () =>
     JSON.parse(
       (
@@ -339,6 +337,55 @@ test("Telegram booking menu creates linked booking and queues only current remin
     .where("booking_reminder_id", "is not", null)
     .execute();
   assert.equal(queued.length, 1);
+  assert.ok(
+    queued[0].buttons.includes(
+      "Отменить " + booking.id.slice(0, 8),
+    ),
+  );
+  await db
+    .transaction()
+    .execute((tx) =>
+      routeBot(tx, {
+        businessId: f.b.id,
+        connectionId: connection,
+        platform: "telegram",
+        userId: "intruder",
+        eventId: String(event++),
+        text: "Отменить " + booking.id.slice(0, 8),
+      }),
+    );
+  assert.equal(
+    (
+      await db
+        .selectFrom("booking")
+        .select("status")
+        .where("id", "=", booking.id)
+        .executeTakeFirstOrThrow()
+    ).status,
+    "confirmed",
+  );
+  await send("Отменить " + booking.id.slice(0, 8));
+  assert.equal(
+    (
+      await db
+        .selectFrom("booking")
+        .select("status")
+        .where("id", "=", booking.id)
+        .executeTakeFirstOrThrow()
+    ).status,
+    "confirmed",
+  );
+  await send("Да, отменить");
+  assert.equal(
+    (
+      await db
+        .selectFrom("booking")
+        .select("status")
+        .where("id", "=", booking.id)
+        .executeTakeFirstOrThrow()
+    ).status,
+    "cancelled",
+  );
 });
 test("manual reschedule can retain its own slot but cannot hide another business booking", async () => {
   const f = await fixture();

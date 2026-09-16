@@ -459,3 +459,41 @@ test("post filters apply before pagination and keep older drafts reachable", asy
     (e) => e.code === "INVALID_POST",
   );
 });
+
+test("VK publication target requires wall permission and verified group administration", async () => {
+  const f = await fixture();
+  await db
+    .updateTable("business_connection")
+    .set({ external_account_id: "123" })
+    .where("business_id", "=", f.b.id)
+    .where("platform", "=", "vk")
+    .execute();
+  let permissions = 0;
+  let admin = 0;
+  const svc = new PostService(db, secret, async (url) =>
+    Response.json({
+      response: String(url).includes("account.getAppPermissions")
+        ? permissions
+        : { groups: [{ id: 123, name: "Verified group", is_admin: admin }] },
+    }),
+  );
+  const body = { platform: "vk", publishToken: "fixture-publish-token" };
+  await assert.rejects(
+    svc.connectTarget(f.uid, f.b.public_id, body),
+    (e) => e.code === "INVALID_POST",
+  );
+  permissions = 8192;
+  await assert.rejects(
+    svc.connectTarget(f.uid, f.b.public_id, body),
+    (e) => e.code === "INVALID_POST",
+  );
+  admin = 1;
+  const target = await svc.connectTarget(f.uid, f.b.public_id, body);
+  const stored = await db
+    .selectFrom("post_target")
+    .select("external_id")
+    .where("id", "=", target.id)
+    .executeTakeFirstOrThrow();
+  assert.equal(stored.external_id, "-123");
+  assert.equal(target.title, "Verified group");
+});
