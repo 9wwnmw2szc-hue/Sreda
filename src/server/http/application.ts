@@ -162,7 +162,7 @@ export function createApplication(options: {
               user.id,
               businessId,
               conversationId,
-              await readJson(request),
+              await readJson(request, 65536),
             ),
             202,
           );

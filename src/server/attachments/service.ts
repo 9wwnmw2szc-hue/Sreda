@@ -83,24 +83,34 @@ export class AttachmentService {
       storage = this.storage ?? attachmentStorage();
     await storage.put(key, bytes, mime);
     try {
-      const row = await this.db
-        .insertInto("attachment")
-        .values({
-          id,
-          business_id: b.id,
-          type,
-          provider: "storage",
-          storage_key: key,
-          connection_id: null,
-          external: "{}",
-          filename:
-            filename.replace(/[\u0000-\u001f\u007f/\\]/g, "_").slice(0, 150) ||
-            "file",
-          mime_type: mime,
-          size_bytes: String(bytes.length),
-        })
-        .returningAll()
-        .executeTakeFirstOrThrow();
+      const row = await this.db.transaction().execute(async (tx) => {
+        await tx
+          .selectFrom("business")
+          .select("id")
+          .where("id", "=", b.id)
+          .forUpdate()
+          .execute();
+        await requireBusiness(tx, user, publicId, "messages.write");
+        return tx
+          .insertInto("attachment")
+          .values({
+            id,
+            business_id: b.id,
+            type,
+            provider: "storage",
+            storage_key: key,
+            connection_id: null,
+            external: "{}",
+            filename:
+              filename
+                .replace(/[\u0000-\u001f\u007f/\\]/g, "_")
+                .slice(0, 150) || "file",
+            mime_type: mime,
+            size_bytes: String(bytes.length),
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+      });
       return this.public(row);
     } catch (e) {
       await storage.remove(key).catch(() => {});

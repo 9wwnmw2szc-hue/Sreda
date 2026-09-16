@@ -1,3 +1,4 @@
+import { autopostEnabled } from "../posts/availability.ts";
 import { limit } from "../http/limits.ts";
 import { notificationValid } from "../notifications/worker.ts";
 import { sendTelegramMedia } from "../attachments/send.ts";
@@ -234,6 +235,8 @@ export class TelegramService {
     const candidate = await this.db
       .selectFrom("telegram_outbox as o")
       .innerJoin("business_connection as c", "c.id", "o.connection_id")
+      .innerJoin("business as b", "b.id", "c.business_id")
+      .where("b.archived_at", "is", null)
       .innerJoin("telegram_runtime as r", "r.connection_id", "c.id")
       .innerJoin(
         "connection_secret as credential",
@@ -251,7 +254,7 @@ export class TelegramService {
         sql<boolean>`not exists(select 1 from telegram_outbox previous where previous.connection_id=o.connection_id and previous.chat_id=o.chat_id and previous.id<o.id and previous.delivered_at is null and previous.delivery_state in ('pending','sending'))`,
       )
       .where(
-        sql<boolean>`(o.post_delivery_id is null or exists(select 1 from post_delivery d join business_solution s on s.business_id=d.business_id where d.id=o.post_delivery_id and d.status='publishing' and s.solution_code='autopost' and s.status in ('active','trial')))`,
+        sql<boolean>`(o.post_delivery_id is null or exists(select 1 from post_delivery d join business_solution s on s.business_id=d.business_id where d.id=o.post_delivery_id and d.status='publishing' and s.solution_code='autopost' and s.status in ('active','trial') and (s.expires_at is null or s.expires_at > now())))`,
       )
       .orderBy("o.id")
       .executeTakeFirst();
@@ -265,7 +268,15 @@ export class TelegramService {
         .where("archived_at", "is", null)
         .forUpdate()
         .executeTakeFirst();
-      if (!business) return false;
+      if (!business) {
+        await tx
+          .updateTable("telegram_outbox")
+          .set({ delivery_state: "pending", claimed_at: null })
+          .where("id", "=", candidate.id)
+          .where("delivery_state", "=", "sending")
+          .execute();
+        return false;
+      }
       const row = await tx
         .selectFrom("telegram_outbox")
         .selectAll()
@@ -276,6 +287,18 @@ export class TelegramService {
         .forUpdate()
         .executeTakeFirst();
       if (!row) return false;
+      if (
+        row.post_delivery_id &&
+        !(await autopostEnabled(tx, candidate.business_id))
+      ) {
+        // No provider call has happened: safely release this lease until reactivation.
+        await tx
+          .updateTable("telegram_outbox")
+          .set({ delivery_state: "pending", claimed_at: null })
+          .where("id", "=", row.id)
+          .execute();
+        return false;
+      }
       const connection = await tx
         .selectFrom("connection_secret as s")
         .innerJoin(
@@ -289,7 +312,15 @@ export class TelegramService {
         .where("r.status", "=", "ready")
         .where("c.status", "=", "connected")
         .executeTakeFirst();
-      if (!connection) return false;
+      if (!connection) {
+        await tx
+          .updateTable("telegram_outbox")
+          .set({ delivery_state: "pending", claimed_at: null })
+          .where("id", "=", candidate.id)
+          .where("delivery_state", "=", "sending")
+          .execute();
+        return false;
+      }
       if (
         row.notification_id &&
         (!row.notification_user_id ||

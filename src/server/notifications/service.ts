@@ -1,3 +1,4 @@
+import { requireUuid } from "../http/validation.ts";
 import { randomUUID } from "node:crypto";
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -84,6 +85,7 @@ export class NotificationService {
       .execute();
   }
   async read(userId: string, publicId: string, id: string) {
+    requireUuid(id);
     const b = await requireBusiness(
       this.db,
       userId,

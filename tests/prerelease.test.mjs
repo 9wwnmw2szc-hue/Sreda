@@ -383,18 +383,16 @@ test("long replies and full lead review are split without losing Unicode text or
     .execute();
   let event = 1;
   const send = (text) =>
-    db
-      .transaction()
-      .execute((tx) =>
-        routeBot(tx, {
-          businessId: f.b.id,
-          connectionId: f.connections.telegram,
-          platform: "telegram",
-          userId: "888",
-          eventId: String(event++),
-          text,
-        }),
-      );
+    db.transaction().execute((tx) =>
+      routeBot(tx, {
+        businessId: f.b.id,
+        connectionId: f.connections.telegram,
+        platform: "telegram",
+        userId: "888",
+        eventId: String(event++),
+        text,
+      }),
+    );
   await send("Оставить заявку");
   await send("Анна");
   // Validated setup sorts email/message/name/phone/service/comment, with name asked first.
@@ -423,4 +421,117 @@ test("long replies and full lead review are split without losing Unicode text or
     .where("email", "=", "mail@example.com")
     .executeTakeFirst();
   assert.ok(client);
+});
+
+test("invalid entity IDs return validation errors and long Unicode replies pass HTTP parsing", async () => {
+  const { ClientService } = await import("../src/server/clients/service.ts");
+  const { NotificationService } = await import(
+    "../src/server/notifications/service.ts"
+  );
+  const { createApplication } = await import(
+    "../src/server/http/application.ts"
+  );
+  const f = await fixture(),
+    svc = new CommunicationService(db);
+  const invalid = (e) => e.code === "INVALID_ID" && e.status === 400;
+  await assert.rejects(
+    svc.listMessages(f.owner.id, f.b.public_id, "invalid"),
+    invalid,
+  );
+  await assert.rejects(
+    svc.sendMessage(f.owner.id, f.b.public_id, "invalid", { text: "test" }),
+    invalid,
+  );
+  await assert.rejects(
+    svc.updateStatus(f.owner.id, f.b.public_id, "invalid", {
+      status: "closed",
+    }),
+    invalid,
+  );
+  const clients = new ClientService(db);
+  await assert.rejects(
+    clients.save(f.owner.id, f.b.public_id, { name: "Имя" }, "invalid"),
+    invalid,
+  );
+  await assert.rejects(
+    clients.note(f.owner.id, f.b.public_id, "invalid", "Заметка"),
+    invalid,
+  );
+  await assert.rejects(
+    new NotificationService(db).read(f.owner.id, f.b.public_id, "invalid"),
+    invalid,
+  );
+  const c = await svc.recordInbound({
+    businessId: f.b.id,
+    platform: "telegram",
+    externalUserId: "907",
+    text: "Вопрос",
+    externalMessageId: randomUUID(),
+  });
+  const app = createApplication({
+    auth: { api: { getSession: async () => ({ user: f.owner }) } },
+    workspaces: {},
+    communications: svc,
+    origin: "https://staging.invalid",
+  });
+  const response = await app.conversations(
+    new Request("https://staging.invalid/api", {
+      method: "POST",
+      headers: {
+        origin: "https://staging.invalid",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        text: "Я".repeat(10000),
+        requestKey: randomUUID(),
+      }),
+    }),
+    f.b.public_id,
+    c.conversationId,
+  );
+  assert.equal(response.status, 202, JSON.stringify(await response.json()));
+});
+
+test("revocation while storage upload is in flight rejects metadata and removes stored object", async () => {
+  const { AttachmentService } = await import(
+    "../src/server/attachments/service.ts"
+  );
+  const f = await fixture();
+  let removed = false;
+  const storage = {
+    put: async () => {
+      await db
+        .updateTable("business_member")
+        .set({ status: "revoked" })
+        .where("business_id", "=", f.b.id)
+        .where("user_id", "=", f.operator.id)
+        .execute();
+    },
+    remove: async () => {
+      removed = true;
+    },
+  };
+  const svc = new AttachmentService(db, secret, storage);
+  await assert.rejects(
+    svc.upload(
+      f.operator.id,
+      f.b.public_id,
+      "test.txt",
+      "text/plain",
+      "document",
+      Buffer.from("test"),
+    ),
+    (e) => e.code === "BUSINESS_NOT_FOUND",
+  );
+  assert.equal(removed, true);
+  assert.equal(
+    (
+      await db
+        .selectFrom("attachment")
+        .select("id")
+        .where("business_id", "=", f.b.id)
+        .execute()
+    ).length,
+    0,
+  );
 });

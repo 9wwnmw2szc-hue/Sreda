@@ -497,3 +497,85 @@ test("VK publication target requires wall permission and verified group administ
   assert.equal(stored.external_id, "-123");
   assert.equal(target.title, "Verified group");
 });
+
+test("expired autopost does not enqueue or deliver, reactivation resumes once", async () => {
+  const f = await fixture();
+  const post = await f.svc.save(f.uid, f.b.public_id, {
+    text: "Expiry guard",
+    targets: f.targets,
+    action: "now",
+    request_key: randomUUID(),
+  });
+  const expiry = (value) =>
+    db
+      .updateTable("business_solution")
+      .set({ expires_at: value })
+      .where("business_id", "=", f.b.id)
+      .where("solution_code", "=", "autopost")
+      .execute();
+  await expiry(new Date(0));
+  await queueScheduledPost(db);
+  assert.equal(
+    (
+      await db
+        .selectFrom("post")
+        .select("status")
+        .where("id", "=", post.id)
+        .executeTakeFirstOrThrow()
+    ).status,
+    "scheduled",
+  );
+  await expiry(null);
+  await queueScheduledPost(db);
+  await expiry(new Date(0));
+  let tgCalls = 0,
+    vkCalls = 0;
+  const tg = new TelegramService(
+    db,
+    secret,
+    "https://fixture.test",
+    true,
+    async () => {
+      tgCalls++;
+      return Response.json({ ok: true, result: { message_id: 909 } });
+    },
+  );
+  const vk = new VKService(db, secret, true, undefined, async () => {
+    vkCalls++;
+    return Response.json({ response: { post_id: 909 } });
+  });
+  // Other tests may leave unrelated pending jobs: make them terminal for this assertion.
+  for (const platform of ["telegram", "vk"]) {
+    const connection = await db
+      .selectFrom("business_connection")
+      .select("id")
+      .where("business_id", "=", f.b.id)
+      .where("platform", "=", platform)
+      .executeTakeFirstOrThrow();
+    await db
+      .updateTable(platform + "_outbox")
+      .set({ delivery_state: "sent", delivered_at: new Date() })
+      .where("connection_id", "!=", connection.id)
+      .execute();
+  }
+  await tg.deliverOne();
+  await vk.deliverOne();
+  assert.equal(tgCalls + vkCalls, 0);
+  await expiry(null);
+  await tg.deliverOne();
+  await vk.deliverOne();
+  await tg.deliverOne();
+  await vk.deliverOne();
+  assert.equal(tgCalls, 1);
+  assert.equal(vkCalls, 1);
+  assert.equal(
+    (
+      await db
+        .selectFrom("post")
+        .select("status")
+        .where("id", "=", post.id)
+        .executeTakeFirstOrThrow()
+    ).status,
+    "published",
+  );
+});

@@ -1,3 +1,4 @@
+import { requireUuid } from "../http/validation.ts";
 import { randomUUID } from "node:crypto";
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -356,6 +357,7 @@ export class ClientService {
     raw: Record<string, unknown>,
     id?: string,
   ) {
+    if (id !== undefined) requireUuid(id);
     const input = clientInput(raw);
     return this.db.transaction().execute(async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "clients.write");
@@ -390,6 +392,7 @@ export class ClientService {
     });
   }
   async note(userId: string, publicId: string, id: string, value: unknown) {
+    requireUuid(id);
     if (typeof value !== "string" || !value.trim() || value.length > 4000)
       throw new AppError(
         400,

@@ -1,3 +1,4 @@
+import { requireUuid } from "../http/validation.ts";
 import { messageChunks } from "../outbox/text.ts";
 import { audit } from "../audit/service.ts";
 import {
@@ -149,6 +150,7 @@ export class CommunicationService {
   ) {
     if (!Number.isSafeInteger(page) || page < 0 || page > 100000)
       throw new AppError(400, "INVALID_PAGE", "Проверьте страницу.");
+    requireUuid(conversationId);
     const businessId = (await this.resolve(userId, publicId)).id;
     const conversation = await this.db
       .selectFrom("communication_conversation")
@@ -224,6 +226,7 @@ export class CommunicationService {
     raw: unknown,
   ) {
     await this.resolve(userId, publicId, true);
+    requireUuid(conversationId);
     if (!raw || typeof raw !== "object" || Array.isArray(raw))
       throw new AppError(400, "INVALID_MESSAGE", "Проверьте сообщение.");
     const body = raw as Record<string, unknown>;
@@ -241,6 +244,7 @@ export class CommunicationService {
     )
       throw new AppError(400, "INVALID_ATTACHMENT", "Проверьте вложения.");
     const message = text(body.text || (attachmentIds.length ? "Вложение" : ""));
+    requireUuid(conversationId);
     const businessId = (await this.resolve(userId, publicId)).id;
     const conversation = await this.db
       .selectFrom("communication_conversation")
@@ -447,6 +451,7 @@ export class CommunicationService {
     raw: unknown,
   ) {
     await this.resolve(userId, publicId, true);
+    requireUuid(conversationId);
     if (!raw || typeof raw !== "object" || Array.isArray(raw))
       throw new AppError(400, "INVALID_STATUS", "Проверьте статус.");
     const status = (raw as Record<string, unknown>).status;

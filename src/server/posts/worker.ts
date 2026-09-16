@@ -1,3 +1,4 @@
+import { autopostEnabled } from "./availability.ts";
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
@@ -12,6 +13,12 @@ export async function queueScheduledPost(db: Kysely<Database>) {
     .select(["p.id", "p.business_id"])
     .where("s.solution_code", "=", "autopost")
     .where("s.status", "in", ["active", "trial"])
+    .where((eb) =>
+      eb.or([
+        eb("s.expires_at", "is", null),
+        eb("s.expires_at", ">", new Date()),
+      ]),
+    )
     .where("p.status", "=", "scheduled")
     .where("p.scheduled_at", "<=", new Date())
     .orderBy("p.scheduled_at")
@@ -24,6 +31,7 @@ export async function queueScheduledPost(db: Kysely<Database>) {
       .where("id", "=", candidate.business_id)
       .forUpdate()
       .execute();
+    if (!(await autopostEnabled(tx, candidate.business_id))) return false;
     const post = await tx
       .selectFrom("post")
       .selectAll()
@@ -155,6 +163,12 @@ export async function materializeRecurringPost(db: Kysely<Database>) {
     .select(["p.post_id", "p.business_id"])
     .where("s.solution_code", "=", "autopost")
     .where("s.status", "in", ["active", "trial"])
+    .where((eb) =>
+      eb.or([
+        eb("s.expires_at", "is", null),
+        eb("s.expires_at", ">", new Date()),
+      ]),
+    )
     .where("p.active", "=", true)
     .where("p.next_at", "<=", new Date())
     .orderBy("p.next_at")
@@ -167,6 +181,7 @@ export async function materializeRecurringPost(db: Kysely<Database>) {
       .where("id", "=", candidate.business_id)
       .forUpdate()
       .execute();
+    if (!(await autopostEnabled(tx, candidate.business_id))) return false;
     const schedule = await tx
       .selectFrom("post_schedule")
       .selectAll()
