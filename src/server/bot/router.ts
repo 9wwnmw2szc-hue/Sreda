@@ -1,3 +1,4 @@
+import { bookingFlow } from "./booking-flow.ts";
 import type { Transaction } from 'kysely';
 import type { Database } from '../db/schema.ts';
 import { validateSetup } from '../solutions/service.ts';
@@ -13,8 +14,8 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  const active=await tx.selectFrom('business_solution').select('solution_code').where('business_id','=',businessId).where('status','in',['active','trial']).execute();
  const setup=await tx.selectFrom('lead_setup').select('draft').where('business_id','=',businessId).executeTakeFirst();
  const config=setup?validateSetup(JSON.parse(setup.draft)):undefined;
- const codes=new Set(active.map(x=>x.solution_code));if(config?.step===3)codes.add('leads');
- const menu=[...(codes.has('leads')&&config?.channels.includes(platform)?[config.title||'Оставить заявку']:[]),...(codes.has('admin_messages')?['Связаться с администрацией']:[]),...(codes.has('booking')?['Онлайн-запись']:[])];
+ const codes=new Set(active.map(x=>x.solution_code));
+ const menu=[...(codes.has('leads')&&config?.channels.includes(platform)?[config.title||'Оставить заявку']:[]),...(codes.has('admin_messages')?['Связаться с администрацией']:[]),...(codes.has('booking')?['Онлайн-запись','Мои записи']:[])];
  const queue=async(message:string,buttons:string[]=[])=>{const value={connection_id:connectionId,message,buttons:JSON.stringify(buttons),delivered_at:null,last_error:null};if(platform==='telegram')await tx.insertInto('telegram_outbox').values({...value,chat_id:userId}).execute();else await tx.insertInto('vk_outbox').values({...value,peer_id:userId}).execute();};
  const current=await tx.selectFrom(table).selectAll().where('connection_id','=',connectionId).where('chat_id','=',userId).executeTakeFirst();
  if(platform==='telegram'&&current&&BigInt(eventId)<=BigInt(current.last_update_id))return;
@@ -22,6 +23,7 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  const showMenu=async(message?:string)=>{await save('menu');await queue(message??((b.greeting||`Добро пожаловать в ${b.public_name||b.name}!`)+(menu.length?'\nВыберите действие.':'\nПриём обращений пока не настроен.')),menu);};
  if(text==='/start'||text==='/menu'||text==='Главное меню'){await showMenu();return;}
  if(text==='/cancel'||text==='Отмена'){await showMenu('Действие отменено. Выберите действие.');return;}
+ if(codes.has('booking')&&await bookingFlow(tx,input,queue))return;
  if(text==='Связаться с администрацией'&&codes.has('admin_messages')){await save('messages');await queue('Напишите ваш вопрос.',['Главное меню']);return;}
  if(current?.mode==='messages'&&codes.has('admin_messages')){const result=await new CommunicationService(tx).recordInboundInTransaction(tx,{businessId,platform,externalUserId:userId,externalUsername:input.username,text,externalMessageId:connectionId+':'+eventId});if(result.accepted&&!result.duplicate)await queue('Сообщение отправлено. Администратор ответит вам здесь.',['Главное меню']);return;}
  const startLead=text===(config?.title||'Оставить заявку')||text==='/lead';

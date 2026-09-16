@@ -1,3 +1,4 @@
+import { reminderValid } from "../booking/worker.ts";
 import { claimDelivery,expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -66,12 +67,14 @@ export class VKService {
       if (!row) return false;
       const connection = await tx.selectFrom("connection_secret as s").innerJoin("vk_runtime as r", "r.connection_id", "s.connection_id").innerJoin("business_connection as c", "c.id", "s.connection_id").select(["s.encrypted_token", "r.generation"]).where("s.connection_id", "=", row.connection_id).where("r.status", "=", "ready").where("c.status", "=", "connected").executeTakeFirst();
       if (!connection) return false;
+   if(row.booking_reminder_id&&!await reminderValid(tx,row.booking_reminder_id)){await tx.updateTable('vk_outbox').set({delivery_state:'failed',last_error:'STALE_REMINDER'}).where('id','=',row.id).execute();return true;}
       try {
         // Keep random_id stable across retries so VK deduplicates a response
         // when the network fails after the platform accepted the message.
         const randomId = Number(BigInt(String(row.id)) % BigInt(2_147_483_647));
         const delivered=await vkCall(decryptSecret(connection.encrypted_token, this.secret), "messages.send", { peer_id: row.peer_id, random_id: randomId, message: row.message, keyboard: JSON.stringify({one_time:false,buttons:(row.buttons as string[]).slice(0,10).map(label=>[{action:{type:"text",label},color:"secondary"}])}) }, this.transport);
         await tx.updateTable("vk_outbox").set({ delivery_state:"sent",external_message_id:String(delivered),delivered_at: new Date(), message: "", last_error: null }).where("id", "=", row.id).execute();
+    if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'sent'}).where('id','=',row.booking_reminder_id).execute();
         if(row.communication_message_id)await tx.updateTable("communication_message").set({delivery_status:"sent",external_message_id:String(delivered)}).where("id","=",row.communication_message_id).execute();
       } catch (error) {
         if(!(error instanceof VKError))throw error;

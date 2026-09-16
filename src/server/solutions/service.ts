@@ -43,6 +43,10 @@ export class SolutionService {
    return {draft,revision};
   });
  }
+ async activate(userId:string,publicId:string,raw:Record<string,unknown>){
+  const code=String(raw.code);if(!['leads','booking','autopost','admin_messages'].includes(code)||typeof raw.enabled!=='boolean')throw new AppError(400,'INVALID_SOLUTION','Выберите решение.');
+  return this.db.transaction().execute(async tx=>{const id=await new SolutionService(tx).business(userId,publicId,true);await tx.selectFrom('business').select('id').where('id','=',id).forUpdate().execute();await new SolutionService(tx).business(userId,publicId,true);const status=raw.enabled?'active':'disabled';await tx.insertInto('business_solution').values({business_id:id,solution_code:code,status,starts_at:new Date(),expires_at:null}).onConflict(oc=>oc.columns(['business_id','solution_code']).doUpdateSet({status,expires_at:null,updated_at:new Date()})).execute();return {ok:true};});
+ }
  async list(userId:string,publicId:string) {
   const id=await this.business(userId,publicId);
   const setup=await this.get(userId,publicId);

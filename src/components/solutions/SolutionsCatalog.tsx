@@ -1,4 +1,6 @@
 "use client";
+import { useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Sparkles } from "lucide-react";
@@ -8,6 +10,8 @@ import { isDemoMode } from "@/lib/dataMode";
 import type { Solution } from "@/types";
 export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
   const { business, businesses, setBusinessId } = useCurrentBusiness();
+  const [notice,setNotice]=useState("");
+  async function activate(code:string){if(!business)return;try{await apiRequest(`/api/v1/businesses/${business.id}/solutions`,{method:"POST",body:JSON.stringify({code,enabled:true})});setNotice("Решение подключено. Откройте раздел и завершите настройку.");}catch(e){setNotice(e instanceof Error?e.message:"Не удалось подключить.");}}
   return (
     <div className="solutions-page">
       <div className="section-topline">
@@ -33,7 +37,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       <p className="prototype-banner">
         {isDemoMode ? "Демонстрация: доступен предпросмотр настройки «Приёма заявок»." : "Настройте «Приём заявок» и подключите своего Telegram-бота. VK и оплата появятся отдельно."}
       </p>
-      <div className="solution-catalog-grid">
+      {notice&&<p role="status">{notice}</p>}<div className="solution-catalog-grid">
         {solutions.map((solution) => (
           <article
             key={solution.id}
@@ -64,7 +68,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   <ArrowRight size={18} />
                 </Link>
               ) : (
-                <span className="catalog-soon">Скоро в Среде</span>
+                <><button className="button button--primary" onClick={()=>void activate(solution.code)}>Подключить</button><Link className="text-link" href={solution.code==="booking"?"/bookings":solution.code==="autopost"?"/posts":"/messages"}>Настроить</Link></>
               )}
             </div>
           </article>

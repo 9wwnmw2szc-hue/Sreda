@@ -1,3 +1,4 @@
+import { reminderValid } from "../booking/worker.ts";
 import { claimDelivery,expireClaims } from "../outbox/claim.ts";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql, type Kysely } from "kysely";
@@ -19,7 +20,8 @@ export class TelegramService {
    await tx.selectFrom("business").select("id").where("id","=",businessId).forUpdate().execute();
    await solutions.business(userId,publicId,true);
    const {draft}=await solutions.get(userId,publicId);
-   if(draft.step!==3||draft.channels.length!==1||draft.channels[0]!=="telegram")throw new AppError(400,"SETUP_REQUIRED","Завершите настройку с площадкой Telegram. Запуск VK появится отдельно.");
+   const enabled=await tx.selectFrom("business_solution").select("solution_code").where("business_id","=",businessId).where("status","in",["active","trial"]).execute();
+   if(!(draft.step===3&&draft.channels.includes("telegram"))&&!enabled.some(s=>["booking","admin_messages","autopost"].includes(s.solution_code)))throw new AppError(400,"SETUP_REQUIRED","Настройте хотя бы одно решение бизнеса.");
    const connection=await tx.selectFrom("business_connection as c").innerJoin("connection_secret as s","s.connection_id","c.id").select(["c.id","s.encrypted_token"]).where("c.business_id","=",businessId).where("c.platform","=","telegram").where("c.status","=","connected").executeTakeFirst();
    if(!connection)throw new AppError(400,"CONNECTION_REQUIRED","Сначала подключите Telegram-бота в разделе «Подключения».");
    affected=connection.id;
@@ -69,9 +71,11 @@ export class TelegramService {
    const business=await tx.selectFrom("business").select("id").where("id","=",candidate.business_id).where("archived_at","is",null).forUpdate().executeTakeFirst();if(!business)return false;
    const row=await tx.selectFrom("telegram_outbox").selectAll().where("id","=",candidate.id).where("delivery_state","=","sending").where("delivered_at","is",null).where("available_at","<=",new Date()).forUpdate().executeTakeFirst();if(!row)return false;
    const connection=await tx.selectFrom("connection_secret as s").innerJoin("telegram_runtime as r","r.connection_id","s.connection_id").innerJoin("business_connection as c","c.id","s.connection_id").select("s.encrypted_token").where("s.connection_id","=",row.connection_id).where("r.status","=","ready").where("c.status","=","connected").executeTakeFirst();if(!connection)return false;
+   if(row.booking_reminder_id&&!await reminderValid(tx,row.booking_reminder_id)){await tx.updateTable('telegram_outbox').set({delivery_state:'failed',last_error:'STALE_REMINDER'}).where('id','=',row.id).execute();return true;}
    try{
     const delivered=await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"sendMessage",{chat_id:row.chat_id,text:row.message,reply_markup:{keyboard:(row.buttons as string[]).map(text=>[{text}]),resize_keyboard:true}},this.transport);
     await tx.updateTable("telegram_outbox").set({delivery_state:"sent",external_message_id:delivered?.message_id?String(delivered.message_id):null,delivered_at:new Date(),message:"",last_error:null}).where("id","=",row.id).execute();
+    if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'sent'}).where('id','=',row.booking_reminder_id).execute();
     if(row.communication_message_id)await tx.updateTable("communication_message").set({delivery_status:"sent",external_message_id:delivered?.message_id?String(delivered.message_id):null}).where("id","=",row.communication_message_id).execute();
    }catch(e){
     if(!(e instanceof TelegramError))throw e;

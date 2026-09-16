@@ -1,3 +1,4 @@
+import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { TelegramService } from "../src/server/telegram/service.ts";
@@ -12,7 +13,8 @@ let nextCleanup=0;
 try{
  while(!stopping){
   try{
-   const worked=await service.deliverOne();
+   const queued=await queueBookingReminder(db);
+   const worked=await service.deliverOne()||queued;
    if(Date.now()>nextCleanup){
     // Dedup IDs carry no message text. Incomplete dialogues expire after one day.
     await db.deleteFrom("telegram_dialog").where("updated_at","<",new Date(Date.now()-86400000)).execute();

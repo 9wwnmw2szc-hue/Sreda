@@ -1,3 +1,4 @@
+import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { VKService } from "../src/server/vk/service.ts";
@@ -16,7 +17,8 @@ let nextCleanup = 0;
 try {
   while (!stopping) {
     try {
-      const worked = await service.deliverOne();
+      const queued=await queueBookingReminder(db);
+      const worked = await service.deliverOne()||queued;
       if (Date.now() > nextCleanup) {
         await db.deleteFrom("vk_update").where("created_at", "<", new Date(Date.now() - 7 * 86400000)).execute();
         await db.deleteFrom("vk_outbox").where("delivered_at", "<", new Date(Date.now() - 86400000)).execute();
