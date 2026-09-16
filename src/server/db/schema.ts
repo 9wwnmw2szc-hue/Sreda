@@ -1,8 +1,9 @@
+import type { ClientTables } from "../clients/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
 export type LeadStatus = "new" | "processing" | "closed";
-export interface Database {
+export interface Database extends ClientTables {
   account_pin: { user_id: string; pin_hash: string; failed_attempts: Generated<number>; locked_until: Date | null; updated_at: Generated<Date> };
   worker_heartbeat: { name: string; seen_at: Date };
   lead_setup: { business_id: string; draft: string; revision: number; updated_at: Date };
@@ -23,7 +24,7 @@ export interface Database {
   recovery_code: { user_id: string; code_hash: string; created_at: Generated<Date>; used_at: Date | null };
   account_security_event: { id: string; user_id: string; action: "recovery_codes_issued" | "password_recovered" | "password_changed" | "pin_enabled" | "pin_changed" | "pin_disabled"; created_at: Generated<Date> };
   business: {
-    id: string; public_id: string; name: string; timezone: string;
+    id: string; public_id: string; name: string; timezone: string; public_name: Generated<string|null>; greeting: Generated<string>; description: Generated<string>; contact_info: Generated<string>;
     created_at: Generated<Date>; archived_at: Date | null;
   };
   business_member: {
@@ -51,11 +52,13 @@ export interface Database {
   };
   connection_secret: { connection_id: string; encrypted_token: string; key_version: number; updated_at: Generated<Date> };
   lead: {
+    client_id: Generated<string|null>;
     id: string; business_id: string; source: "telegram" | "vk" | "max";
     name: string; phone: string | null; message: string | null;
     status: LeadStatus; external_event_id: string | null; created_at: Generated<Date>; updated_at: Generated<Date>;
   };
   communication_conversation: {
+    client_id: Generated<string|null>;
     id: string; business_id: string; platform: "telegram" | "vk";
     external_user_id: string; external_username: string | null;
     status: "open" | "assigned" | "closed" | "blocked";
