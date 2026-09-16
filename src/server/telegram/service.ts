@@ -1,3 +1,4 @@
+import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
 import { claimDelivery,expireClaims } from "../outbox/claim.ts";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
@@ -64,7 +65,7 @@ export class TelegramService {
   if(!this.enabled)return false;
   await this.db.insertInto("worker_heartbeat").values({name:"telegram",seen_at:new Date()}).onConflict(oc=>oc.column("name").doUpdateSet({seen_at:new Date()})).execute();
   await expireClaims(this.db,"telegram");
-  const candidate=await this.db.selectFrom("telegram_outbox as o").innerJoin("business_connection as c","c.id","o.connection_id").innerJoin("telegram_runtime as r","r.connection_id","c.id").select(["o.id","c.business_id"]).where("o.delivery_state","=","pending").where("o.delivered_at","is",null).where("o.attempts","<",8).where("o.available_at","<=",new Date()).where("r.status","=","ready").where(sql<boolean>`not exists(select 1 from telegram_outbox previous where previous.connection_id=o.connection_id and previous.chat_id=o.chat_id and previous.id<o.id and previous.delivered_at is null and previous.delivery_state in ('pending','sending'))`).orderBy("o.id").executeTakeFirst();
+  const candidate=await this.db.selectFrom("telegram_outbox as o").innerJoin("business_connection as c","c.id","o.connection_id").innerJoin("telegram_runtime as r","r.connection_id","c.id").select(["o.id","c.business_id"]).where("o.delivery_state","=","pending").where("o.delivered_at","is",null).where("o.attempts","<",8).where("o.available_at","<=",new Date()).where("r.status","=","ready").where(sql<boolean>`not exists(select 1 from telegram_outbox previous where previous.connection_id=o.connection_id and previous.chat_id=o.chat_id and previous.id<o.id and previous.delivered_at is null and previous.delivery_state in ('pending','sending'))`).where(sql<boolean>`(o.post_delivery_id is null or exists(select 1 from post_delivery d join business_solution s on s.business_id=d.business_id where d.id=o.post_delivery_id and d.status='publishing' and s.solution_code='autopost' and s.status in ('active','trial')))` ).orderBy("o.id").executeTakeFirst();
   if(!candidate)return false;
   if(!await claimDelivery(this.db,"telegram",candidate.id))return false;
   return this.db.transaction().execute(async tx=>{
@@ -73,14 +74,15 @@ export class TelegramService {
    const connection=await tx.selectFrom("connection_secret as s").innerJoin("telegram_runtime as r","r.connection_id","s.connection_id").innerJoin("business_connection as c","c.id","s.connection_id").select("s.encrypted_token").where("s.connection_id","=",row.connection_id).where("r.status","=","ready").where("c.status","=","connected").executeTakeFirst();if(!connection)return false;
    if(row.booking_reminder_id&&!await reminderValid(tx,row.booking_reminder_id)){await tx.updateTable('telegram_outbox').set({delivery_state:'failed',last_error:'STALE_REMINDER'}).where('id','=',row.id).execute();return true;}
    try{
-    const delivered=await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"sendMessage",{chat_id:row.chat_id,text:row.message,reply_markup:{keyboard:(row.buttons as string[]).map(text=>[{text}]),resize_keyboard:true}},this.transport);
+    const delivered=await telegramCall(decryptSecret(connection.encrypted_token,this.secret),"sendMessage",{chat_id:row.chat_id,text:row.message,...(row.post_delivery_id?row.api_payload as Record<string,unknown>:{reply_markup:{keyboard:(row.buttons as string[]).map(text=>[{text}]),resize_keyboard:true}})},this.transport);
     await tx.updateTable("telegram_outbox").set({delivery_state:"sent",external_message_id:delivered?.message_id?String(delivered.message_id):null,delivered_at:new Date(),message:"",last_error:null}).where("id","=",row.id).execute();
+    if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'published',delivered?.message_id?String(delivered.message_id):null);
     if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'sent'}).where('id','=',row.booking_reminder_id).execute();
     if(row.communication_message_id)await tx.updateTable("communication_message").set({delivery_status:"sent",external_message_id:delivered?.message_id?String(delivered.message_id):null}).where("id","=",row.communication_message_id).execute();
    }catch(e){
     if(!(e instanceof TelegramError))throw e;
     const failure=e;
-    if(failure.uncertain){await tx.updateTable('telegram_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
+    if(failure.uncertain){if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'uncertain',null,'DELIVERY_UNKNOWN');await tx.updateTable('telegram_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
     if(failure.chatUnavailable){
      // A recipient may block the bot. Cancel only that chat's pending work;
      // never pause every customer's channel or mark unsent replies delivered.
@@ -88,9 +90,10 @@ export class TelegramService {
      await tx.deleteFrom("telegram_dialog").where("connection_id","=",row.connection_id).where("chat_id","=",row.chat_id).execute();
      return true;
     }
-    const attempts=row.attempts+1;const exhausted=failure.permanent||attempts>=8;
-    await tx.updateTable("telegram_outbox").set({delivery_state:exhausted?"failed":"pending",claimed_at:null,attempts:exhausted?8:attempts,available_at:new Date(Date.now()+1000*Math.max(failure.retryAfter,Math.min(900,2**attempts))),last_error:failure.permanent?"PERMANENT":"RETRY"}).where("id","=",row.id).execute();
-    if(exhausted)await tx.updateTable("telegram_runtime").set({status:"error",updated_at:new Date()}).where("connection_id","=",row.connection_id).execute();
+    const attempts=row.attempts+1;const exhausted=failure.permanent||attempts>=(row.post_delivery_id?4:8);
+    await tx.updateTable("telegram_outbox").set({delivery_state:exhausted?"failed":"pending",claimed_at:null,attempts:exhausted?8:attempts,available_at:new Date(Date.now()+1000*Math.max(failure.retryAfter,(row.post_delivery_id?([60,300,900][attempts-1]??900):Math.min(900,2**attempts)))),last_error:failure.permanent?"PERMANENT":"RETRY"}).where("id","=",row.id).execute();
+    if(exhausted&&row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'failed',null,'DELIVERY_FAILED');
+    if(exhausted&&!row.post_delivery_id)await tx.updateTable("telegram_runtime").set({status:"error",updated_at:new Date()}).where("connection_id","=",row.connection_id).execute();
    }
    return true;
   });

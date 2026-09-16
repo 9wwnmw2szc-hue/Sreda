@@ -1,3 +1,4 @@
+import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
 import { claimDelivery,expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
@@ -75,7 +76,7 @@ export class VKService {
       .where("o.delivery_state", "=", "pending").where("o.delivered_at", "is", null).where("o.attempts", "<", 8).where("o.available_at", "<=", new Date())
       .where("r.status", "=", "ready").where("c.status", "=", "connected")
       .where(sql<boolean>`not exists(select 1 from vk_outbox previous where previous.connection_id=o.connection_id and previous.peer_id=o.peer_id and previous.id<o.id and previous.delivered_at is null and previous.delivery_state in ('pending','sending'))`)
-      .orderBy("o.id").executeTakeFirst();
+      .where(sql<boolean>`(o.post_delivery_id is null or exists(select 1 from post_delivery d join business_solution s on s.business_id=d.business_id where d.id=o.post_delivery_id and d.status='publishing' and s.solution_code='autopost' and s.status in ('active','trial')))` ).orderBy("o.id").executeTakeFirst();
     if (!candidate) return false;
   if(!await claimDelivery(this.db,"vk",candidate.id))return false;
     return this.db.transaction().execute(async (tx) => {
@@ -83,29 +84,31 @@ export class VKService {
       if (!business) return false;
       const row = await tx.selectFrom("vk_outbox").selectAll().where("id", "=", candidate.id).where("delivery_state", "=", "sending").where("delivered_at", "is", null).where("available_at", "<=", new Date()).forUpdate().executeTakeFirst();
       if (!row) return false;
-      const connection = await tx.selectFrom("connection_secret as s").innerJoin("vk_runtime as r", "r.connection_id", "s.connection_id").innerJoin("business_connection as c", "c.id", "s.connection_id").select(["s.encrypted_token", "r.generation"]).where("s.connection_id", "=", row.connection_id).where("r.status", "=", "ready").where("c.status", "=", "connected").executeTakeFirst();
+      const connection = await tx.selectFrom("connection_secret as s").innerJoin("vk_runtime as r", "r.connection_id", "s.connection_id").innerJoin("business_connection as c", "c.id", "s.connection_id").select(["s.encrypted_token", "s.encrypted_publish_token", "r.generation"]).where("s.connection_id", "=", row.connection_id).where("r.status", "=", "ready").where("c.status", "=", "connected").executeTakeFirst();
       if (!connection) return false;
    if(row.booking_reminder_id&&!await reminderValid(tx,row.booking_reminder_id)){await tx.updateTable('vk_outbox').set({delivery_state:'failed',last_error:'STALE_REMINDER'}).where('id','=',row.id).execute();return true;}
       try {
         // Keep random_id stable across retries so VK deduplicates a response
         // when the network fails after the platform accepted the message.
         const randomId = Number(BigInt(String(row.id)) % BigInt(2_147_483_647));
-        const delivered=await vkCall(decryptSecret(connection.encrypted_token, this.secret), "messages.send", { peer_id: row.peer_id, random_id: randomId, message: row.message, keyboard: JSON.stringify({one_time:false,buttons:(row.buttons as string[]).slice(0,10).map(label=>[{action:{type:"text",label},color:"secondary"}])}) }, this.transport);
-        await tx.updateTable("vk_outbox").set({ delivery_state:"sent",external_message_id:String(delivered),delivered_at: new Date(), message: "", last_error: null }).where("id", "=", row.id).execute();
+        const delivered=await vkCall(decryptSecret(row.post_delivery_id?(connection.encrypted_publish_token??connection.encrypted_token):connection.encrypted_token, this.secret), row.post_delivery_id?"wall.post":"messages.send", row.post_delivery_id?row.api_payload as Record<string,unknown>: { peer_id: row.peer_id, random_id: randomId, message: row.message, keyboard: JSON.stringify({one_time:false,buttons:(row.buttons as string[]).slice(0,10).map(label=>[{action:{type:"text",label},color:"secondary"}])}) }, this.transport);
+        await tx.updateTable("vk_outbox").set({ delivery_state:"sent",external_message_id:(row.post_delivery_id?String((delivered as {post_id?:number}).post_id??''):String(delivered)),delivered_at: new Date(), message: "", last_error: null }).where("id", "=", row.id).execute();
+    if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'published',String((delivered as {post_id?:number}).post_id??''));
     if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'sent'}).where('id','=',row.booking_reminder_id).execute();
-        if(row.communication_message_id)await tx.updateTable("communication_message").set({delivery_status:"sent",external_message_id:String(delivered)}).where("id","=",row.communication_message_id).execute();
+        if(row.communication_message_id)await tx.updateTable("communication_message").set({delivery_status:"sent",external_message_id:(row.post_delivery_id?String((delivered as {post_id?:number}).post_id??''):String(delivered))}).where("id","=",row.communication_message_id).execute();
       } catch (error) {
         if(!(error instanceof VKError))throw error;
         const failure=error;
-        if(failure.uncertain){await tx.updateTable('vk_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
+        if(failure.uncertain){if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'uncertain',null,'DELIVERY_UNKNOWN');await tx.updateTable('vk_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
         if (failure.chatUnavailable) {
           await tx.deleteFrom("vk_outbox").where("connection_id", "=", row.connection_id).where("peer_id", "=", row.peer_id).where("delivered_at", "is", null).execute();
           return true;
         }
         const attempts = row.attempts + 1;
-        const exhausted = failure.permanent || attempts >= 8;
-        await tx.updateTable("vk_outbox").set({ delivery_state:exhausted?"failed":"pending",claimed_at:null,attempts: exhausted ? 8 : attempts, available_at: new Date(Date.now() + 1000 * Math.max(failure.retryAfter, Math.min(900, 2 ** attempts))), last_error: failure.permanent ? "PERMANENT" : "RETRY" }).where("id", "=", row.id).execute();
-        if (exhausted) await tx.updateTable("vk_runtime").set({ status: "error", updated_at: new Date() }).where("connection_id", "=", row.connection_id).execute();
+        const exhausted = failure.permanent || attempts >= (row.post_delivery_id?4:8);
+        await tx.updateTable("vk_outbox").set({ delivery_state:exhausted?"failed":"pending",claimed_at:null,attempts: exhausted ? 8 : attempts, available_at: new Date(Date.now() + 1000 * Math.max(failure.retryAfter, (row.post_delivery_id?([60,300,900][attempts-1]??900):Math.min(900,2**attempts)))), last_error: failure.permanent ? "PERMANENT" : "RETRY" }).where("id", "=", row.id).execute();
+        if(exhausted&&row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'failed',null,'DELIVERY_FAILED');
+        if (exhausted&&!row.post_delivery_id) await tx.updateTable("vk_runtime").set({ status: "error", updated_at: new Date() }).where("connection_id", "=", row.connection_id).execute();
       }
       return true;
     });

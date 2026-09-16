@@ -1,3 +1,4 @@
+import { queueScheduledPost,materializeRecurringPost } from "../src/server/posts/worker.ts";
 import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
@@ -17,7 +18,9 @@ let nextCleanup = 0;
 try {
   while (!stopping) {
     try {
-      const queued=await queueBookingReminder(db);
+      await materializeRecurringPost(db);
+   await queueScheduledPost(db);
+   const queued=await queueBookingReminder(db);
       const worked = await service.deliverOne()||queued;
       if (Date.now() > nextCleanup) {
         await db.deleteFrom("vk_update").where("created_at", "<", new Date(Date.now() - 7 * 86400000)).execute();

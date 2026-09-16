@@ -14,6 +14,7 @@
     "worker:telegram": "node --env-file-if-exists=.env.local --import tsx scripts/telegram-worker.mts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1133.0",
     "better-auth": "1.7.4",
     "kysely": "0.29.5",
     "lucide-react": "^1.44.0",
