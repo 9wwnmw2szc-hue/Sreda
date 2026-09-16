@@ -2563,6 +2563,19 @@ ul {
 .connection-setup__title p { margin:3px 0 0; color:var(--text-secondary); }
 .connection-ok { margin-left:auto; color:var(--success); }
 .connection-setup .account-footnote { display:flex; align-items:center; gap:6px; margin:10px 0 18px; }
+/* The token field must remain visible after the CSS input reset. */
+.connection-token-form { display:grid; gap:12px; min-width:0; }
+.connection-token-form > p:first-child { margin:0 0 8px; color:var(--text-secondary); font-size:14px; line-height:1.6; }
+.connection-token-form label { display:block; font-size:14px; font-weight:650; }
+.connection-token-form input { display:block; width:100%; min-width:0; min-height:52px; padding:14px 16px; border:1px solid #aebdaf; border-radius:12px; background:#f8faf7; color:var(--text-primary); font:inherit; font-size:16px; }
+.connection-token-form input::placeholder { color:#70786f; }
+.connection-token-form input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.connection-token-form input[aria-invalid="true"] { border-color:var(--danger); }
+.connection-token-form .account-footnote { margin:0 0 6px; align-items:flex-start; }
+.connection-token-form .account-footnote svg { flex-shrink:0; margin-top:4px; }
+.connection-token-form .account-error { margin:0; }
+.connection-token-form .button { width:100%; white-space:normal; }
+.connection-token-form .button:disabled { opacity:.6; cursor:wait; }
 .connection-setup--muted { opacity:.72; }
 .connection-vk-mark { display:grid; place-items:center; width:32px; height:32px; border-radius:10px; background:#2787f5; color:#fff; font-weight:700; font-size:12px; }
 .spin { animation:spin .8s linear infinite; }
