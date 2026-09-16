@@ -53,6 +53,7 @@ export interface BusinessSolution {
 }
 
 export interface Lead {
+  processingBy?:string|null;processingName?:string;processingAt?:string;answers?:Record<string,string>;updatedAt?:string;clientId?:string|null;
   id: string;
   businessId: string;
   source: Platform;

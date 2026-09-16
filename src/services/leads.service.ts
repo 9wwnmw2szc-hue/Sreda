@@ -30,14 +30,14 @@ export async function getLeadsByStatus(
   return getLeadPage(businessId, status);
 }
 
-export async function getLeadPage(businessId: string, status?: LeadStatus, before?: string): Promise<Lead[]> {
+export async function getLeadPage(businessId: string, status?: LeadStatus, before?: string,filters:Record<string,string>={}): Promise<Lead[]> {
   if (isDemoMode) {
     const rows = (await getLeads(businessId)).filter((lead) => !status || lead.status === status)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
     const start = before ? rows.findIndex((lead) => `${lead.createdAt}|${lead.id}` === before) + 1 : 0;
     return rows.slice(start, start + 100);
   }
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(Object.entries(filters).filter(([,v])=>!!v));
   if (status) params.set("status", status);
   if (before) params.set("before", before);
   return apiRequest<Lead[]>(`/api/v1/businesses/${encodeURIComponent(businessId)}/leads?${params}`);

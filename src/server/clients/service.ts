@@ -37,31 +37,32 @@ export async function clientActivity(tx: Transaction<Database>, businessId:strin
 }
 export class ClientService {
  constructor(private db:Kysely<Database>){}
- async list(userId:string,publicId:string,search='',before?:string){
+ async list(userId:string,publicId:string,search='',before?:string,filter='all'){
   const b=await requireBusiness(this.db,userId,publicId,'clients.read');
   let q=this.db.selectFrom('client as c').selectAll('c').where('c.business_id','=',b.id).orderBy('c.id').limit(100);
+  if(!['all','new','active','leads','bookings','open'].includes(filter))throw new AppError(400,'INVALID_FILTER','Проверьте фильтр.');if(filter==='new')q=q.where('c.first_seen_at','>=',new Date(Date.now()-7*86400000));if(filter==='active')q=q.where('c.last_seen_at','>=',new Date(Date.now()-30*86400000));if(filter==='leads')q=q.where(eb=>eb.exists(eb.selectFrom('lead').select('id').whereRef('client_id','=','c.id').whereRef('business_id','=','c.business_id')));if(filter==='bookings')q=q.where(eb=>eb.exists(eb.selectFrom('booking').select('id').whereRef('client_id','=','c.id').whereRef('business_id','=','c.business_id')));if(filter==='open')q=q.where(eb=>eb.exists(eb.selectFrom('communication_conversation').select('id').whereRef('client_id','=','c.id').whereRef('business_id','=','c.business_id').where('status','in',['open','assigned'])));
   if(search.length>100)throw new AppError(400,'INVALID_SEARCH','Слишком длинный запрос.');
   if(search)q=q.where(eb=>eb.or([eb('c.name','ilike','%'+search+'%'),eb('c.phone','ilike','%'+search+'%'),eb.exists(eb.selectFrom('client_identity as i').select('i.client_id').whereRef('i.client_id','=','c.id').whereRef('i.business_id','=','c.business_id').where('i.username','ilike','%'+search+'%'))]));
   if(before){if(!/^[0-9a-f-]{36}$/i.test(before))throw new AppError(400,'INVALID_CURSOR','Обновите список.');q=q.where('c.id','>',before);}
-  return q.execute();
+  return Promise.all((await q.execute()).map(async c=>({...c,identities:await this.db.selectFrom('client_identity').select(['kind','value','username']).where('business_id','=',b.id).where('client_id','=',c.id).execute(),lead_count:Number((await this.db.selectFrom('lead').select(({fn})=>fn.countAll().as('n')).where('business_id','=',b.id).where('client_id','=',c.id).executeTakeFirstOrThrow()).n),booking_count:Number((await this.db.selectFrom('booking').select(({fn})=>fn.countAll().as('n')).where('business_id','=',b.id).where('client_id','=',c.id).executeTakeFirstOrThrow()).n),open_dialog:!!await this.db.selectFrom('communication_conversation').select('id').where('business_id','=',b.id).where('client_id','=',c.id).where('status','in',['open','assigned']).executeTakeFirst()})));
  }
  async detail(userId:string,publicId:string,id:string){
   const b=await requireBusiness(this.db,userId,publicId,'clients.read');
   if(!/^[0-9a-f-]{36}$/i.test(id))throw new AppError(404,'CLIENT_NOT_FOUND','Клиент не найден.');
   const client=await this.db.selectFrom('client').selectAll().where('business_id','=',b.id).where('id','=',id).executeTakeFirst();
   if(!client)throw new AppError(404,'CLIENT_NOT_FOUND','Клиент не найден.');
-  const [identities,leads,conversations,activity,notes]=await Promise.all([
+  const [identities,leads,conversations,activity,notes,bookings]=await Promise.all([
    this.db.selectFrom('client_identity').selectAll().where('business_id','=',b.id).where('client_id','=',id).execute(),
    this.db.selectFrom('lead').selectAll().where('business_id','=',b.id).where('client_id','=',id).orderBy('created_at','desc').limit(100).execute(),
    this.db.selectFrom('communication_conversation').selectAll().where('business_id','=',b.id).where('client_id','=',id).execute(),
    this.db.selectFrom('client_activity').selectAll().where('business_id','=',b.id).where('client_id','=',id).orderBy('created_at','desc').limit(100).execute(),
-   this.db.selectFrom('client_note').selectAll().where('business_id','=',b.id).where('client_id','=',id).orderBy('created_at','desc').limit(100).execute()]);
-  return {client,identities,leads,conversations,activity,notes};
+   this.db.selectFrom('client_note').selectAll().where('business_id','=',b.id).where('client_id','=',id).orderBy('created_at','desc').limit(100).execute(),this.db.selectFrom('booking as k').innerJoin('booking_service as s','s.id','k.service_id').innerJoin('booking_specialist as r','r.id','k.specialist_id').selectAll('k').select(['s.name as service_name','r.name as specialist_name']).where('k.business_id','=',b.id).where('k.client_id','=',id).orderBy('k.starts_at','desc').limit(100).execute()]);
+  return {client,identities,leads,conversations,activity,notes,bookings};
  }
  async save(userId:string,publicId:string,raw:Record<string,unknown>,id?:string){
   const input=clientInput(raw);
   return this.db.transaction().execute(async tx=>{
-   const b=await requireBusiness(tx,userId,publicId,'clients.write');
+   const b=await requireBusiness(tx,userId,publicId,'clients.write');await tx.selectFrom('business').select('id').where('id','=',b.id).forUpdate().execute();await requireBusiness(tx,userId,publicId,'clients.write');
    if(id){const changed=await tx.updateTable('client').set({...input,updated_at:new Date()}).where('business_id','=',b.id).where('id','=',id).returning('id').executeTakeFirst();if(!changed)throw new AppError(404,'CLIENT_NOT_FOUND','Клиент не найден.');}
    else id=await matchClient(tx,b.id,{...input,identities:[]});
    await clientActivity(tx,b.id,id,'client.updated',randomUUID(),id,userId);return {id};
@@ -69,6 +70,6 @@ export class ClientService {
  }
  async note(userId:string,publicId:string,id:string,value:unknown){
   if(typeof value!=='string'||!value.trim()||value.length>4000)throw new AppError(400,'INVALID_NOTE','Введите заметку до 4000 символов.');
-  return this.db.transaction().execute(async tx=>{const b=await requireBusiness(tx,userId,publicId,'clients.write');const c=await tx.selectFrom('client').select('id').where('business_id','=',b.id).where('id','=',id).executeTakeFirst();if(!c)throw new AppError(404,'CLIENT_NOT_FOUND','Клиент не найден.');return tx.insertInto('client_note').values({id:randomUUID(),business_id:b.id,client_id:id,actor_user_id:userId,text:value.trim()}).returningAll().executeTakeFirstOrThrow();});
+  return this.db.transaction().execute(async tx=>{const b=await requireBusiness(tx,userId,publicId,'clients.write');await tx.selectFrom('business').select('id').where('id','=',b.id).forUpdate().execute();await requireBusiness(tx,userId,publicId,'clients.write');const c=await tx.selectFrom('client').select('id').where('business_id','=',b.id).where('id','=',id).executeTakeFirst();if(!c)throw new AppError(404,'CLIENT_NOT_FOUND','Клиент не найден.');return tx.insertInto('client_note').values({id:randomUUID(),business_id:b.id,client_id:id,actor_user_id:userId,text:value.trim()}).returningAll().executeTakeFirstOrThrow();});
  }
 }

@@ -73,7 +73,7 @@ export class VKService {
   await expireClaims(this.db,"vk");
     const candidate = await this.db.selectFrom("vk_outbox as o")
       .innerJoin("business_connection as c", "c.id", "o.connection_id")
-      .innerJoin("vk_runtime as r", "r.connection_id", "c.id")
+      .innerJoin("vk_runtime as r", "r.connection_id", "c.id").innerJoin("connection_secret as credential","credential.connection_id","c.id")
       .select(["o.id", "c.business_id"])
       .where("o.delivery_state", "=", "pending").where("o.delivered_at", "is", null).where("o.attempts", "<", 8).where("o.available_at", "<=", new Date())
       .where("r.status", "=", "ready").where("c.status", "=", "connected")

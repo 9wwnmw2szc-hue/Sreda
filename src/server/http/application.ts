@@ -35,7 +35,7 @@ export function createApplication(options: { auth: Identity; workspaces: Workspa
       const user = await requireUser(request.headers);
       if (request.method === "GET") {
         const params = new URL(request.url).searchParams;
-        return json(await options.leads.list(user.id, businessId, params.get("status") as never || undefined, params.get("before") || undefined));
+        return json(await options.leads.list(user.id, businessId, params.get("status") as never || undefined, params.get("before") || undefined,{search:params.get("search")||undefined,source:params.get("source")||undefined,from:params.get("from")||undefined,until:params.get("until")||undefined}));
       }
       if (request.method === "POST") { requireOrigin(request, options.origin); return json(await options.leads.create(user.id, businessId, await readJson(request)), 201); }
       throw new AppError(404, "NOT_FOUND", "Страница не найдена.");

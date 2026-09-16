@@ -275,8 +275,7 @@ function LeadsWizard({
                 ))}
               </fieldset>
               <p className="setup-hint">
-                При реальном запуске здесь появится безопасное подключение вашей
-                площадки. Для предпросмотра достаточно выбрать её.
+                Выберите каналы приёма заявок. Подключение и запуск выполняются в разделе «Подключения».
               </p>
             </>
           )}
@@ -286,6 +285,11 @@ function LeadsWizard({
                 Оставьте только нужные вопросы. Чем короче заявка, тем проще её
                 заполнить.
               </p>
+              <div className="crm-panel">
+              <label>Название сценария<input maxLength={100} disabled={busy||!canWrite} value={draft.title??'Оставить заявку'} onChange={e=>setDraft({...draft,title:e.target.value})}/></label>
+              <label>Приветствие<textarea maxLength={2000} disabled={busy||!canWrite} value={draft.greeting??''} placeholder="По умолчанию бот представится от имени бизнеса" onChange={e=>setDraft({...draft,greeting:e.target.value})}/></label>
+              <label>Сообщение после отправки<textarea maxLength={2000} disabled={busy||!canWrite} value={draft.finalMessage??''} placeholder="Спасибо! Ваша заявка принята." onChange={e=>setDraft({...draft,finalMessage:e.target.value})}/></label>
+              </div>
               <fieldset className="setup-options">
                 <legend className="sr-only">Поля заявки</legend>
                 {LEAD_FIELDS.map((field) => (
@@ -306,6 +310,7 @@ function LeadsWizard({
                   </label>
                 ))}
               </fieldset>
+              <div className="crm-panel">{LEAD_FIELDS.filter(f=>draft.fields.includes(f.id)).map(f=><fieldset key={f.id}><legend>{f.label}</legend><label>Текст вопроса<input maxLength={150} disabled={busy||!canWrite} value={draft.fieldOptions?.[f.id]?.label??f.label} onChange={e=>setDraft({...draft,fieldOptions:{...draft.fieldOptions,[f.id]:{label:e.target.value,required:f.required||draft.fieldOptions?.[f.id]?.required||false}}})}/></label><label><input type="checkbox" disabled={busy||!canWrite||f.required} checked={f.required||draft.fieldOptions?.[f.id]?.required||false} onChange={e=>setDraft({...draft,fieldOptions:{...draft.fieldOptions,[f.id]:{label:draft.fieldOptions?.[f.id]?.label||f.label,required:e.target.checked}}})}/>Обязательный ответ</label></fieldset>)}<button className="button button--outline" disabled={busy||!canWrite} onClick={()=>void update(draft)}>Сохранить тексты и вопросы</button><p>Получателей можно выбрать в разделе «Уведомления».</p></div>
               <p className="setup-hint">
                 Выбрано вопросов: {fields.length}. Порядок вопросов показан в
                 предпросмотре.
@@ -415,7 +420,7 @@ function LeadsWizard({
                 </div>
               </div>
               <p className="prototype-banner">
-                {isDemoMode ? "Предпросмотр завершён. Это демонстрация." : started ? "Telegram подтвердил подключение. Отправьте боту /start для проверки первой заявки. Для ответов должен работать обработчик сообщений." : "Подключите токен бота в разделе «Подключения», затем запустите Telegram. VK появится отдельным этапом."}
+                {isDemoMode ? "Предпросмотр завершён. Это демонстрация." : started ? "Telegram подтвердил подключение. Отправьте боту /start для проверки первой заявки. Для ответов должен работать обработчик сообщений." : "Подключите и запустите выбранные Telegram/VK-каналы в разделе «Подключения»."}
               </p>
               {!isDemoMode && <><Link href="/connections" className="button button--outline">Подключения</Link><button type="button" className="button button--primary" onClick={()=>void startTelegram()}>Запустить Telegram</button></>}
               <Link

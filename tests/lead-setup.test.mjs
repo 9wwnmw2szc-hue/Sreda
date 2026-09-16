@@ -20,3 +20,4 @@ test('workspace keys do not share setup drafts', () => {
 test('out-of-range and fractional steps restart at the first step', () => {
   for(const step of [-1,4,1.5,'2'])assert.equal(parseLeadSetupDraft(JSON.stringify({version:1,step,channels:['telegram'],fields:['name']})).step,0);
 });
+test('editable greeting, confirmation and question settings survive draft restoration',()=>{const d=parseLeadSetupDraft(JSON.stringify({version:1,step:2,channels:['telegram'],fields:['name','phone'],title:'Обратный звонок',greeting:'Здравствуйте!',finalMessage:'Спасибо!',fieldOptions:{name:{label:'Ваше имя',required:false},phone:{label:'Номер телефона',required:true}}}));assert.equal(d.title,'Обратный звонок');assert.equal(d.finalMessage,'Спасибо!');assert.equal(d.fieldOptions.name.required,true);assert.equal(d.fieldOptions.phone.required,true);});

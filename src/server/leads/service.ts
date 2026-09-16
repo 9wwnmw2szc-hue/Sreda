@@ -1,3 +1,4 @@
+import {localInstants} from '../booking/time.ts';
 import { randomUUID } from "node:crypto";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { sql } from "kysely";
@@ -27,7 +28,7 @@ export class LeadService {
     if (!row) throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
     return row.id;
   }
-  async list(userId: string, businessId: string, status?: LeadStatus, before?: string) {
+  async list(userId: string, businessId: string, status?: LeadStatus, before?: string,filters:{search?:string;source?:string;from?:string;until?:string}={}) {
     const publicBusinessId = businessId;
     businessId = await this.resolve(userId, businessId);
     if (status && !statuses.includes(status)) throw new AppError(400, "INVALID_STATUS", "Неизвестный статус.");
@@ -39,8 +40,11 @@ export class LeadService {
       if (!date || !id || extra !== undefined || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(date) || !Number.isFinite(Date.parse(date)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new AppError(400, "INVALID_CURSOR", "Обновите список заявок.");
       query = query.where((eb) => eb.or([eb(created, "<", new Date(date)), eb.and([eb(created, "=", new Date(date)), eb("id", "<", id)])]));
     }
+    if(filters.search){if(filters.search.length>100)throw new AppError(400,'INVALID_SEARCH','Слишком длинный запрос.');query=query.where(eb=>eb.or([eb('name','ilike','%'+filters.search+'%'),eb('phone','ilike','%'+filters.search+'%')]));}
+    if(filters.source){if(!['telegram','vk','max'].includes(filters.source))throw new AppError(400,'INVALID_SOURCE','Проверьте источник.');query=query.where('source','=',filters.source as Input['source']);}
+    for(const [key,op] of [['from','>='],['until','<']] as const){const value=filters[key];if(value){if(!Number.isFinite(Date.parse(value)))throw new AppError(400,'INVALID_DATE','Проверьте период.');const tz=(await this.db.selectFrom('business').select('timezone').where('id','=',businessId).executeTakeFirstOrThrow()).timezone;const date=/^\d{4}-\d{2}-\d{2}$/.test(value)?localInstants(value,0,tz)[0]:new Date(value);if(!date)throw new AppError(400,'INVALID_DATE','Эта дата недоступна в часовом поясе бизнеса.');query=query.where('created_at',op,date);}}
     if (status) query = query.where("status", "=", status) as typeof query;
-    return (await query.execute()).map((lead) => this.toLead(lead, publicBusinessId));
+    return Promise.all((await query.execute()).map(async lead=>({...this.toLead(lead,publicBusinessId),processingName:lead.processing_by?(await this.db.selectFrom('user').select('name').where('id','=',lead.processing_by).executeTakeFirst())?.name:undefined})));
   }
   async create(userId:string,publicId:string,raw:unknown){
     const input=clean(raw);
