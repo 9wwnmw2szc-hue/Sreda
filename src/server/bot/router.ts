@@ -13,11 +13,11 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  const {businessId,connectionId,platform,userId,eventId}=input;const text=input.text.trim();
  const table=platform==='telegram'?'telegram_dialog':'vk_dialog';
  const b=await tx.selectFrom('business').selectAll().where('id','=',businessId).forUpdate().executeTakeFirstOrThrow();
- const active=await tx.selectFrom('business_solution').select('solution_code').where('business_id','=',businessId).where('status','in',['active','trial']).execute();
+ const active=await tx.selectFrom('business_solution').select('solution_code').where('business_id','=',businessId).where('status','in',['active','trial']).where(eb=>eb.or([eb('expires_at','is',null),eb('expires_at','>',new Date())])).execute();
  const setup=await tx.selectFrom('lead_setup').select('draft').where('business_id','=',businessId).executeTakeFirst();
  const config=setup?validateSetup(JSON.parse(setup.draft)):undefined;
  const codes=new Set(active.map(x=>x.solution_code));
- const menu=[...(codes.has('leads')&&config?.channels.includes(platform)?[config.title||'Оставить заявку']:[]),...(codes.has('admin_messages')?['Связаться с администрацией']:[]),...(codes.has('booking')?['Онлайн-запись','Мои записи']:[])];
+ const menu=[...(codes.has('leads')&&config?.step===3&&config?.channels.includes(platform)?[config.title||'Оставить заявку']:[]),...(codes.has('admin_messages')?['Связаться с администрацией']:[]),...(codes.has('booking')?['Онлайн-запись','Мои записи']:[])];
  const queue=async(message:string,buttons:string[]=[])=>{const value={connection_id:connectionId,message,buttons:JSON.stringify(buttons),delivered_at:null,last_error:null};if(platform==='telegram')await tx.insertInto('telegram_outbox').values({...value,chat_id:userId}).execute();else await tx.insertInto('vk_outbox').values({...value,peer_id:userId}).execute();};
  const current=await tx.selectFrom(table).selectAll().where('connection_id','=',connectionId).where('chat_id','=',userId).executeTakeFirst();
  if(platform==='telegram'&&current&&BigInt(eventId)<=BigInt(current.last_update_id))return;
@@ -33,6 +33,7 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  const ask=(snapshot:LeadSetupDraft,field:string)=>{const option=snapshot.fieldOptions?.[field as LeadFieldId];return (option?.label||defaults[field]||field)+((field==='name'||option?.required)?'':'\nМожно пропустить: /skip.');};
  if(startLead&&config?.step===3&&config.channels.includes(platform)&&codes.has('leads')){const fields=['name',...config.fields.filter(x=>x!=='name')];await save('leads',fields,{},0,config);await queue((config.greeting||`Здравствуйте! Оставьте заявку в ${b.public_name||b.name}.`)+ '\n\n'+ask(config,fields[0]!),['Отмена']);return;}
  if(!current||!['leads','review'].includes(current.mode)||Date.now()-current.updated_at.getTime()>86400000){await showMenu();return;}
+ if(!codes.has('leads')){await showMenu('Приём заявок временно недоступен.');return;}
  const snapshot=JSON.parse(current.config) as LeadSetupDraft;const fields=JSON.parse(current.fields) as string[];const answers=JSON.parse(current.answers) as Record<string,string>;
  if(current.mode==='review'){
   if(text==='Изменить'){await save('leads',fields,{},0,snapshot);await queue(ask(snapshot,fields[0]!),['Отмена']);return;}

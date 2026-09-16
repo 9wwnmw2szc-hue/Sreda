@@ -113,6 +113,7 @@ export class CommunicationService {
       for(const attachment_id of attachmentIds)await tx.insertInto('communication_attachment').values({business_id:businessId,message_id:inserted.id,attachment_id}).execute();
       const jobs=[...(body.text?[{message,ids:[] as string[]}]:[]),...attachmentIds.map(id=>({message:'',ids:[id]}))];if(!jobs.length)jobs.push({message,ids:[]});
       for(const job of jobs){const values={communication_message_id:inserted.id,connection_id:connection.id,message:job.message,attachment_ids:JSON.stringify(job.ids),delivered_at:null,last_error:null};if(conversation.platform==='telegram')await tx.insertInto('telegram_outbox').values({...values,chat_id:conversation.external_user_id}).execute();else await tx.insertInto('vk_outbox').values({...values,peer_id:conversation.external_user_id}).execute();}
+      if(current.status!=='assigned')await audit(tx,businessId,userId,'conversation_taken',conversationId);
       await tx.updateTable("communication_conversation").set({ status: "assigned", assigned_member_user_id:userId,last_message_at: new Date() }).where("id", "=", conversationId).where("business_id", "=", businessId).execute();
       return inserted;
     });
