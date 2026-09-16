@@ -2682,3 +2682,18 @@ ul {
 .crm-panel input[type="checkbox"] { width:22px; height:22px; accent-color:#315c40; }
 
 .notification-toolbar{display:flex;justify-content:flex-end;padding:8px 20px}.notification-bell{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px;color:var(--text-primary,#173b2c)}.notification-bell span{border-radius:99px;padding:2px 6px;background:#214d38;color:white;font-size:12px}
+
+/* Pre-release: intrinsic form widths and long user content must not expand grids. */
+.crm-panel input, .crm-panel textarea, .crm-panel select { min-width:0; max-width:100%; }
+.crm-panel fieldset { min-width:0; }
+.crm-panel nav { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.crm-panel button { max-width:100%; overflow-wrap:anywhere; }
+.crm-panel nav button, .crm-panel summary { min-height:44px; }
+.message-bubble, .detail-dialog__inner { min-width:0; overflow-wrap:anywhere; }
+.detail-dialog header h2 { min-width:0; }
+.detail-dialog header .icon-button { flex-shrink:0; }
+@media(max-width:900px) { .crm-columns { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:767px) {
+  .crm-panel .button { white-space:normal; }
+  .detail-dialog__inner { padding:18px; }
+}

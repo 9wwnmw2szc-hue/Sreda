@@ -161,6 +161,7 @@ function Clients({
     }
   }
   async function save() {
+    if (busy || (selected && !detail)) return;
     setBusy(true);
     setError("");
     try {
@@ -213,7 +214,11 @@ function Clients({
         <section className="panel crm-panel">
           <label>
             Фильтр
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <select
+              disabled={busy}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
               {Object.entries({
                 all: "Все",
                 new: "Новые за 7 дней",
@@ -231,6 +236,7 @@ function Clients({
           <label>
             Поиск
             <input
+              disabled={busy}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Имя, телефон, username"
@@ -239,6 +245,7 @@ function Clients({
           <button
             className="button button--outline"
             onClick={() => {
+              if (busy) return;
               setSelected("");
               setDetail(null);
               setForm({ name: "", phone: "", email: "" });
@@ -255,6 +262,7 @@ function Clients({
               {clients.map((c) => (
                 <li key={c.id}>
                   <button
+                    disabled={busy}
                     onClick={() => {
                       setDetail(null);
                       setSelected(c.id);
@@ -319,7 +327,10 @@ function Clients({
                 />
               </label>
             ))}
-            <button className="button button--primary" disabled={busy}>
+            <button
+              className="button button--primary"
+              disabled={busy || (!!selected && !detail)}
+            >
               Сохранить
             </button>
           </form>

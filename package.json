@@ -11,7 +11,9 @@
     "test": "node --import tsx --test tests/*.test.mjs",
     "test:http": "node --import tsx --test tests/http/*.test.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local --import tsx scripts/db-migrate.mts",
-    "worker:telegram": "node --env-file-if-exists=.env.local --import tsx scripts/telegram-worker.mts"
+    "worker:telegram": "node --env-file-if-exists=.env.local --import tsx scripts/telegram-worker.mts",
+    "worker:vk": "node --env-file-if-exists=.env.local --import tsx scripts/vk-worker.mts",
+    "staging:check": "node --env-file-if-exists=.env.local --import tsx scripts/staging-check.mts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1133.0",

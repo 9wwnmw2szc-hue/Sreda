@@ -86,3 +86,51 @@ test("AI sends only requested content, always produces a draft and rejects secre
     (e) => e.code === "AI_UNAVAILABLE",
   );
 });
+
+test("staging diagnostics expose missing names, never secret values, and require real HTTPS config", async () => {
+  const { stagingConfiguration } = await import(
+    "../src/server/readiness/config.ts"
+  );
+  const secret = "test-secret-value-not-for-production";
+  const env = {
+    APP_URL: "https://staging.example.invalid",
+    DATABASE_URL: "postgresql://user:password@db.invalid/staging",
+    BETTER_AUTH_SECRET: secret,
+    NEXT_PUBLIC_DATA_SOURCE: "api",
+    TELEGRAM_WEBHOOKS_ENABLED: "true",
+    VK_WEBHOOKS_ENABLED: "true",
+    ATTACHMENT_STORAGE: "s3",
+    S3_ENDPOINT: "https://s3.example.invalid",
+    S3_REGION: "test",
+    S3_BUCKET: "private",
+    S3_ACCESS_KEY_ID: secret,
+    S3_SECRET_ACCESS_KEY: secret,
+    AI_API_TOKEN: secret,
+    AI_MODEL: "test-model",
+  };
+  const checks = stagingConfiguration(env);
+  assert.ok(checks.every((c) => c.ok));
+  assert.ok(!JSON.stringify(checks).includes(secret));
+  for (const key of Object.keys(env)) {
+    assert.equal(
+      stagingConfiguration({ ...env, [key]: undefined }).find(
+        (c) => c.name === key,
+      ).ok,
+      false,
+      key,
+    );
+  }
+  assert.equal(
+    stagingConfiguration({
+      ...env,
+      APP_URL: "http://staging.example.invalid",
+    }).find((c) => c.name === "APP_URL").ok,
+    false,
+  );
+  assert.equal(
+    stagingConfiguration({ ...env, S3_ENDPOINT: "not-a-url" }).find(
+      (c) => c.name === "S3_ENDPOINT",
+    ).ok,
+    false,
+  );
+});

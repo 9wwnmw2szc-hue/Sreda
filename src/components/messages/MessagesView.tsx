@@ -208,6 +208,7 @@ function Inbox({
               {conversations.map((c) => (
                 <li key={c.id}>
                   <button
+                    disabled={busy || uploading}
                     aria-pressed={selected === c.id}
                     onClick={() => {
                       setSelected(c.id);

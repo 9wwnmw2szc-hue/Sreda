@@ -12,9 +12,17 @@ export async function GET() {
       ...(r.vkEnabled ? ["vk"] : []),
     ];
     const active = await r.db
-      .selectFrom("business_solution")
-      .select("solution_code")
-      .where("status", "in", ["active", "trial"])
+      .selectFrom("business_solution as s")
+      .innerJoin("business as b", "b.id", "s.business_id")
+      .select("s.solution_code")
+      .where("b.archived_at", "is", null)
+      .where("s.status", "in", ["active", "trial"])
+      .where((eb) =>
+        eb.or([
+          eb("s.expires_at", "is", null),
+          eb("s.expires_at", ">", new Date()),
+        ]),
+      )
       .execute();
     if (active.some((s) => s.solution_code === "booking"))
       required.push("booking_reminders");

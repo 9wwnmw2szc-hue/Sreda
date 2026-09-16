@@ -327,6 +327,7 @@ function Calendar({
                 value={date}
                 onChange={(e) => {
                   if (e.target.value) setDate(e.target.value);
+                  setSlots([]);
                   setPage(0);
                   setSlot("");
                   requestKey.current = "";
@@ -358,6 +359,7 @@ function Calendar({
                                 disabled={busy}
                                 onClick={() => {
                                   setReschedule(b);
+                                  setSlots([]);
                                   setService(b.service_id);
                                   setSpecialist(b.specialist_id);
                                   setSlot("");
@@ -493,6 +495,7 @@ function Calendar({
                   value={specialist}
                   onChange={(e) => {
                     setSpecialist(e.target.value);
+                    setSlots([]);
                     setSlot("");
                     requestKey.current = "";
                   }}

@@ -112,7 +112,11 @@ export function attachmentStorage(): AttachmentStorage {
       "STORAGE_NOT_CONFIGURED",
       "Файловое хранилище пока не настроено.",
     );
-  if (new URL(endpoint).protocol !== "https:")
+  let secure = false;
+  try {
+    secure = new URL(endpoint).protocol === "https:";
+  } catch {}
+  if (!secure)
     throw new AppError(
       503,
       "STORAGE_NOT_CONFIGURED",
