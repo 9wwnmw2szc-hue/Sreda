@@ -1,4 +1,5 @@
 "use client";
+import {NotificationBell} from "../notifications/NotificationBell";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -49,7 +50,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       >
         <Sidebar mobile onClose={() => setOpen(false)} />
       </dialog>
-      <div className="app-main">
+      <div className="app-main"><div className="notification-toolbar"><NotificationBell/></div>
         <header className="mobile-header">
           <button
             className="icon-button"

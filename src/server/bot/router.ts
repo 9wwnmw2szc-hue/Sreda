@@ -1,3 +1,4 @@
+import {bindNotification} from '../notifications/settings.ts';
 import type {InboundAttachment} from "../attachments/service.ts";
 import { bookingFlow } from "./booking-flow.ts";
 import type { Transaction } from 'kysely';
@@ -22,6 +23,7 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  if(platform==='telegram'&&current&&BigInt(eventId)<=BigInt(current.last_update_id))return;
  const save=async(mode:string,fields:string[]=[],answers:Record<string,string>={},position=0,snapshot:LeadSetupDraft|Record<string,never>={})=>{const row={connection_id:connectionId,chat_id:userId,mode,fields:JSON.stringify(fields),answers:JSON.stringify(answers),position,config:JSON.stringify(snapshot),last_update_id:eventId,updated_at:new Date()};await tx.insertInto(table).values(row).onConflict(oc=>oc.columns(['connection_id','chat_id']).doUpdateSet(row)).execute();};
  const showMenu=async(message?:string)=>{await save('menu');await queue(message??((b.greeting||`Добро пожаловать в ${b.public_name||b.name}!`)+(menu.length?'\nВыберите действие.':'\nПриём обращений пока не настроен.')),menu);};
+ if(platform==='telegram'&&text.startsWith('/start notify_')){const ok=await bindNotification(tx,businessId,connectionId,userId,text.slice(14));await queue(ok?'Уведомления сотрудника подключены.':'Код недействителен или истёк. Создайте новый код на сайте.');return;}
  if(text==='/start'||text==='/menu'||text==='Главное меню'){await showMenu();return;}
  if(text==='/cancel'||text==='Отмена'){await showMenu('Действие отменено. Выберите действие.');return;}
  if(codes.has('booking')&&await bookingFlow(tx,input,queue))return;

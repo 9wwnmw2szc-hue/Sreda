@@ -1,3 +1,4 @@
+import {queueNotification} from '../src/server/notifications/worker.ts';
 import { queueScheduledPost,materializeRecurringPost } from "../src/server/posts/worker.ts";
 import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
@@ -14,6 +15,7 @@ let nextCleanup=0;
 try{
  while(!stopping){
   try{
+   await queueNotification(db,config.origin);
    await materializeRecurringPost(db);
    await queueScheduledPost(db);
    const queued=await queueBookingReminder(db);
@@ -21,8 +23,7 @@ try{
    if(Date.now()>nextCleanup){
     // Dedup IDs carry no message text. Incomplete dialogues expire after one day.
     await db.deleteFrom("telegram_dialog").where("updated_at","<",new Date(Date.now()-86400000)).execute();
-    await db.deleteFrom("telegram_update").where("created_at","<",new Date(Date.now()-7*86400000)).execute();
-    await db.deleteFrom("telegram_outbox").where("delivered_at","<",new Date(Date.now()-86400000)).execute();
+    await db.deleteFrom("telegram_outbox").where("delivered_at","<",new Date(Date.now()-86400000)).where("post_delivery_id","is",null).execute();
     nextCleanup=Date.now()+3600000;
    }
    if(!worked)await new Promise(r=>setTimeout(r,1000));

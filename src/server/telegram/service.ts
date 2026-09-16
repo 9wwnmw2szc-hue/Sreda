@@ -1,3 +1,4 @@
+import {notificationValid} from '../notifications/worker.ts';
 import {sendTelegramMedia} from "../attachments/send.ts";
 import {telegramAttachments} from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
@@ -74,6 +75,7 @@ export class TelegramService {
    const business=await tx.selectFrom("business").select("id").where("id","=",candidate.business_id).where("archived_at","is",null).forUpdate().executeTakeFirst();if(!business)return false;
    const row=await tx.selectFrom("telegram_outbox").selectAll().where("id","=",candidate.id).where("delivery_state","=","sending").where("delivered_at","is",null).where("available_at","<=",new Date()).forUpdate().executeTakeFirst();if(!row)return false;
    const connection=await tx.selectFrom("connection_secret as s").innerJoin("telegram_runtime as r","r.connection_id","s.connection_id").innerJoin("business_connection as c","c.id","s.connection_id").select("s.encrypted_token").where("s.connection_id","=",row.connection_id).where("r.status","=","ready").where("c.status","=","connected").executeTakeFirst();if(!connection)return false;
+   if(row.notification_id&&(!row.notification_user_id||!await notificationValid(tx,row.notification_id,row.notification_user_id,row.connection_id,row.chat_id))){await tx.updateTable('telegram_outbox').set({delivery_state:'failed',last_error:'RECIPIENT_UNAVAILABLE'}).where('id','=',row.id).execute();return true;}
    if(row.booking_reminder_id&&!await reminderValid(tx,row.booking_reminder_id)){await tx.updateTable('telegram_outbox').set({delivery_state:'failed',last_error:'STALE_REMINDER'}).where('id','=',row.id).execute();return true;}
    try{
     const delivered=await sendTelegramMedia(tx,this.secret,business.id,decryptSecret(connection.encrypted_token,this.secret),row.chat_id,row.message,row.attachment_ids as string[],row.post_delivery_id?row.api_payload as Record<string,unknown>:{reply_markup:{keyboard:(row.buttons as string[]).map(text=>[{text}]),resize_keyboard:true}},this.transport);

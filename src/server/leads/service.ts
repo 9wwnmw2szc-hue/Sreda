@@ -79,6 +79,6 @@ export async function createLead(tx:Transaction<Database>,businessId:string,inpu
  const clientId=await matchClient(tx,businessId,{name:input.name,phone:input.phone,identities:input.platformUserId&&input.source!=='max'?[{kind:input.source,value:input.platformUserId,username:input.username}]:[]});
  const lead=await tx.insertInto('lead').values({id:randomUUID(),business_id:businessId,client_id:clientId,source:input.source,name:input.name,phone:input.phone??null,message:input.message??null,status:'new',external_event_id:input.externalEventId??null,answers:JSON.stringify(input.answers??{})}).returningAll().executeTakeFirstOrThrow();
  await clientActivity(tx,businessId,clientId,'lead.created','lead:'+lead.id,lead.id);
- await notify(tx,businessId,'lead.created','lead:'+lead.id,'Новая заявка: '+input.name,'/leads');
+ await notify(tx,businessId,'lead.created','lead:'+lead.id,'Новая заявка: '+input.name+'\nТелефон: '+(input.phone||'—')+'\nИсточник: '+input.source+(input.answers?.service?'\nУслуга: '+input.answers.service:''),'/leads');
  return lead;
 }

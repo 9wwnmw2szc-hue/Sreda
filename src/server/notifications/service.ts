@@ -6,7 +6,7 @@ export type NotificationType='lead.created'|'message.received'|'booking.created'
 export async function notify(tx:Transaction<Database>,businessId:string,type:NotificationType,eventKey:string,title:string,targetPath:string){
  const row=await tx.insertInto('notification').values({id:randomUUID(),business_id:businessId,type,event_key:eventKey,title,target_path:targetPath}).onConflict(oc=>oc.columns(['business_id','event_key']).doNothing()).returning('id').executeTakeFirst();if(!row)return;
  const members=await tx.selectFrom('business_member').select('user_id').where('business_id','=',businessId).where('status','=','active').execute();
- for(const m of members)await tx.insertInto('notification_recipient').values({business_id:businessId,notification_id:row.id,user_id:m.user_id,read_at:null}).execute();
+ for(const m of members){const preference=await tx.selectFrom('notification_preference').select('enabled').where('business_id','=',businessId).where('user_id','=',m.user_id).where('type','=',type).executeTakeFirst();if(preference?.enabled===false)continue;await tx.insertInto('notification_recipient').values({business_id:businessId,notification_id:row.id,user_id:m.user_id,read_at:null}).execute();}
 }
 export class NotificationService{
  constructor(private db:Kysely<Database>){}

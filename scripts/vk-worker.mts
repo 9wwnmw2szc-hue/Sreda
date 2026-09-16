@@ -1,3 +1,4 @@
+import {queueNotification} from '../src/server/notifications/worker.ts';
 import { queueScheduledPost,materializeRecurringPost } from "../src/server/posts/worker.ts";
 import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
@@ -18,13 +19,13 @@ let nextCleanup = 0;
 try {
   while (!stopping) {
     try {
-      await materializeRecurringPost(db);
+      await queueNotification(db,config.origin);
+   await materializeRecurringPost(db);
    await queueScheduledPost(db);
    const queued=await queueBookingReminder(db);
       const worked = await service.deliverOne()||queued;
       if (Date.now() > nextCleanup) {
-        await db.deleteFrom("vk_update").where("created_at", "<", new Date(Date.now() - 7 * 86400000)).execute();
-        await db.deleteFrom("vk_outbox").where("delivered_at", "<", new Date(Date.now() - 86400000)).execute();
+        await db.deleteFrom("vk_outbox").where("delivered_at", "<", new Date(Date.now() - 86400000)).where("post_delivery_id", "is", null).execute();
         nextCleanup = Date.now() + 3600000;
       }
       if (!worked) await new Promise((resolve) => setTimeout(resolve, 1000));

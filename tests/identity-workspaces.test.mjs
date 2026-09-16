@@ -649,7 +649,10 @@ test("Telegram dialogue persists, isolates chats, deduplicates updates and creat
   const dialogs = await db.selectFrom("telegram_dialog").selectAll().where("connection_id", "=", f.connection.id).execute();
   assert.equal(dialogs.length, 2); assert.equal(dialogs.find(d=>d.chat_id==="123").mode,"menu");
   const anotherInstance = new TelegramService(db, secret, "https://sreda.test", true, f.transport);
-  for(let i=0;i<20;i++) if(!await anotherInstance.deliverOne()) break;
+  // PostgreSQL suites share a database; drain the current queue rather than
+  // assuming this fixture owns the first twenty global jobs.
+  const queuedCount=await db.selectFrom('telegram_outbox').select(({fn})=>fn.countAll().as('n')).where('delivery_state','=','pending').executeTakeFirstOrThrow();
+  for(let i=0;i<Number(queuedCount.n)+10;i++){if(!await anotherInstance.deliverOne())break;if(f.calls.some(c=>c.method==='sendMessage'&&c.body.text.includes('заявка принята')))break;}
   assert.ok(f.calls.some(c=>c.method==="sendMessage"&&c.body.text.includes("заявка принята")));
   assert.equal((await f.solutions.list(f.owner.internalId, f.business.id))[0].status, "active");
   await f.solutions.save(f.owner.internalId, f.business.id, { draft: readyDraft, revision: 1 });
