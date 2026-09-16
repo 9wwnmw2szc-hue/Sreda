@@ -1,3 +1,4 @@
+import {recordAttachments,type InboundAttachment} from "../attachments/service.ts";
 import { matchClient,clientActivity } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -75,14 +76,15 @@ export class CommunicationService {
       .execute();
     const latest=rows[0]?.createdAt;
     if(latest)await this.db.insertInto('conversation_read_state').values({business_id:businessId,conversation_id:conversationId,user_id:userId,read_at:latest}).onConflict(oc=>oc.columns(['conversation_id','user_id']).doUpdateSet(eb=>({read_at:eb.fn<Date>('greatest',[eb.ref('conversation_read_state.read_at'),eb.val(latest)])}))).execute();
-    return rows.reverse().map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+    return Promise.all(rows.reverse().map(async row=>({...row,createdAt:row.createdAt.toISOString(),attachments:await this.db.selectFrom('communication_attachment as ca').innerJoin('attachment as a','a.id','ca.attachment_id').select(['a.id','a.type','a.filename','a.mime_type as mime','a.size_bytes as size']).where('ca.message_id','=',row.id).where('ca.business_id','=',businessId).execute()})));
   }
 
   async sendMessage(userId: string, publicId: string, conversationId: string, raw: unknown) {
     await this.resolve(userId, publicId, true);
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AppError(400, "INVALID_MESSAGE", "Проверьте сообщение.");
     const body = raw as Record<string, unknown>;
-    const message = text(body.text);
+    const attachmentIds=Array.isArray(body.attachments)?[...new Set(body.attachments.map(String))]:[];if(attachmentIds.length>10||attachmentIds.some(id=>!/^[a-f0-9-]{36}$/i.test(id)))throw new AppError(400,'INVALID_ATTACHMENT','Проверьте вложения.');
+    const message = text(body.text|| (attachmentIds.length?'Вложение':''));
     const businessId = (await this.resolve(userId, publicId)).id;
     const conversation = await this.db.selectFrom("communication_conversation").select(["id", "platform", "external_user_id"]).where("id", "=", conversationId).where("business_id", "=", businessId).executeTakeFirst();
     if (!conversation) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
@@ -93,7 +95,8 @@ export class CommunicationService {
       if(current.status==='blocked'||(current.assigned_member_user_id&&current.assigned_member_user_id!==userId))throw new AppError(409,'CONVERSATION_ASSIGNED','Диалог недоступен для ответа или взят другим сотрудником.');
       const requestKey=typeof body.requestKey==='string'?body.requestKey:null;
       if(requestKey&&!/^[a-zA-Z0-9_-]{16,100}$/.test(requestKey))throw new AppError(400,'INVALID_REQUEST_KEY','Обновите страницу.');
-      if(requestKey){const duplicate=await tx.selectFrom('communication_message').selectAll().where('business_id','=',businessId).where('request_key','=',requestKey).executeTakeFirst();if(duplicate){if(duplicate.text!==message||duplicate.conversation_id!==conversationId)throw new AppError(409,'REQUEST_CONFLICT','Этот запрос уже использован.');return duplicate;}}
+      if(requestKey){const duplicate=await tx.selectFrom('communication_message').selectAll().where('business_id','=',businessId).where('request_key','=',requestKey).executeTakeFirst();if(duplicate){const priorFiles=await tx.selectFrom('communication_attachment').select('attachment_id').where('message_id','=',duplicate.id).execute();if(JSON.stringify(priorFiles.map(f=>f.attachment_id).sort())!==JSON.stringify([...attachmentIds].sort()))throw new AppError(409,'REQUEST_CONFLICT','Этот запрос уже использован.');if(duplicate.text!==message||duplicate.conversation_id!==conversationId)throw new AppError(409,'REQUEST_CONFLICT','Этот запрос уже использован.');return duplicate;}}
+      if(attachmentIds.length){const files=await tx.selectFrom('attachment').select('id').where('business_id','=',businessId).where('id','in',attachmentIds).execute();if(files.length!==attachmentIds.length)throw new AppError(400,'INVALID_ATTACHMENT','Вложение недоступно.');}
       const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversationId, business_id: businessId, direction: "outbound", text: message, request_key:requestKey, delivery_status:'queued',external_message_id: null, actor_user_id: userId, moderation_status: "allowed", created_at: new Date() }).returningAll().executeTakeFirstOrThrow();
       const connection = await tx.selectFrom("business_connection as c")
         .select(["c.id", "c.status"])
@@ -106,11 +109,9 @@ export class CommunicationService {
       if (!connection || connection.status !== "connected" || runtime?.status !== "ready") {
         throw new AppError(409, "CHANNEL_PAUSED", "Канал временно недоступен. Повторите отправку позже.");
       }
-      if (conversation.platform === "telegram") {
-        await tx.insertInto("telegram_outbox").values({ communication_message_id:inserted.id, connection_id: connection.id, chat_id: conversation.external_user_id, message, delivered_at: null, last_error: null, created_at: new Date() }).execute();
-      } else {
-        await tx.insertInto("vk_outbox").values({ communication_message_id:inserted.id, connection_id: connection.id, peer_id: conversation.external_user_id, message, delivered_at: null, last_error: null, created_at: new Date() }).execute();
-      }
+      for(const attachment_id of attachmentIds)await tx.insertInto('communication_attachment').values({business_id:businessId,message_id:inserted.id,attachment_id}).execute();
+      const jobs=[...(body.text?[{message,ids:[] as string[]}]:[]),...attachmentIds.map(id=>({message:'',ids:[id]}))];if(!jobs.length)jobs.push({message,ids:[]});
+      for(const job of jobs){const values={communication_message_id:inserted.id,connection_id:connection.id,message:job.message,attachment_ids:JSON.stringify(job.ids),delivered_at:null,last_error:null};if(conversation.platform==='telegram')await tx.insertInto('telegram_outbox').values({...values,chat_id:conversation.external_user_id}).execute();else await tx.insertInto('vk_outbox').values({...values,peer_id:conversation.external_user_id}).execute();}
       await tx.updateTable("communication_conversation").set({ status: "assigned", assigned_member_user_id:userId,last_message_at: new Date() }).where("id", "=", conversationId).where("business_id", "=", businessId).execute();
       return inserted;
     });
@@ -131,12 +132,12 @@ export class CommunicationService {
     return { id: row.id, status: row.status, closedAt: row.closed_at?.toISOString() };
   }
 
-  async recordInbound(input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null }) {
+  async recordInbound(input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null; connectionId?:string;attachments?:InboundAttachment[] }) {
     return this.db.transaction().execute((tx) => this.recordInboundInTransaction(tx, input));
   }
 
-  async recordInboundInTransaction(tx: Transaction<Database>, input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null }) {
-    const message = text(input.text);
+  async recordInboundInTransaction(tx: Transaction<Database>, input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null; connectionId?:string;attachments?:InboundAttachment[] }) {
+    const message = text(input.text||((input.attachments?.length??0)>0?"Вложение":""));
     const periodStart = new Date().toISOString().slice(0, 7)+"-01";
     return (async () => {
       await tx.selectFrom('business').select('id').where('id','=',input.businessId).forUpdate().execute();
@@ -154,6 +155,7 @@ export class CommunicationService {
       const inserted = await tx.insertInto("communication_message").values({ id: randomUUID(), conversation_id: conversation.id, business_id: input.businessId, direction: "inbound", text: message, external_message_id: input.externalMessageId ?? null, actor_user_id: null, moderation_status: "allowed", created_at: new Date() }).onConflict((oc) => oc.columns(["business_id", "external_message_id"]).doNothing()).returning("id").executeTakeFirst();
       if (!inserted) return { accepted: true as const, duplicate: true as const, conversationId: conversation.id };
       await tx.updateTable("communication_quota").set({ inbound_count: quota.inbound_count + 1, warned_at_percent: quota.inbound_count + 1 >= quota.inbound_limit ? 100 : quota.inbound_count + 1 >= Math.ceil(quota.inbound_limit * 0.8) ? 80 : quota.warned_at_percent, updated_at: new Date() }).where("business_id", "=", input.businessId).where("period_start", "=", periodStart).execute();
+      if(input.connectionId&&input.attachments?.length)await recordAttachments(tx,input.businessId,input.connectionId,input.platform,inserted.id,input.attachments);
       await clientActivity(tx,input.businessId,clientId,'message.received','message:'+inserted.id,conversation.id);
       await notify(tx,input.businessId,'message.received','message:'+inserted.id,'Новое обращение','/messages');
       return { accepted: true as const, duplicate: false as const, conversationId: conversation.id, messageId: inserted.id };

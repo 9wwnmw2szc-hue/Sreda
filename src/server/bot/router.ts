@@ -1,3 +1,4 @@
+import type {InboundAttachment} from "../attachments/service.ts";
 import { bookingFlow } from "./booking-flow.ts";
 import type { Transaction } from 'kysely';
 import type { Database } from '../db/schema.ts';
@@ -7,7 +8,7 @@ import { CommunicationService } from '../communications/service.ts';
 import { normalizeIdentity } from '../clients/service.ts';
 import type { LeadSetupDraft,LeadFieldId } from '../../lib/leadSetupDraft.ts';
 const defaults:Record<string,string>={name:'Как к вам обращаться?',phone:'Ваш телефон',email:'Ваш email',message:'Ваше сообщение',service:'Что вас интересует?',comment:'Комментарий'};
-export async function routeBot(tx:Transaction<Database>,input:{businessId:string;connectionId:string;platform:'telegram'|'vk';userId:string;username?:string;eventId:string;text:string}){
+export async function routeBot(tx:Transaction<Database>,input:{businessId:string;connectionId:string;platform:'telegram'|'vk';userId:string;username?:string;eventId:string;text:string;attachments?:InboundAttachment[]}){
  const {businessId,connectionId,platform,userId,eventId}=input;const text=input.text.trim();
  const table=platform==='telegram'?'telegram_dialog':'vk_dialog';
  const b=await tx.selectFrom('business').selectAll().where('id','=',businessId).forUpdate().executeTakeFirstOrThrow();
@@ -25,7 +26,7 @@ export async function routeBot(tx:Transaction<Database>,input:{businessId:string
  if(text==='/cancel'||text==='Отмена'){await showMenu('Действие отменено. Выберите действие.');return;}
  if(codes.has('booking')&&await bookingFlow(tx,input,queue))return;
  if(text==='Связаться с администрацией'&&codes.has('admin_messages')){await save('messages');await queue('Напишите ваш вопрос.',['Главное меню']);return;}
- if(current?.mode==='messages'&&codes.has('admin_messages')){const result=await new CommunicationService(tx).recordInboundInTransaction(tx,{businessId,platform,externalUserId:userId,externalUsername:input.username,text,externalMessageId:connectionId+':'+eventId});if(result.accepted&&!result.duplicate)await queue('Сообщение отправлено. Администратор ответит вам здесь.',['Главное меню']);return;}
+ if(current?.mode==='messages'&&codes.has('admin_messages')){const result=await new CommunicationService(tx).recordInboundInTransaction(tx,{businessId,platform,externalUserId:userId,externalUsername:input.username,text,externalMessageId:connectionId+':'+eventId,connectionId,attachments:input.attachments});if(result.accepted&&!result.duplicate)await queue('Сообщение отправлено. Администратор ответит вам здесь.',['Главное меню']);return;}
  const startLead=text===(config?.title||'Оставить заявку')||text==='/lead';
  const ask=(snapshot:LeadSetupDraft,field:string)=>{const option=snapshot.fieldOptions?.[field as LeadFieldId];return (option?.label||defaults[field]||field)+((field==='name'||option?.required)?'':'\nМожно пропустить: /skip.');};
  if(startLead&&config?.step===3&&config.channels.includes(platform)&&codes.has('leads')){const fields=['name',...config.fields.filter(x=>x!=='name')];await save('leads',fields,{},0,config);await queue((config.greeting||`Здравствуйте! Оставьте заявку в ${b.public_name||b.name}.`)+ '\n\n'+ask(config,fields[0]!),['Отмена']);return;}

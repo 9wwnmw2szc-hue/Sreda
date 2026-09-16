@@ -15,7 +15,7 @@ type VKResponse = { response?: unknown; error?: { error_code?: number; error_msg
 
 export async function vkCall(
   token: string,
-  method: "messages.send" | "wall.post" | "groups.getTokenPermissions" | "groups.getById" | "groups.getCallbackConfirmationCode" | "groups.getCallbackServers" | "groups.addCallbackServer" | "groups.editCallbackServer" | "groups.setCallbackSettings",
+  method: "messages.send" | "video.get" | "video.save" | "photos.getMessagesUploadServer" | "photos.saveMessagesPhoto" | "photos.getWallUploadServer" | "photos.saveWallPhoto" | "docs.getMessagesUploadServer" | "docs.save" | "wall.post" | "groups.getTokenPermissions" | "groups.getById" | "groups.getCallbackConfirmationCode" | "groups.getCallbackServers" | "groups.addCallbackServer" | "groups.editCallbackServer" | "groups.setCallbackSettings",
   body: Record<string,unknown>,
   transport: typeof fetch = fetch,
 ) {
