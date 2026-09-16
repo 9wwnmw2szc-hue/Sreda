@@ -476,7 +476,7 @@ export class VKService {
               .updateTable("communication_message")
               .set({
                 delivery_status: "sent",
-                external_message_id: String(delivered),
+                external_message_id: `vk:${row.connection_id}:${row.peer_id}:${delivered}`,
               })
               .where("id", "=", row.communication_message_id)
               .execute();

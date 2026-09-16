@@ -1,3 +1,4 @@
+import { messageChunks } from "../outbox/text.ts";
 import { audit } from "../audit/service.ts";
 import {
   recordAttachments,
@@ -379,7 +380,12 @@ export class CommunicationService {
           })
           .execute();
       const jobs = [
-        ...(body.text ? [{ message, ids: [] as string[] }] : []),
+        ...(body.text
+          ? messageChunks(message).map((part) => ({
+              message: part,
+              ids: [] as string[],
+            }))
+          : []),
         ...attachmentIds.map((id) => ({ message: "", ids: [id] })),
       ];
       if (!jobs.length) jobs.push({ message, ids: [] });

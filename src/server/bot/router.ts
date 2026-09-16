@@ -1,3 +1,4 @@
+import { messageChunks } from "../outbox/text.ts";
 import { AppError } from "../http/errors.ts";
 import { bindNotification } from "../notifications/settings.ts";
 import type { InboundAttachment } from "../attachments/service.ts";
@@ -64,7 +65,7 @@ export async function routeBot(
     ...(codes.has("admin_messages") ? ["Связаться с администрацией"] : []),
     ...(codes.has("booking") ? ["Онлайн-запись", "Мои записи"] : []),
   ];
-  const queue = async (message: string, buttons: string[] = []) => {
+  const queuePart = async (message: string, buttons: string[] = []) => {
     const value = {
       connection_id: connectionId,
       message,
@@ -82,6 +83,11 @@ export async function routeBot(
         .insertInto("vk_outbox")
         .values({ ...value, peer_id: userId })
         .execute();
+  };
+  const queue = async (message: string, buttons: string[] = []) => {
+    const parts = messageChunks(message);
+    for (let i = 0; i < parts.length; i++)
+      await queuePart(parts[i]!, i === parts.length - 1 ? buttons : []);
   };
   const current = await tx
     .selectFrom(table)
@@ -155,7 +161,14 @@ export async function routeBot(
     await showMenu("Действие отменено. Выберите действие.");
     return;
   }
-  if (codes.has("booking")) {
+  const startLead =
+    text === (config?.title || "Оставить заявку") || text === "/lead";
+  // Explicit menu actions may switch away from an unfinished dialogue.
+  if (
+    codes.has("booking") &&
+    !startLead &&
+    text !== "Связаться с администрацией"
+  ) {
     try {
       if (await bookingFlow(tx, input, queue)) return;
     } catch (error) {
@@ -174,7 +187,11 @@ export async function routeBot(
     await queue("Напишите ваш вопрос.", ["Главное меню"]);
     return;
   }
-  if (current?.mode === "messages" && codes.has("admin_messages")) {
+  if (
+    !startLead &&
+    current?.mode === "messages" &&
+    codes.has("admin_messages")
+  ) {
     const result = await new CommunicationService(
       tx,
     ).recordInboundInTransaction(tx, {
@@ -193,8 +210,6 @@ export async function routeBot(
       ]);
     return;
   }
-  const startLead =
-    text === (config?.title || "Оставить заявку") || text === "/lead";
   const ask = (snapshot: LeadSetupDraft, field: string) => {
     const option = snapshot.fieldOptions?.[field as LeadFieldId];
     return (

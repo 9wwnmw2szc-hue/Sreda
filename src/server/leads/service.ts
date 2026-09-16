@@ -174,6 +174,13 @@ export class LeadService {
     const input = clean(raw);
     return this.db.transaction().execute(async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "leads.write");
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", b.id)
+        .forUpdate()
+        .execute();
+      await requireBusiness(tx, userId, publicId, "leads.write");
       const lead = await createLead(tx, b.id, input);
       return this.toLead(lead, publicId);
     });
@@ -319,6 +326,7 @@ export async function createLead(
   const clientId = await matchClient(tx, businessId, {
     name: input.name,
     phone: input.phone,
+    email: input.answers?.email || null,
     identities:
       input.platformUserId && input.source !== "max"
         ? [

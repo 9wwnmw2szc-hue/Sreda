@@ -89,13 +89,11 @@ export class TelegramService {
             status: "pending",
           })
           .onConflict((oc) =>
-            oc
-              .column("connection_id")
-              .doUpdateSet({
-                generation,
-                status: "pending",
-                updated_at: new Date(),
-              }),
+            oc.column("connection_id").doUpdateSet({
+              generation,
+              status: "pending",
+              updated_at: new Date(),
+            }),
           )
           .execute();
         // Do not discard Telegram's pending updates. Failed DB commit leaves webhook
@@ -386,7 +384,7 @@ export class TelegramService {
               .set({
                 delivery_status: "sent",
                 external_message_id: delivered?.message_id
-                  ? String(delivered.message_id)
+                  ? `telegram:${row.connection_id}:${row.chat_id}:${delivered.message_id}`
                   : null,
               })
               .where("id", "=", row.communication_message_id)
