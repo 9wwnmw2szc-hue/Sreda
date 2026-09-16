@@ -1,3 +1,4 @@
+import {limit} from '../http/limits.ts';
 import {notificationValid} from '../notifications/worker.ts';
 import {sendTelegramMedia} from "../attachments/send.ts";
 import {telegramAttachments} from "../attachments/inbound.ts";
@@ -45,7 +46,7 @@ export class TelegramService {
  }
  async receive(id:string,provided:string,body:Record<string,unknown>){
   if(!this.enabled)throw new AppError(503,"TELEGRAM_DISABLED","Обработка сообщений временно недоступна.");
-  if(!/^[a-f0-9-]{36}$/i.test(id))throw new AppError(404,"NOT_FOUND","Подключение не найдено.");
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id))throw new AppError(404,"NOT_FOUND","Подключение не найдено.");
   return this.db.transaction().execute(async tx=>{
    const lookup=await tx.selectFrom("business_connection").select("business_id").where("id","=",id).executeTakeFirst();
    if(!lookup)throw new AppError(404,"NOT_FOUND","Подключение не найдено.");
@@ -60,6 +61,7 @@ export class TelegramService {
    if(!unique)return {ok:true};
    const m=body.message as {chat?:{id?:number;type?:string};from?:{id?:number;is_bot?:boolean;username?:string};text?:string;caption?:string}|undefined;
    if(m?.chat?.type!=="private"||!Number.isSafeInteger(m.chat.id)||m.from?.id!==m.chat.id||m.from?.is_bot)return {ok:true};
+   await limit(tx,this.secret,'bot:'+id+':'+m.chat.id,30,60);
    await routeBot(tx,{businessId:business.id,connectionId:id,platform:'telegram',userId:String(m.chat.id),username:m.from?.username,eventId:updateId,text:m.text??m.caption??'',attachments:telegramAttachments(body.message)});
    return {ok:true};
   });
@@ -87,7 +89,7 @@ export class TelegramService {
     if(!(e instanceof TelegramError))throw e;
     const failure=e;
     if(failure.uncertain){if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.booking_reminder_id).execute();if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'uncertain',null,'DELIVERY_UNKNOWN');await tx.updateTable('telegram_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
-    if(failure.chatUnavailable){
+    if(failure.chatUnavailable){const cancelled=await tx.selectFrom('telegram_outbox').select(['communication_message_id','booking_reminder_id','post_delivery_id']).where('connection_id','=',row.connection_id).where('chat_id','=',row.chat_id).where('delivered_at','is',null).execute();for(const job of cancelled){if(job.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'failed'}).where('id','=',job.communication_message_id).execute();if(job.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'failed',last_error:'CHAT_UNAVAILABLE'}).where('id','=',job.booking_reminder_id).execute();if(job.post_delivery_id)await postDeliveryResult(tx,job.post_delivery_id,'failed',null,'CHAT_UNAVAILABLE');}
      // A recipient may block the bot. Cancel only that chat's pending work;
      // never pause every customer's channel or mark unsent replies delivered.
      await tx.deleteFrom("telegram_outbox").where("connection_id","=",row.connection_id).where("chat_id","=",row.chat_id).where("delivered_at","is",null).execute();

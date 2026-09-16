@@ -18,7 +18,9 @@ try{
    await queueNotification(db,config.origin);
    await materializeRecurringPost(db);
    await queueScheduledPost(db);
+   await db.insertInto('worker_heartbeat').values({name:'autopost',seen_at:new Date()}).onConflict(oc=>oc.column('name').doUpdateSet({seen_at:new Date()})).execute();
    const queued=await queueBookingReminder(db);
+   await db.insertInto('worker_heartbeat').values({name:'booking_reminders',seen_at:new Date()}).onConflict(oc=>oc.column('name').doUpdateSet({seen_at:new Date()})).execute();
    const worked=await service.deliverOne()||queued;
    if(Date.now()>nextCleanup){
     // Dedup IDs carry no message text. Incomplete dialogues expire after one day.

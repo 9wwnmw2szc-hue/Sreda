@@ -1,3 +1,4 @@
+import {limit} from '../http/limits.ts';
 import {prepareVKMedia} from "../attachments/send.ts";
 import {vkAttachments} from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
@@ -38,7 +39,7 @@ export class VKService {
 
   async receive(id: string, body: Record<string, unknown>) {
     if (!this.enabled) throw new AppError(503, "VK_DISABLED", "Обработка VK временно недоступна.");
-    if (!/^[a-f0-9-]{36}$/i.test(id)) throw new AppError(404, "NOT_FOUND", "Подключение не найдено.");
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) throw new AppError(404, "NOT_FOUND", "Подключение не найдено.");
     return this.db.transaction().execute(async (tx) => {
       const runtime = await tx.selectFrom("vk_runtime as r")
         .innerJoin("business_connection as c", "c.id", "r.connection_id")
@@ -62,6 +63,7 @@ export class VKService {
       const object=body.object as {message?:VKMessage}|undefined;
       const message = object?.message ?? body.object as VKMessage | undefined;
       if (!message || typeof message.from_id !== "number" || typeof message.peer_id !== "number" || !Number.isSafeInteger(message.from_id) || !Number.isSafeInteger(message.peer_id) || typeof message.text !== "string" || message.from_id <= 0 || message.peer_id <= 0 || message.from_id !== message.peer_id) return { ok: true };
+      await limit(tx,this.secret,'bot:'+id+':'+message.from_id,30,60);
       await routeBot(tx,{businessId:runtime.business_id,connectionId:id,platform:'vk',userId:String(message.from_id),eventId,text:message.text,attachments:vkAttachments(message)});
       return { ok: true, accepted: true };
     });
@@ -103,7 +105,7 @@ export class VKService {
         if(!(error instanceof VKError))throw error;
         const failure=error;
         if(failure.uncertain){if(row.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.booking_reminder_id).execute();if(row.post_delivery_id)await postDeliveryResult(tx,row.post_delivery_id,'uncertain',null,'DELIVERY_UNKNOWN');await tx.updateTable('vk_outbox').set({delivery_state:'uncertain',last_error:'DELIVERY_UNKNOWN'}).where('id','=',row.id).execute();if(row.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'uncertain'}).where('id','=',row.communication_message_id).execute();return true;}
-        if (failure.chatUnavailable) {
+        if (failure.chatUnavailable) {const cancelled=await tx.selectFrom('vk_outbox').select(['communication_message_id','booking_reminder_id','post_delivery_id']).where('connection_id','=',row.connection_id).where('peer_id','=',row.peer_id).where('delivered_at','is',null).execute();for(const job of cancelled){if(job.communication_message_id)await tx.updateTable('communication_message').set({delivery_status:'failed'}).where('id','=',job.communication_message_id).execute();if(job.booking_reminder_id)await tx.updateTable('booking_reminder').set({status:'failed',last_error:'CHAT_UNAVAILABLE'}).where('id','=',job.booking_reminder_id).execute();if(job.post_delivery_id)await postDeliveryResult(tx,job.post_delivery_id,'failed',null,'CHAT_UNAVAILABLE');}
           await tx.deleteFrom("vk_outbox").where("connection_id", "=", row.connection_id).where("peer_id", "=", row.peer_id).where("delivered_at", "is", null).execute();
           return true;
         }

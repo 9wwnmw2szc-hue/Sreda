@@ -1,3 +1,4 @@
+import {audit} from '../audit/service.ts';
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
@@ -16,7 +17,7 @@ export function validateSetup(raw: unknown): LeadSetupDraft {
   return { ...(d.title!==undefined?{title:copy('title',100)}:{}),...(d.greeting!==undefined?{greeting:copy('greeting',2000)}:{}),...(d.finalMessage!==undefined?{finalMessage:copy('finalMessage',2000)}:{}),...(d.fieldOptions?{fieldOptions}:{}), version:1, step:d.step, channels:[...d.channels], fields:LEAD_FIELDS.filter((f)=>d.fields.includes(f.id)).map((f)=>f.id) };
 }
 export class SolutionService {
- constructor(private readonly db: Kysely<Database>, private readonly telegramEnabled = false) {}
+ constructor(private readonly db: Kysely<Database>, private readonly telegramEnabled = false,private readonly vkEnabled = false) {}
  async business(userId:string,publicId:string,write=false) {
   const row=await this.db.selectFrom("business").innerJoin("business_member as m","m.business_id","business.id").select(["business.id","m.role"]).where("business.public_id","=",publicId).where("business.archived_at","is",null).where("m.user_id","=",userId).where("m.status","=","active").executeTakeFirst();
   if(!row) throw new AppError(404,"BUSINESS_NOT_FOUND","Бизнес не найден.");
@@ -40,12 +41,12 @@ export class SolutionService {
    const revision=Number(body.revision)+1;
    await tx.insertInto("lead_setup").values({business_id:id,draft:JSON.stringify(draft),revision,updated_at:new Date()}).onConflict(oc=>oc.column("business_id").doUpdateSet({draft:JSON.stringify(draft),revision,updated_at:new Date()})).execute();
    if(draft.step===3)await tx.insertInto('business_solution').values({business_id:id,solution_code:'leads',status:'active',starts_at:new Date(),expires_at:null}).onConflict(oc=>oc.columns(['business_id','solution_code']).doUpdateSet({status:'active',expires_at:null,updated_at:new Date()})).execute();
-   return {draft,revision};
+   await audit(tx,id,userId,'settings_changed',id,{solution:'leads',revision});return {draft,revision};
   });
  }
  async activate(userId:string,publicId:string,raw:Record<string,unknown>){
   const code=String(raw.code);if(!['leads','booking','autopost','admin_messages'].includes(code)||typeof raw.enabled!=='boolean')throw new AppError(400,'INVALID_SOLUTION','Выберите решение.');
-  return this.db.transaction().execute(async tx=>{const id=await new SolutionService(tx).business(userId,publicId,true);await tx.selectFrom('business').select('id').where('id','=',id).forUpdate().execute();await new SolutionService(tx).business(userId,publicId,true);const status=raw.enabled?'active':'disabled';await tx.insertInto('business_solution').values({business_id:id,solution_code:code,status,starts_at:new Date(),expires_at:null}).onConflict(oc=>oc.columns(['business_id','solution_code']).doUpdateSet({status,expires_at:null,updated_at:new Date()})).execute();return {ok:true};});
+  return this.db.transaction().execute(async tx=>{const id=await new SolutionService(tx).business(userId,publicId,true);await tx.selectFrom('business').select('id').where('id','=',id).forUpdate().execute();await new SolutionService(tx).business(userId,publicId,true);const status=raw.enabled?'active':'disabled';await tx.insertInto('business_solution').values({business_id:id,solution_code:code,status,starts_at:new Date(),expires_at:null}).onConflict(oc=>oc.columns(['business_id','solution_code']).doUpdateSet({status,expires_at:null,updated_at:new Date()})).execute();await audit(tx,id,userId,'settings_changed',id,{solution:code,status});return {ok:true};});
  }
  async list(userId:string,publicId:string) {
   const id=await this.business(userId,publicId);
@@ -53,24 +54,12 @@ export class SolutionService {
   const enabledSolutions=await this.db.selectFrom("business_solution").select(["solution_code","status","expires_at"]).where("business_id","=",id).execute();
   const now=Date.now();
   const solutionState=new Map(enabledSolutions.map((item)=>[item.solution_code,{active:(item.status==="active"||item.status==="trial")&&(!item.expires_at||item.expires_at.getTime()>now),status:item.status}]));
-  const runtime=await this.db.selectFrom("business_connection as c").innerJoin("telegram_runtime as r","r.connection_id","c.id").select("r.status").where("c.business_id","=",id).where("c.status","=","connected").where("c.platform","=","telegram").executeTakeFirst();
-  const heartbeat=await this.db.selectFrom("worker_heartbeat").select("seen_at").where("name","=","telegram").executeTakeFirst();
-  const healthy=heartbeat && heartbeat.seen_at.getTime()>Date.now()-60000;
-  const active=!!healthy && this.telegramEnabled && setup.draft.step===3 && setup.draft.channels.length===1 && setup.draft.channels[0]==="telegram" && runtime?.status==="ready";
-  const paused=setup.revision && (runtime?.status==="error" || runtime?.status==="ready"&&!healthy);
-  const note=active?"Telegram подключён, обработчик отвечает.":!setup.revision||setup.draft.step!==3?"Завершите выбор площадок и вопросов.":setup.draft.channels.includes("vk")?"Запуск VK ещё недоступен. Для первого запуска выберите только Telegram.":!this.telegramEnabled?"Запуск сообщений станет доступен после подготовки сервера.":runtime?.status==="error"?"Отправка в Telegram приостановлена после ошибок. Проверьте токен и запустите сценарий повторно.":runtime?.status==="ready"&&!healthy?"Обработчик сообщений не отвечает. Требуется проверка сервера.":"Подключите Telegram-бота и запустите сценарий в настройке решения.";
-  return SOLUTIONS.map((solution) => ({
-    id: publicId + ":" + solution.code,
-    businessId: publicId,
-    solutionId: solution.id,
-    status: (solution.code === "leads"
-      ? active ? "active" : paused ? "paused" : setup.revision ? "setup_required" : "available"
-      : solutionState.get(solution.code)?.active ? "active" : "unavailable") as SolutionStatus,
-    note: solution.code === "leads"
-      ? note
-      : solutionState.get(solution.code)?.active
-        ? "Решение подключено и доступно в универсальном боте."
-        : "Подключите решение, чтобы добавить его функции в универсальный бот.",
-  }));
+  const connections=await this.db.selectFrom('business_connection').select(['id','platform']).where('business_id','=',id).where('status','=','connected').execute();
+  const beats=await this.db.selectFrom('worker_heartbeat').selectAll().execute();const alive=(name:string)=>beats.some(b=>b.name===name&&+b.seen_at>now-60000);
+  const states=new Map<string,{ready:boolean;error:boolean}>();for(const c of connections){const r=await this.db.selectFrom(c.platform==='telegram'?'telegram_runtime':'vk_runtime').select('status').where('connection_id','=',c.id).executeTakeFirst();states.set(c.platform,{ready:r?.status==='ready'&&alive(c.platform)&&(c.platform==='telegram'?this.telegramEnabled:this.vkEnabled),error:r?.status==='error'||r?.status==='ready'&&!alive(c.platform)});}
+  return SOLUTIONS.map(solution=>{const configured=solutionState.get(solution.code)?.active;const channels=solution.code==='leads'?setup.draft.channels:[...states.keys()];const ready=channels.length>0&&channels.every(c=>states.get(c)?.ready);const scheduler=solution.code==='autopost'?alive('autopost'):solution.code==='booking'?alive('booking_reminders'):true;
+   let status:SolutionStatus=configured?(ready&&scheduler?'active':'paused'):'unavailable';let note=configured?(ready&&scheduler?'Подключения и обработчики отвечают.':'Проверьте запуск каналов и состояние обработчиков на сервере.'):'Подключите решение, чтобы настроить его функции.';
+   if(solution.code==='leads'){if(!setup.revision){status='available';note='Выберите площадки и вопросы.';}else if(setup.draft.step!==3||!channels.length||!channels.every(c=>states.has(c))){status='setup_required';note='Завершите настройку и подключите выбранные каналы.';}else if(configured&&ready){status='active';note='Каналы приёма заявок и обработчики отвечают.';}else if(channels.some(c=>states.get(c)?.error)){status='paused';note='Обработчик сообщений не отвечает или канал приостановлен.';}else{status='setup_required';note='Запустите выбранные каналы в разделе «Подключения».';}}
+   return {id:publicId+':'+solution.code,businessId:publicId,solutionId:solution.id,status,note};});
  }
 }

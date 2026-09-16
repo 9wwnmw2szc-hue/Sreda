@@ -1,3 +1,5 @@
+import {audit} from '../audit/service.ts';
+import {nextOccurrence,type Recurrence} from '../posts/recurrence.ts';
 import type { Kysely } from 'kysely';
 import type { Database } from '../db/schema.ts';
 import { requireBusiness } from '../access/permissions.ts';
@@ -10,6 +12,6 @@ export class BusinessProfileService {
   const base=parseBusiness({name:input.name,timezone:input.timezone});
   const optional=(key:string,max:number)=>{const value=input[key]??'';if(typeof value!=='string'||value.length>max||/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value))throw new AppError(400,'INVALID_PROFILE','Проверьте поля профиля.');return value.trim();};
   const fields={...base,public_name:optional('public_name',100)||null,greeting:optional('greeting',2000),description:optional('description',4000),contact_info:optional('contact_info',2000)};
-  return this.db.transaction().execute(async tx=>{const b=await requireBusiness(tx,userId,publicId,'settings.manage');await tx.selectFrom('business').select('id').where('id','=',b.id).forUpdate().execute();await requireBusiness(tx,userId,publicId,'settings.manage');await tx.updateTable('business').set(fields).where('id','=',b.id).execute();return fields;});
+  return this.db.transaction().execute(async tx=>{const b=await requireBusiness(tx,userId,publicId,'settings.manage');await tx.selectFrom('business').select('id').where('id','=',b.id).forUpdate().execute();await requireBusiness(tx,userId,publicId,'settings.manage');const old=await tx.selectFrom('business').select('timezone').where('id','=',b.id).executeTakeFirstOrThrow();await tx.updateTable('business').set(fields).where('id','=',b.id).execute();if(old.timezone!==fields.timezone){const schedules=await tx.selectFrom('post_schedule').selectAll().where('business_id','=',b.id).where('active','=',true).execute();for(const schedule of schedules){const rule={...schedule.rule as Recurrence,timezone:fields.timezone};const next=nextOccurrence(rule,new Date());await tx.updateTable('post_schedule').set({rule:JSON.stringify(rule),next_at:next,active:!!next,revision:schedule.revision+1}).where('post_id','=',schedule.post_id).execute();await tx.updateTable('post').set({status:'cancelled'}).where('template_id','=',schedule.post_id).where('status','=','scheduled').execute();}}await audit(tx,b.id,userId,'settings_changed',b.id,{fields:Object.keys(fields)});return fields;});
  }
 }

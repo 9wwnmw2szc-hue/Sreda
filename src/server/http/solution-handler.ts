@@ -5,8 +5,8 @@ import { SolutionService } from "../solutions/service.ts";
 import { TelegramService } from "../telegram/service.ts";
 import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 import { limit } from "./limits.ts";
-export function createSolutionHandler(options:{db:Kysely<Database>;auth:Identity;origin:string;secret:string;telegramEnabled?:boolean;telegram?:TelegramService}){
- const solutions=new SolutionService(options.db,options.telegramEnabled);
+export function createSolutionHandler(options:{db:Kysely<Database>;auth:Identity;origin:string;secret:string;telegramEnabled?:boolean;vkEnabled?:boolean;telegram?:TelegramService}){
+ const solutions=new SolutionService(options.db,options.telegramEnabled,options.vkEnabled);
  return (request:Request,id:string,action:"setup"|"solutions"|"start")=>respond(async()=>{
   if(!["GET","POST"].includes(request.method)||action==="start"&&request.method!=="POST")throw new AppError(405,"METHOD_NOT_ALLOWED","Метод недоступен.");
   if(request.method!=="GET")requireOrigin(request,options.origin);

@@ -594,7 +594,7 @@ async function botFixture(fields = readyDraft.fields) {
   const transport = async (url, init) => {
     if (url.endsWith("/getMe")) return Response.json({ ok: true, result: { id: Number.parseInt(randomUUID().slice(0,8),16), is_bot: true, username: "fixture_bot" } });
     calls.push({ method: url.split("/").at(-1), body: JSON.parse(init.body) });
-    return Response.json({ ok: true, result: true });
+    return Response.json({ ok: true, result: url.endsWith("/sendMessage")?{message_id:calls.length}:true });
   };
   const connections = new ConnectionService(db, secret, transport);
   await connections.connect(owner.internalId, business.id, { platform: "telegram", token: "test-only-bot-token-12345" });

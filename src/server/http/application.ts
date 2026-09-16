@@ -1,14 +1,15 @@
+import {limit} from './limits.ts';
 import type { Identity } from "../identity/auth.ts";
 import type { WorkspaceService } from "../workspaces/service.ts";
 import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 
-export function createApplication(options: { auth: Identity; workspaces: WorkspaceService; leads?: import("../leads/service.ts").LeadService; invitations?: import("../invitations/service.ts").InvitationService; connections?: import("../connections/service.ts").ConnectionService; communications?: import("../communications/service.ts").CommunicationService; db?: Kysely<Database>; origin: string }) {
+export function createApplication(options: { auth: Identity; workspaces: WorkspaceService; leads?: import("../leads/service.ts").LeadService; invitations?: import("../invitations/service.ts").InvitationService; connections?: import("../connections/service.ts").ConnectionService; communications?: import("../communications/service.ts").CommunicationService; db?: Kysely<Database>;secret?:string; origin: string }) {
   async function requireUser(headers: Headers) {
     const session = await options.auth.api.getSession({ headers });
     if (!session || !session.user.username) throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
-    return session.user;
+    if(options.db&&options.secret)await limit(options.db,options.secret,'api:'+session.user.id,180,60);return session.user;
   }
   return {
     requireUser,

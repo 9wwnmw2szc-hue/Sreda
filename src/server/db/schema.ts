@@ -47,7 +47,7 @@ export interface Database extends NotificationTables, ClientTables, BookingTable
     expires_at: Date; created_at: Generated<Date>; responded_at: Date | null;
   };
   business_audit_log: {
-    id: string; business_id: string; actor_user_id: string; action: "invitation_created" | "invitation_accepted" | "invitation_revoked" | "member_revoked" | "member_role_changed" | "connection_connected" | "connection_disconnected" | "lead_taken" | "lead_closed" | "conversation_taken" | "conversation_closed" | "booking_created" | "booking_rescheduled" | "booking_cancelled" | "booking_completed" | "service_created" | "service_updated" | "specialist_created" | "specialist_updated" | "post_created" | "post_scheduled" | "post_cancelled" | "post_published" | "settings_changed";
+    id: string; business_id: string; actor_user_id: string|null; actor_type:Generated<"member"|"client"|"system">;target_id:Generated<string|null>;metadata:Generated<unknown>;action: "invitation_created" | "invitation_accepted" | "invitation_revoked" | "member_revoked" | "member_role_changed" | "connection_connected" | "connection_disconnected" | "lead_taken" | "lead_closed" | "conversation_taken" | "conversation_closed" | "booking_created" | "booking_rescheduled" | "booking_cancelled" | "booking_completed" | "service_created" | "service_updated" | "specialist_created" | "specialist_updated" | "post_created" | "post_scheduled" | "post_cancelled" | "post_published" | "settings_changed";
     target_user_id: string | null; details: string | null; created_at: Generated<Date>;
   };
   business_connection: {

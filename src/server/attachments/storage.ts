@@ -2,7 +2,7 @@ import {S3Client,PutObjectCommand,GetObjectCommand,DeleteObjectCommand} from '@a
 import {mkdir,readFile,writeFile,unlink} from 'node:fs/promises';import {isAbsolute,join} from 'node:path';import {AppError} from '../http/errors.ts';
 export const MAX_ATTACHMENT=50*1024*1024;
 export interface AttachmentStorage{put(key:string,bytes:Uint8Array,mime:string):Promise<void>;get(key:string):Promise<Uint8Array>;remove(key:string):Promise<void>}
-function keyCheck(key:string){if(!/^[a-f0-9-]{36}\/[a-f0-9-]{36}$/.test(key))throw new Error('Invalid storage key');}
+function keyCheck(key:string){if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(key))throw new Error('Invalid storage key');}
 export class FileAttachmentStorage implements AttachmentStorage{constructor(private root:string){if(!isAbsolute(root))throw new Error('Storage path must be absolute');}async put(key:string,bytes:Uint8Array){keyCheck(key);await mkdir(join(this.root,key.split('/')[0]!),{recursive:true,mode:0o700});await writeFile(join(this.root,key),bytes,{mode:0o600,flag:'wx'});}async get(key:string){keyCheck(key);return readFile(join(this.root,key));}async remove(key:string){keyCheck(key);await unlink(join(this.root,key)).catch(()=>{});}}
 export class S3AttachmentStorage implements AttachmentStorage{
  constructor(private client:S3Client,private bucket:string){}

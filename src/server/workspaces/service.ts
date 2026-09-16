@@ -8,7 +8,7 @@ export class WorkspaceService {
   constructor(private db: Kysely<Database>) {}
 
   private async resolveUserId(userId: string) {
-    if (/^[0-9a-f-]{36}$/.test(userId)) return userId;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(userId)) return userId;
     const row = await this.db.selectFrom("user").select("id").where("public_id", "=", userId).executeTakeFirst();
     if (!row) throw new AppError(404, "NOT_FOUND", "Бизнес не найден.");
     return row.id;

@@ -1,3 +1,4 @@
+import {audit} from '../audit/service.ts';
 import {recordAttachments,type InboundAttachment} from "../attachments/service.ts";
 import { matchClient,clientActivity } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
@@ -83,7 +84,7 @@ export class CommunicationService {
     await this.resolve(userId, publicId, true);
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AppError(400, "INVALID_MESSAGE", "Проверьте сообщение.");
     const body = raw as Record<string, unknown>;
-    const attachmentIds=Array.isArray(body.attachments)?[...new Set(body.attachments.map(String))]:[];if(attachmentIds.length>10||attachmentIds.some(id=>!/^[a-f0-9-]{36}$/i.test(id)))throw new AppError(400,'INVALID_ATTACHMENT','Проверьте вложения.');
+    const attachmentIds=Array.isArray(body.attachments)?[...new Set(body.attachments.map(String))]:[];if(attachmentIds.length>10||attachmentIds.some(id=>!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)))throw new AppError(400,'INVALID_ATTACHMENT','Проверьте вложения.');
     const message = text(body.text|| (attachmentIds.length?'Вложение':''));
     const businessId = (await this.resolve(userId, publicId)).id;
     const conversation = await this.db.selectFrom("communication_conversation").select(["id", "platform", "external_user_id"]).where("id", "=", conversationId).where("business_id", "=", businessId).executeTakeFirst();
@@ -124,12 +125,15 @@ export class CommunicationService {
     const status = (raw as Record<string, unknown>).status;
     if (!["open", "assigned", "closed", "blocked"].includes(String(status))) throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
     const businessId = (await this.resolve(userId, publicId)).id;
-    let update=this.db.updateTable("communication_conversation").set({status:status as ConversationStatus,closed_at:status==='closed'?new Date():null,...(status==='assigned'?{assigned_member_user_id:userId}:status==='open'?{assigned_member_user_id:null}:{})}).where('id','=',conversationId).where('business_id','=',businessId);
-    if(status==='assigned')update=update.where(eb=>eb.or([eb('assigned_member_user_id','is',null),eb('assigned_member_user_id','=',userId)]));
-    const row=await update.returning(['id','status','closed_at']).executeTakeFirst();
-    if(!row&&status==='assigned')throw new AppError(409,'CONVERSATION_ASSIGNED','Диалог уже взял другой сотрудник.');
-    if (!row) throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
-    return { id: row.id, status: row.status, closedAt: row.closed_at?.toISOString() };
+    return this.db.transaction().execute(async tx=>{
+      await tx.selectFrom('business').select('id').where('id','=',businessId).forUpdate().execute();await requireBusiness(tx,userId,publicId,'messages.write');
+      const current=await tx.selectFrom('communication_conversation').selectAll().where('id','=',conversationId).where('business_id','=',businessId).forUpdate().executeTakeFirst();if(!current)throw new AppError(404,'CONVERSATION_NOT_FOUND','Диалог не найден.');
+      if(current.assigned_member_user_id&&current.assigned_member_user_id!==userId)throw new AppError(409,'CONVERSATION_ASSIGNED','Диалог уже взял другой сотрудник.');
+      let update=tx.updateTable('communication_conversation').set({status:status as ConversationStatus,closed_at:status==='closed'?new Date():null,...(status==='assigned'?{assigned_member_user_id:userId}:status==='open'?{assigned_member_user_id:null}:{})}).where('id','=',conversationId).where('business_id','=',businessId);
+      if(status==='assigned')update=update.where(eb=>eb.or([eb('assigned_member_user_id','is',null),eb('assigned_member_user_id','=',userId)]));const row=await update.returning(['id','status','closed_at']).executeTakeFirst();if(!row)throw new AppError(409,'CONVERSATION_ASSIGNED','Диалог уже взял другой сотрудник.');
+      if(current.status!==status&&(status==='assigned'||status==='closed')){await audit(tx,businessId,userId,status==='assigned'?'conversation_taken':'conversation_closed',conversationId);if(current.client_id)await clientActivity(tx,businessId,current.client_id,status==='assigned'?'conversation.assigned':'conversation.closed',randomUUID(),conversationId,userId);}
+      return {id:row.id,status:row.status,closedAt:row.closed_at?.toISOString()};
+    });
   }
 
   async recordInbound(input: { businessId: string; platform: Platform; externalUserId: string; externalUsername?: string | null; text: string; externalMessageId?: string | null; connectionId?:string;attachments?:InboundAttachment[] }) {

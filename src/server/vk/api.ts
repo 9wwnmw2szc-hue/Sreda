@@ -30,6 +30,7 @@ export async function vkCall(
       throw new VKError(0, permanent, chatUnavailable);
     }
     if (!data || !("response" in data)) throw new VKError(0,false,false,true);
+    if(method==='messages.send'&&(!Number.isSafeInteger(data.response)||Number(data.response)<=0))throw new VKError(0,false,false,true);if(method==='wall.post'&&(!data.response||!Number.isSafeInteger((data.response as {post_id?:number}).post_id)))throw new VKError(0,false,false,true);
     return data.response;
   } catch (error) {
     if (error instanceof VKError) throw error;

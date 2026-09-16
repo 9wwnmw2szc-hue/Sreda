@@ -8,6 +8,7 @@ export async function telegramCall(token:string,method:"getFile"|"sendMessage"|"
   const data=await response.json().catch(()=>null) as {ok?:boolean;result?:{file_path?:string;message_id?:number;id?:number;type?:string;title?:string;status?:string;can_post_messages?:boolean};parameters?:{retry_after?:number}}|null;
   if(!data)throw new TelegramError(0,false,false,true);
   if(!response.ok||!data?.ok)throw new TelegramError(Math.min(3600,Math.max(0,Number(data?.parameters?.retry_after)||0)),[400,401,403,404].includes(response.status),method==="sendMessage"&&response.status===403);
+  if(method==='sendMessage'&&(!Number.isSafeInteger(data.result?.message_id)||Number(data.result?.message_id)<=0))throw new TelegramError(0,false,false,true);
   return data.result;
  }catch(e){if(e instanceof TelegramError)throw e;throw new TelegramError(0,false,false,true);}
 }
