@@ -417,7 +417,7 @@ export async function createLead(
       "\nИсточник: " +
       input.source +
       (input.answers?.service ? "\nУслуга: " + input.answers.service : ""),
-    "/leads",
+    "/leads?id=" + lead.id,
   );
   return lead;
 }

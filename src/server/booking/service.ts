@@ -11,6 +11,15 @@ import {
 } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
 import {
+  assertNoBlockedTimeOverlap,
+  blockedBusyIntervals,
+} from "../calendar/service.ts";
+import {
+  cancelReminders,
+  parseOffsets,
+  scheduleReminders,
+} from "../calendar/reminders.ts";
+import {
   calculateSlots,
   dateOnly,
   intervals,
@@ -107,17 +116,24 @@ export async function availableSlots(
     .where("occupied_from", "<", new Date(Date.parse(date) + 2 * 86400000));
   if (excludeId) query = query.where("id", "!=", excludeId);
   const busy = await query.execute();
+  const dayStart =
+    localInstants(date, 0, business.timezone)[0] ??
+    new Date(date + "T00:00:00Z");
+  const nextDay = new Date(Date.parse(date) + 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const dayEnd =
+    localInstants(nextDay, 0, business.timezone)[0] ??
+    new Date(Date.parse(date) + 86400000);
+  const blocked = await blockedBusyIntervals(
+    tx,
+    businessId,
+    specialistId,
+    dayStart,
+    dayEnd,
+  );
   let slotIntervals: Interval[];
   if (settings?.schedule_mode === "manual") {
-    const dayStart =
-      localInstants(date, 0, business.timezone)[0] ??
-      new Date(date + "T00:00:00Z");
-    const nextDay = new Date(Date.parse(date) + 86400000)
-      .toISOString()
-      .slice(0, 10);
-    const dayEnd =
-      localInstants(nextDay, 0, business.timezone)[0] ??
-      new Date(Date.parse(date) + 86400000);
     const windows = await tx
       .selectFrom("booking_manual_slot")
       .selectAll()
@@ -181,7 +197,10 @@ export async function availableSlots(
     notice: settings?.minimum_booking_notice ?? 120,
     horizon: settings?.maximum_booking_horizon ?? 60,
     now: new Date(),
-    busy: busy.map((b) => ({ from: b.from, until: b.until })),
+    busy: [
+      ...busy.map((b) => ({ from: b.from, until: b.until })),
+      ...blocked,
+    ],
   });
 }
 export async function bookingReminders(
@@ -198,12 +217,19 @@ export async function bookingReminders(
     .where("booking_id", "=", bookingId)
     .where("status", "in", ["pending", "queued"])
     .execute();
+  const settings = await tx
+    .selectFrom("booking_settings")
+    .select(["client_reminders_enabled"])
+    .where("business_id", "=", businessId)
+    .executeTakeFirst();
+  const clientEnabled = settings?.client_reminders_enabled !== false;
   for (const [kind, offset] of [
     ["confirmation", 0],
     ["24h", 24 * 3600000],
     ["2h", 2 * 3600000],
   ] as const) {
     if (kind === "confirmation" && !confirmation) continue;
+    if (kind !== "confirmation" && !clientEnabled) continue;
     const due =
       kind === "confirmation" ? new Date() : new Date(+start - offset);
     if (kind !== "confirmation" && +due <= Date.now()) continue;
@@ -293,6 +319,10 @@ export class BookingService {
         slot_interval: 15,
         choose_specialist: true,
         schedule_mode: "automatic" as const,
+        client_reminders_enabled: true,
+        client_reminder_offsets: [1440, 120],
+        client_reminder_template: "",
+        staff_reminder_offsets: [1440, 30],
       },
     };
   }
@@ -317,10 +347,32 @@ export class BookingService {
           typeof body.choose_specialist !== "boolean"
         )
           throw fail();
+        if (
+          body.client_reminders_enabled != null &&
+          typeof body.client_reminders_enabled !== "boolean"
+        )
+          throw fail();
         const choose =
           body.choose_specialist == null ? true : body.choose_specialist;
         const scheduleMode = String(body.schedule_mode ?? "automatic");
         if (!["automatic", "manual"].includes(scheduleMode)) throw fail();
+        const clientRemindersEnabled =
+          body.client_reminders_enabled == null
+            ? true
+            : body.client_reminders_enabled;
+        const clientOffsets = parseOffsets(
+          body.client_reminder_offsets ?? [1440, 120],
+          [1440, 120],
+        );
+        const staffOffsets = parseOffsets(
+          body.staff_reminder_offsets ?? [1440, 30],
+          [1440, 30],
+        );
+        const clientTemplate =
+          typeof body.client_reminder_template === "string"
+            ? body.client_reminder_template
+            : "";
+        if (clientTemplate.length > 2000) throw fail();
         const values = {
           business_id: b.id,
           minimum_booking_notice: integer(
@@ -336,6 +388,10 @@ export class BookingService {
           slot_interval: integer(body.slot_interval, 5, 240),
           choose_specialist: choose,
           schedule_mode: scheduleMode as "automatic" | "manual",
+          client_reminders_enabled: clientRemindersEnabled,
+          client_reminder_offsets: JSON.stringify(clientOffsets),
+          client_reminder_template: clientTemplate,
+          staff_reminder_offsets: JSON.stringify(staffOffsets),
         };
         await tx
           .insertInto("booking_settings")
@@ -763,6 +819,18 @@ export class BookingService {
       serviceId,
       specialistId,
     );
+    const occupiedFrom = new Date(+start - service.buffer_before_minutes * 60000);
+    const occupiedUntil = new Date(
+      +start +
+        (service.duration_minutes + service.buffer_after_minutes) * 60000,
+    );
+    await assertNoBlockedTimeOverlap(
+      tx,
+      businessId,
+      specialistId,
+      occupiedFrom,
+      occupiedUntil,
+    );
     const b = await tx
       .selectFrom("business")
       .select("timezone")
@@ -791,11 +859,8 @@ export class BookingService {
         specialist_id: specialistId,
         starts_at: start,
         ends_at: new Date(+start + service.duration_minutes * 60000),
-        occupied_from: new Date(+start - service.buffer_before_minutes * 60000),
-        occupied_until: new Date(
-          +start +
-            (service.duration_minutes + service.buffer_after_minutes) * 60000,
-        ),
+        occupied_from: occupiedFrom,
+        occupied_until: occupiedUntil,
         status: "confirmed",
         source,
         request_key: key,
@@ -835,7 +900,7 @@ export class BookingService {
         service.name +
         "\n" +
         start.toLocaleString("ru", { timeZone: b.timezone }),
-      " /bookings".trim(),
+      "/bookings?id=" + booking.id,
     );
     await bookingReminders(
       tx,
@@ -845,6 +910,24 @@ export class BookingService {
       start,
       source === "manual",
     );
+    const settings = await tx
+      .selectFrom("booking_settings")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .executeTakeFirst();
+    const staffOffsets = parseOffsets(
+      settings?.staff_reminder_offsets ?? [1440, 30],
+      [1440, 30],
+    );
+    await scheduleReminders(tx, {
+      businessId,
+      entityKind: "booking",
+      entityId: booking.id,
+      startsAt: start,
+      offsets: staffOffsets,
+      audience: "staff",
+      channel: "in_app",
+    });
     await audit(tx, businessId, actor, "booking_created", booking.id, {
       source,
       client_id: clientId,
@@ -929,6 +1012,20 @@ export class BookingService {
         current.service_id,
         current.specialist_id,
       );
+      const occupiedFrom = new Date(
+        +newStart - service.buffer_before_minutes * 60000,
+      );
+      const occupiedUntil = new Date(
+        +newStart +
+          (service.duration_minutes + service.buffer_after_minutes) * 60000,
+      );
+      await assertNoBlockedTimeOverlap(
+        tx,
+        businessId,
+        current.specialist_id,
+        occupiedFrom,
+        occupiedUntil,
+      );
       const slots = await availableSlots(
         tx,
         businessId,
@@ -948,13 +1045,8 @@ export class BookingService {
         .set({
           starts_at: newStart,
           ends_at: new Date(+newStart + service.duration_minutes * 60000),
-          occupied_from: new Date(
-            +newStart - service.buffer_before_minutes * 60000,
-          ),
-          occupied_until: new Date(
-            +newStart +
-              (service.duration_minutes + service.buffer_after_minutes) * 60000,
-          ),
+          occupied_from: occupiedFrom,
+          occupied_until: occupiedUntil,
           revision,
           updated_at: new Date(),
         })
@@ -968,6 +1060,23 @@ export class BookingService {
         newStart,
         !clientId,
       );
+      const settings = await tx
+        .selectFrom("booking_settings")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .executeTakeFirst();
+      await scheduleReminders(tx, {
+        businessId,
+        entityKind: "booking",
+        entityId: current.id,
+        startsAt: newStart,
+        offsets: parseOffsets(
+          settings?.staff_reminder_offsets ?? [1440, 30],
+          [1440, 30],
+        ),
+        audience: "staff",
+        channel: "in_app",
+      });
     } else {
       await tx
         .updateTable("booking")
@@ -989,6 +1098,7 @@ export class BookingService {
         .where("booking_id", "=", current.id)
         .where("status", "in", ["pending", "queued"])
         .execute();
+      await cancelReminders(tx, businessId, "booking", current.id);
     }
     const type =
       action === "reschedule"
@@ -1026,7 +1136,7 @@ export class BookingService {
         type,
         "booking:" + current.id + ":" + revision,
         type === "booking.cancelled" ? "Запись отменена" : "Запись перенесена",
-        "/bookings",
+        "/bookings?id=" + current.id,
       );
     if (action !== "no_show")
       await audit(

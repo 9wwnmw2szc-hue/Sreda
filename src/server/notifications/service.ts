@@ -9,8 +9,10 @@ export type NotificationType =
   | "booking.created"
   | "booking.cancelled"
   | "booking.rescheduled"
+  | "booking.upcoming"
   | "order.created"
-  | "post.failed";
+  | "post.failed"
+  | "calendar.reminder";
 export async function notify(
   tx: Transaction<Database>,
   businessId: string,
@@ -18,6 +20,7 @@ export async function notify(
   eventKey: string,
   title: string,
   targetPath: string,
+  recipientUserIds?: string[],
 ) {
   const row = await tx
     .insertInto("notification")
@@ -33,12 +36,14 @@ export async function notify(
     .returning("id")
     .executeTakeFirst();
   if (!row) return;
-  const members = await tx
+  let members = await tx
     .selectFrom("business_member")
     .select("user_id")
     .where("business_id", "=", businessId)
     .where("status", "=", "active")
     .execute();
+  if (recipientUserIds?.length)
+    members = members.filter((m) => recipientUserIds.includes(m.user_id));
   for (const m of members) {
     const preference = await tx
       .selectFrom("notification_preference")
@@ -99,6 +104,22 @@ export class NotificationService {
       .where("business_id", "=", b.id)
       .where("user_id", "=", userId)
       .where("notification_id", "=", id)
+      .execute();
+    return { ok: true };
+  }
+  async markAllRead(userId: string, publicId: string) {
+    const b = await requireBusiness(
+      this.db,
+      userId,
+      publicId,
+      "notifications.read",
+    );
+    await this.db
+      .updateTable("notification_recipient")
+      .set({ read_at: new Date() })
+      .where("business_id", "=", b.id)
+      .where("user_id", "=", userId)
+      .where("read_at", "is", null)
       .execute();
     return { ok: true };
   }

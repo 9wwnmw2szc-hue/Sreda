@@ -4,6 +4,7 @@ import type { PostTables } from "../posts/schema.ts";
 import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
 import type { OrderTables } from "../orders/schema.ts";
+import type { CalendarTables } from "../calendar/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
@@ -21,7 +22,8 @@ export interface Database
     BookingTables,
     PostTables,
     AttachmentTables,
-    OrderTables {
+    OrderTables,
+    CalendarTables {
   account_pin: {
     user_id: string;
     pin_hash: string;
@@ -91,6 +93,7 @@ export interface Database
     post_delivery_id: Generated<string | null>;
     api_payload: Generated<unknown>;
     booking_reminder_id: Generated<string | null>;
+    entity_reminder_id: Generated<string | null>;
     delivery_state: Generated<
       "pending" | "sending" | "sent" | "failed" | "uncertain"
     >;
@@ -128,6 +131,7 @@ export interface Database
     post_delivery_id: Generated<string | null>;
     api_payload: Generated<unknown>;
     booking_reminder_id: Generated<string | null>;
+    entity_reminder_id: Generated<string | null>;
     delivery_state: Generated<
       "pending" | "sending" | "sent" | "failed" | "uncertain"
     >;
@@ -256,7 +260,10 @@ export interface Database
       | "order_created"
       | "order_status_changed"
       | "inventory_adjusted"
-      | "settings_changed";
+      | "settings_changed"
+      | "calendar_event_created"
+      | "calendar_event_updated"
+      | "calendar_event_cancelled";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

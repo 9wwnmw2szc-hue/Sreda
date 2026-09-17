@@ -43,6 +43,10 @@ export interface BookingTables {
     slot_interval: Generated<number>;
     choose_specialist: Generated<boolean>;
     schedule_mode: Generated<"automatic" | "manual">;
+    client_reminders_enabled: Generated<boolean>;
+    client_reminder_offsets: Generated<unknown>;
+    client_reminder_template: Generated<string>;
+    staff_reminder_offsets: Generated<unknown>;
   };
   booking_schedule: {
     business_id: string;

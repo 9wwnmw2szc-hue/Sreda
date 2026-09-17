@@ -1395,7 +1395,7 @@ export class OrderService {
         "order.created",
         "order:" + orderId,
         "Новый заказ: " + customerName + "\n" + total + " " + currency,
-        "/orders",
+        "/orders?id=" + orderId,
       );
       await audit(tx, businessId, actor, "order_created", orderId, {
         source,
