@@ -5,6 +5,7 @@ import { sendTelegramMedia } from "../attachments/send.ts";
 import { telegramAttachments } from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
+import { entityReminderValid } from "../calendar/worker.ts";
 import { claimDelivery, expireClaims } from "../outbox/claim.ts";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql, type Kysely } from "kysely";
@@ -355,6 +356,23 @@ export class TelegramService {
           .execute();
         return true;
       }
+      if (
+        row.entity_reminder_id &&
+        !(await entityReminderValid(tx, row.entity_reminder_id))
+      ) {
+        await tx
+          .updateTable("telegram_outbox")
+          .set({ delivery_state: "failed", last_error: "STALE_REMINDER" })
+          .where("id", "=", row.id)
+          .execute();
+        await tx
+          .updateTable("entity_reminder")
+          .set({ status: "cancelled", last_error: "STALE_REMINDER" })
+          .where("id", "=", row.entity_reminder_id)
+          .where("status", "in", ["pending", "queued", "uncertain"])
+          .execute();
+        return true;
+      }
       try {
         const delivered = await sendTelegramMedia(
           tx,
@@ -400,6 +418,13 @@ export class TelegramService {
             .set({ status: "sent" })
             .where("id", "=", row.booking_reminder_id)
             .execute();
+        if (row.entity_reminder_id)
+          await tx
+            .updateTable("entity_reminder")
+            .set({ status: "sent", last_error: null })
+            .where("id", "=", row.entity_reminder_id)
+            .where("status", "in", ["pending", "queued", "uncertain"])
+            .execute();
         if (row.communication_message_id) {
           const remaining = await tx
             .selectFrom("telegram_outbox")
@@ -433,6 +458,13 @@ export class TelegramService {
               .set({ status: "uncertain", last_error: "DELIVERY_UNKNOWN" })
               .where("id", "=", row.booking_reminder_id)
               .execute();
+          if (row.entity_reminder_id)
+            await tx
+              .updateTable("entity_reminder")
+              .set({ status: "uncertain", last_error: "DELIVERY_UNKNOWN" })
+              .where("id", "=", row.entity_reminder_id)
+              .where("status", "in", ["pending", "queued"])
+              .execute();
           if (row.post_delivery_id)
             await postDeliveryResult(
               tx,
@@ -463,6 +495,7 @@ export class TelegramService {
             .select([
               "communication_message_id",
               "booking_reminder_id",
+              "entity_reminder_id",
               "post_delivery_id",
             ])
             .where("connection_id", "=", row.connection_id)
@@ -481,6 +514,13 @@ export class TelegramService {
                 .updateTable("booking_reminder")
                 .set({ status: "failed", last_error: "CHAT_UNAVAILABLE" })
                 .where("id", "=", job.booking_reminder_id)
+                .execute();
+            if (job.entity_reminder_id)
+              await tx
+                .updateTable("entity_reminder")
+                .set({ status: "failed", last_error: "CHAT_UNAVAILABLE" })
+                .where("id", "=", job.entity_reminder_id)
+                .where("status", "in", ["pending", "queued", "uncertain"])
                 .execute();
             if (job.post_delivery_id)
               await postDeliveryResult(
@@ -540,6 +580,13 @@ export class TelegramService {
             .updateTable("booking_reminder")
             .set({ status: "failed", last_error: "DELIVERY_FAILED" })
             .where("id", "=", row.booking_reminder_id)
+            .execute();
+        if (exhausted && row.entity_reminder_id)
+          await tx
+            .updateTable("entity_reminder")
+            .set({ status: "failed", last_error: "DELIVERY_FAILED" })
+            .where("id", "=", row.entity_reminder_id)
+            .where("status", "in", ["pending", "queued", "uncertain"])
             .execute();
         if (exhausted && row.post_delivery_id)
           await postDeliveryResult(
