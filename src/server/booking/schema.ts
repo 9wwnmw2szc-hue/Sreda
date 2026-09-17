@@ -25,6 +25,8 @@ export interface BookingTables {
     business_id: string;
     name: string;
     description: Generated<string>;
+    title: Generated<string>;
+    photo_attachment_id: string | null;
     active: Generated<boolean>;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
@@ -39,6 +41,12 @@ export interface BookingTables {
     minimum_booking_notice: Generated<number>;
     maximum_booking_horizon: Generated<number>;
     slot_interval: Generated<number>;
+    choose_specialist: Generated<boolean>;
+    schedule_mode: Generated<"automatic" | "manual">;
+    client_reminders_enabled: Generated<boolean>;
+    client_reminder_offsets: Generated<unknown>;
+    client_reminder_template: Generated<string>;
+    staff_reminder_offsets: Generated<unknown>;
   };
   booking_schedule: {
     business_id: string;
@@ -52,6 +60,17 @@ export interface BookingTables {
     date: string;
     intervals: unknown;
     reason: Generated<string>;
+  };
+  booking_manual_slot: {
+    id: string;
+    business_id: string;
+    specialist_id: string | null;
+    service_id: string | null;
+    starts_at: Date;
+    ends_at: Date;
+    capacity: Generated<number>;
+    active: Generated<boolean>;
+    created_at: Generated<Date>;
   };
   booking: {
     id: string;

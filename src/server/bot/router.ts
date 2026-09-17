@@ -3,9 +3,11 @@ import { AppError } from "../http/errors.ts";
 import { bindNotification } from "../notifications/settings.ts";
 import type { InboundAttachment } from "../attachments/service.ts";
 import { bookingFlow } from "./booking-flow.ts";
+import { ordersFlow } from "./orders-flow.ts";
 import type { Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { validateSetup } from "../solutions/service.ts";
+import { normalizeSolutionCode } from "../solutions/catalog.ts";
 import { createLead } from "../leads/service.ts";
 import { CommunicationService } from "../communications/service.ts";
 import { normalizeIdentity } from "../clients/service.ts";
@@ -55,14 +57,20 @@ export async function routeBot(
     .where("business_id", "=", businessId)
     .executeTakeFirst();
   const config = setup ? validateSetup(JSON.parse(setup.draft)) : undefined;
-  const codes = new Set(active.map((x) => x.solution_code));
+  const codes = new Set(
+    active.map((x) => normalizeSolutionCode(x.solution_code)),
+  );
+  const ordersActive = codes.has("orders");
   const menu = [
     ...(codes.has("leads") &&
     config?.step === 3 &&
     config?.channels.includes(platform)
       ? [config.title || "Оставить заявку"]
       : []),
-    ...(codes.has("admin_messages") ? ["Связаться с администрацией"] : []),
+    ...(ordersActive ? ["Каталог", "Корзина"] : []),
+    ...(codes.has("admin_messages")
+      ? [ordersActive ? "Связаться с магазином" : "Связаться с администрацией"]
+      : []),
     ...(codes.has("booking") ? ["Онлайн-запись", "Мои записи"] : []),
   ];
   const queuePart = async (message: string, buttons: string[] = []) => {
@@ -163,12 +171,10 @@ export async function routeBot(
   }
   const startLead =
     text === (config?.title || "Оставить заявку") || text === "/lead";
+  const contactAdmin =
+    text === "Связаться с администрацией" || text === "Связаться с магазином";
   // Explicit menu actions may switch away from an unfinished dialogue.
-  if (
-    codes.has("booking") &&
-    !startLead &&
-    text !== "Связаться с администрацией"
-  ) {
+  if (codes.has("booking") && !startLead && !contactAdmin) {
     try {
       if (await bookingFlow(tx, input, queue)) return;
     } catch (error) {
@@ -182,7 +188,26 @@ export async function routeBot(
       return;
     }
   }
-  if (text === "Связаться с администрацией" && codes.has("admin_messages")) {
+  if (ordersActive && !startLead && !contactAdmin) {
+    try {
+      if (
+        await ordersFlow(tx, input, queue, {
+          contactShop: codes.has("admin_messages"),
+        })
+      )
+        return;
+    } catch (error) {
+      if (
+        !(error instanceof AppError) ||
+        error.status >= 500 ||
+        error.status === 429
+      )
+        throw error;
+      await showMenu(error.message + " Выберите действие заново.");
+      return;
+    }
+  }
+  if (contactAdmin && codes.has("admin_messages")) {
     await save("messages");
     await queue("Напишите ваш вопрос.", ["Главное меню"]);
     return;

@@ -9,10 +9,14 @@ import { getLeadPage, updateLeadStatus } from "@/services/leads.service";
 import { isDemoMode } from "@/lib/dataMode";
 import { formatRelativeDateTime } from "@/lib/format";
 import { ClientError } from "@/lib/apiClient";
+import { LeadFormFieldsPanel } from "@/components/leads/LeadFormFieldsPanel";
 import type { Lead, LeadStatus } from "@/types";
 const labels: Record<LeadStatus, string> = {
   new: "Новая",
   processing: "В работе",
+  waiting_customer: "Ждём клиента",
+  completed: "Завершена",
+  rejected: "Отклонена",
   closed: "Закрыта",
 };
 export function LeadsView() {
@@ -53,10 +57,22 @@ export function LeadsView() {
       ) : isLoading ? (
         <LoadingPanel label="Загружаем бизнес" />
       ) : currentBusiness ? (
-        <LeadList
-          key={`${currentBusiness.id}:${currentBusiness.role}`}
-          businessId={currentBusiness.id}
-        />
+        <>
+          <LeadList
+            key={`${currentBusiness.id}:${currentBusiness.role}`}
+            businessId={currentBusiness.id}
+          />
+          {!isDemoMode && (
+            <LeadFormFieldsPanel
+              key={`fields:${currentBusiness.id}:${currentBusiness.role}`}
+              businessId={currentBusiness.id}
+              canEdit={
+                currentBusiness.role === "owner" ||
+                currentBusiness.role === "admin"
+              }
+            />
+          )}
+        </>
       ) : (
         <p>Выберите бизнес.</p>
       )}
@@ -252,6 +268,9 @@ function LeadList({ businessId }: { businessId: string }) {
             <option value="all">Все заявки</option>
             <option value="new">Новые</option>
             <option value="processing">В работе</option>
+            <option value="waiting_customer">Ждём клиента</option>
+            <option value="completed">Завершённые</option>
+            <option value="rejected">Отклонённые</option>
             <option value="closed">Закрытые</option>
           </select>
         </label>

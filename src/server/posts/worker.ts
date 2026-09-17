@@ -79,23 +79,30 @@ export async function queueScheduledPost(db: Kysely<Database>) {
         .orderBy("position")
         .execute();
       const ids = files.map((f) => f.attachment_id);
+      const platformText =
+        d.platform === "telegram"
+          ? post.text_telegram || post.text
+          : d.platform === "vk"
+            ? post.text_vk || post.text
+            : post.text;
       const row = {
         connection_id: d.connection_id,
         post_delivery_id: d.id,
-        message: post.text,
+        message: platformText,
         delivered_at: null,
         last_error: null,
       };
       if (d.platform === "telegram") {
         const split =
           ids.length > 0 &&
-          (post.text.length > 1024 || (ids.length > 1 && buttons.length > 0));
+          (platformText.length > 1024 ||
+            (ids.length > 1 && buttons.length > 0));
         const steps = split
           ? [
-              { text: post.text, ids: [] as string[], buttons },
+              { text: platformText, ids: [] as string[], buttons },
               { text: "", ids, buttons: [] },
             ]
-          : [{ text: post.text, ids, buttons }];
+          : [{ text: platformText, ids, buttons }];
         for (const [post_step, step] of steps.entries())
           await tx
             .insertInto("telegram_outbox")
@@ -134,7 +141,7 @@ export async function queueScheduledPost(db: Kysely<Database>) {
               from_group: 1,
               guid: d.id,
               message:
-                post.text +
+                platformText +
                 (buttons.length
                   ? "\n\n" +
                     buttons.map((b) => b.text + ": " + b.url).join("\n")
@@ -202,6 +209,8 @@ export async function materializeRecurringPost(db: Kysely<Database>) {
         id: randomUUID(),
         business_id: template.business_id,
         text: template.text,
+        text_telegram: template.text_telegram,
+        text_vk: template.text_vk,
         buttons: template.buttons,
         status: "scheduled",
         scheduled_at: schedule.next_at,

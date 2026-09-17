@@ -23,6 +23,8 @@ export interface PostTables {
     id: string;
     business_id: string;
     text: string;
+    text_telegram: Generated<string | null>;
+    text_vk: Generated<string | null>;
     buttons: Generated<unknown>;
     status: PostStatus;
     scheduled_at: Date | null;

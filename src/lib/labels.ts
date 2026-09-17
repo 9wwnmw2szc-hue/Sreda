@@ -23,6 +23,12 @@ export function leadStatusLabel(status: LeadStatus): string {
       return "Новая";
     case "processing":
       return "В работе";
+    case "waiting_customer":
+      return "Ждём клиента";
+    case "completed":
+      return "Завершена";
+    case "rejected":
+      return "Отклонена";
     case "closed":
       return "Закрыта";
     default:

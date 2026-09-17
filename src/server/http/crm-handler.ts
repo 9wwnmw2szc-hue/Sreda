@@ -32,20 +32,23 @@ export function crmHandler(
           : await service.save(
               user.id,
               businessId,
-              await readJson(request, 16000),
+              await readJson(request, 48000),
             ),
       );
     }
     if (resource === "notifications") {
       const service = new NotificationService(runtime.db);
+      if (request.method === "GET")
+        return json(await service.list(user.id, businessId));
+      const body = await readJson(request);
+      if (
+        body.action === "mark_all_read" ||
+        body.mark_all === true ||
+        body.all === true
+      )
+        return json(await service.markAllRead(user.id, businessId));
       return json(
-        request.method === "GET"
-          ? await service.list(user.id, businessId)
-          : await service.read(
-              user.id,
-              businessId,
-              String((await readJson(request)).id),
-            ),
+        await service.read(user.id, businessId, String(body.id)),
       );
     }
     const service = new ClientService(runtime.db);

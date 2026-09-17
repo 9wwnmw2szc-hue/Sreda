@@ -11,6 +11,8 @@ type Post = {
   attachments: FileItem[];
   id: string;
   text: string;
+  text_telegram?: string | null;
+  text_vk?: string | null;
   buttons: { text: string; url: string }[];
   status: string;
   revision: number;
@@ -76,6 +78,8 @@ function Editor({
     [filter, setFilter] = useState("all"),
     [page, setPage] = useState(0),
     [text, setText] = useState(""),
+    [textTelegram, setTextTelegram] = useState(""),
+    [textVk, setTextVk] = useState(""),
     [chosen, setChosen] = useState<string[]>([]),
     [buttons, setButtons] = useState<{ text: string; url: string }[]>([]),
     [editing, setEditing] = useState<Post | null>(null),
@@ -131,6 +135,8 @@ function Editor({
   function reset() {
     setEditing(null);
     setText("");
+    setTextTelegram("");
+    setTextVk("");
     setFiles([]);
     setChosen([]);
     setButtons([]);
@@ -149,6 +155,8 @@ function Editor({
         method: editing ? "PATCH" : "POST",
         body: JSON.stringify({
           text,
+          text_telegram: textTelegram || null,
+          text_vk: textVk || null,
           attachments: files.map((f) => f.id),
           targets: chosen,
           buttons,
@@ -238,6 +246,26 @@ function Editor({
       setBusy(false);
     }
   }
+  const calendarGroups = (() => {
+    const groups = new Map<string, Post[]>();
+    for (const post of posts) {
+      if (
+        !post.scheduled_at ||
+        (post.status !== "scheduled" && !post.schedule?.active)
+      )
+        continue;
+      const key = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(post.scheduled_at));
+      const list = groups.get(key) ?? [];
+      list.push(post);
+      groups.set(key, list);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  })();
   return (
     <div>
       <h1>Публикации</h1>
@@ -250,6 +278,40 @@ function Editor({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {calendarGroups.length > 0 && (
+        <section className="panel crm-panel posts-calendar" aria-label="Календарь">
+          <h2>Календарь</h2>
+          <p className="field-hint">Запланированные публикации по датам.</p>
+          <ul className="posts-calendar-list">
+            {calendarGroups.map(([day, dayPosts]) => (
+              <li key={day}>
+                <strong>
+                  {new Date(day + "T12:00:00").toLocaleDateString("ru", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </strong>
+                <ul>
+                  {dayPosts.map((p) => (
+                    <li key={p.id}>
+                      <span>
+                        {new Date(p.scheduled_at!).toLocaleTimeString("ru", {
+                          timeZone: timezone,
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>{" "}
+                      {p.text.slice(0, 80)}
+                      {p.text.length > 80 ? "…" : ""}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="crm-columns">
         <section className="panel crm-panel">
           <h2>{editing ? "Редактировать публикацию" : "Создать публикацию"}</h2>
@@ -284,6 +346,31 @@ function Editor({
               }}
             />
           </label>
+          <details>
+            <summary>Текст для площадок (необязательно)</summary>
+            <label>
+              Telegram
+              <textarea
+                maxLength={4096}
+                value={textTelegram}
+                onChange={(e) => {
+                  setTextTelegram(e.target.value);
+                  key.current = "";
+                }}
+              />
+            </label>
+            <label>
+              ВКонтакте
+              <textarea
+                maxLength={4096}
+                value={textVk}
+                onChange={(e) => {
+                  setTextVk(e.target.value);
+                  key.current = "";
+                }}
+              />
+            </label>
+          </details>
           <AttachmentPicker
             businessId={businessId}
             files={files}
@@ -598,6 +685,8 @@ function Editor({
                         onClick={() => {
                           setEditing(p);
                           setText(p.text);
+                          setTextTelegram(p.text_telegram ?? "");
+                          setTextVk(p.text_vk ?? "");
                           setFiles(p.attachments ?? []);
                           setChosen(p.deliveries.map((d) => d.target_id));
                           setButtons(p.buttons);

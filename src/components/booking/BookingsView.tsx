@@ -35,10 +35,21 @@ type Catalog = {
   services: Service[];
   specialists: Specialist[];
   links: { service_id: string; specialist_id: string }[];
+  manualSlots?: {
+    id: string;
+    specialist_id: string | null;
+    service_id: string | null;
+    starts_at: string;
+    ends_at: string;
+    capacity: number;
+    active: boolean;
+  }[];
   settings: {
     minimum_booking_notice: number;
     maximum_booking_horizon: number;
     slot_interval: number;
+    choose_specialist?: boolean;
+    schedule_mode?: "automatic" | "manual";
   };
 };
 type Booking = {
@@ -635,8 +646,15 @@ function Configuration({
     [exception, setException] = useState(""),
     [reason, setReason] = useState(""),
     [hours, setHours] = useState("09:00-18:00"),
-    [settings, setSettings] = useState(catalog.settings),
-    [linked, setLinked] = useState<string[]>([]);
+    [settings, setSettings] = useState({
+      choose_specialist: true,
+      schedule_mode: "automatic" as "automatic" | "manual",
+      ...catalog.settings,
+    }),
+    [linked, setLinked] = useState<string[]>([]),
+    [manualStart, setManualStart] = useState(""),
+    [manualEnd, setManualEnd] = useState(""),
+    [manualCapacity, setManualCapacity] = useState(1);
   async function save(body: unknown) {
     setBusy(true);
     setError("");
@@ -1042,12 +1060,105 @@ function Configuration({
             />
           </label>
         ))}
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.choose_specialist !== false}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                choose_specialist: e.target.checked,
+              })
+            }
+          />{" "}
+          Клиент выбирает специалиста
+        </label>
+        <label>
+          Режим расписания
+          <select
+            value={settings.schedule_mode ?? "automatic"}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                schedule_mode: e.target.value as "automatic" | "manual",
+              })
+            }
+          >
+            <option value="automatic">Недельное расписание</option>
+            <option value="manual">Ручные окна</option>
+          </select>
+        </label>
         <button
           disabled={busy}
           onClick={() => void save({ kind: "settings", ...settings })}
         >
           Сохранить правила
         </button>
+        {(settings.schedule_mode ?? "automatic") === "manual" && (
+          <div>
+            <h4>Ручные окна записи</h4>
+            <label>
+              Начало
+              <input
+                type="datetime-local"
+                value={manualStart}
+                onChange={(e) => setManualStart(e.target.value)}
+              />
+            </label>
+            <label>
+              Конец
+              <input
+                type="datetime-local"
+                value={manualEnd}
+                onChange={(e) => setManualEnd(e.target.value)}
+              />
+            </label>
+            <label>
+              Вместимость
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={manualCapacity}
+                onChange={(e) => setManualCapacity(Number(e.target.value))}
+              />
+            </label>
+            <button
+              disabled={busy || !manualStart || !manualEnd}
+              onClick={() =>
+                void save({
+                  kind: "manual_slot",
+                  starts_at: new Date(manualStart).toISOString(),
+                  ends_at: new Date(manualEnd).toISOString(),
+                  capacity: manualCapacity,
+                  specialist_id: resource || null,
+                }).then(() => {
+                  setManualStart("");
+                  setManualEnd("");
+                })
+              }
+            >
+              Добавить окно
+            </button>
+            <ul>
+              {(catalog.manualSlots ?? []).map((slot) => (
+                <li key={slot.id}>
+                  {new Date(slot.starts_at).toLocaleString("ru")} —{" "}
+                  {new Date(slot.ends_at).toLocaleString("ru")} · до{" "}
+                  {slot.capacity}
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void save({ kind: "manual_slot_delete", id: slot.id })
+                    }
+                  >
+                    Удалить
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </details>
     </section>
   );

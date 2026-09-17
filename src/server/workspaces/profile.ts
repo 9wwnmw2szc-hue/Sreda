@@ -5,6 +5,20 @@ import type { Database } from "../db/schema.ts";
 import { requireBusiness } from "../access/permissions.ts";
 import { parseBusiness } from "./validation.ts";
 import { AppError } from "../http/errors.ts";
+
+const AI_FIELD_LIMITS = {
+  ai_about: 8000,
+  ai_tone: 1000,
+  ai_important_facts: 4000,
+  ai_restrictions: 4000,
+  ai_delivery_info: 2000,
+  ai_geography: 2000,
+  ai_returns_info: 2000,
+  ai_extra_instructions: 4000,
+} as const;
+
+type AiField = keyof typeof AI_FIELD_LIMITS;
+
 export class BusinessProfileService {
   constructor(private db: Kysely<Database>) {}
   async get(userId: string, publicId: string) {
@@ -18,12 +32,25 @@ export class BusinessProfileService {
         "description",
         "contact_info",
         "timezone",
+        "business_type",
+        "ai_about",
+        "ai_tone",
+        "ai_important_facts",
+        "ai_restrictions",
+        "ai_delivery_info",
+        "ai_geography",
+        "ai_returns_info",
+        "ai_extra_instructions",
       ])
       .where("id", "=", b.id)
       .executeTakeFirstOrThrow();
   }
   async save(userId: string, publicId: string, input: Record<string, unknown>) {
-    const base = parseBusiness({ name: input.name, timezone: input.timezone });
+    const base = parseBusiness({
+      name: input.name,
+      timezone: input.timezone,
+      business_type: input.business_type,
+    });
     const optional = (key: string, max: number) => {
       const value = input[key] ?? "";
       if (
@@ -34,12 +61,19 @@ export class BusinessProfileService {
         throw new AppError(400, "INVALID_PROFILE", "Проверьте поля профиля.");
       return value.trim();
     };
+    const aiFields = Object.fromEntries(
+      (Object.keys(AI_FIELD_LIMITS) as AiField[]).map((key) => [
+        key,
+        optional(key, AI_FIELD_LIMITS[key]),
+      ]),
+    ) as Record<AiField, string>;
     const fields = {
       ...base,
       public_name: optional("public_name", 100) || null,
       greeting: optional("greeting", 2000),
       description: optional("description", 4000),
       contact_info: optional("contact_info", 2000),
+      ...aiFields,
     };
     return this.db.transaction().execute(async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "settings.manage");

@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Plus, ArrowUpRight, Search, RefreshCw } from "lucide-react";
@@ -22,6 +22,11 @@ import {
 } from "@/hooks/useDashboardData";
 import { formatRelativeDateTime } from "@/lib/format";
 import { isDemoMode } from "@/lib/dataMode";
+import { apiRequest } from "@/lib/apiClient";
+import {
+  recommendationSummary,
+  recommendedSolutionCodes,
+} from "@/lib/businessTypeRecommendations";
 import { solutionRoute } from "@/config/solutionPresentation";
 import type { Lead, Post } from "@/types";
 type Selection =
@@ -34,6 +39,37 @@ export function DashboardView() {
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [selectionBusiness, setSelectionBusiness] = useState("");
+  const [profileHint, setProfileHint] = useState<{
+    id: string;
+    type: "store" | "service" | "hybrid";
+  } | null>(null);
+  useEffect(() => {
+    if (!data.businessId || isDemoMode || data.isLoading) return;
+    const businessId = data.businessId;
+    let active = true;
+    void apiRequest<{ business_type?: "store" | "service" | "hybrid" }>(
+      `/api/v1/businesses/${encodeURIComponent(businessId)}/profile`,
+    )
+      .then((profile) => {
+        if (active)
+          setProfileHint({
+            id: businessId,
+            type: profile.business_type ?? "hybrid",
+          });
+      })
+      .catch(() => {
+        if (active) setProfileHint(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [data.businessId, data.isLoading]);
+  const businessType =
+    !isDemoMode && profileHint?.id === data.businessId
+      ? profileHint.type
+      : null;
+  const recommended = recommendedSolutionCodes(businessType);
+  const recommendHint = recommendationSummary(businessType);
   const show = (value: Selection) => {
     setQuery("");
     setSelectionBusiness(data.businessId);
@@ -266,12 +302,24 @@ export function DashboardView() {
                 Готовые инструменты для ваших ежедневных задач. Выберите то, что
                 нужно вашему бизнесу.
               </p>
+              {recommendHint && (
+                <p className="account-notice" role="status">
+                  {recommendHint} Подсказка, не ограничение.
+                  {recommended.includes("orders") && (
+                    <>
+                      {" "}
+                      <Link href="/orders">Открыть заказы</Link>
+                    </>
+                  )}
+                </p>
+              )}
               <div className="catalog-grid">
                 {data.workspaceItems.map((item) => (
                   <SolutionModule
                     key={item.solution.id}
                     item={item}
                     onSelect={selectSolution}
+                    recommended={recommended.includes(item.code)}
                   />
                 ))}
               </div>

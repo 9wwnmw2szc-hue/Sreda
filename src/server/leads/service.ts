@@ -15,7 +15,37 @@ type Input = {
   message?: string | null;
   externalEventId?: string | null;
 };
-const statuses: LeadStatus[] = ["new", "processing", "closed"];
+const statuses: LeadStatus[] = [
+  "new",
+  "processing",
+  "waiting_customer",
+  "completed",
+  "rejected",
+  "closed",
+];
+
+async function recordStatusHistory(
+  tx: Transaction<Database>,
+  businessId: string,
+  leadId: string,
+  fromStatus: string | null,
+  toStatus: string,
+  actorUserId: string | null,
+  note = "",
+) {
+  await tx
+    .insertInto("lead_status_history")
+    .values({
+      id: randomUUID(),
+      business_id: businessId,
+      lead_id: leadId,
+      from_status: fromStatus,
+      to_status: toStatus,
+      actor_user_id: actorUserId,
+      note,
+    })
+    .execute();
+}
 function clean(input: unknown): Input {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new AppError(400, "INVALID_LEAD", "Проверьте данные заявки.");
@@ -233,42 +263,56 @@ export class LeadService {
           "LEAD_ASSIGNED",
           "Заявка уже в работе у другого сотрудника.",
         );
+      const next = status as LeadStatus;
       const row = await tx
         .updateTable("lead")
         .set({
-          status: status as LeadStatus,
+          status: next,
           updated_at: new Date(),
-          ...(status === "processing"
+          ...(next === "processing"
             ? {
                 processing_by: userId,
                 processing_at: current.processing_at ?? new Date(),
               }
-            : status === "new"
+            : next === "new"
               ? { processing_by: null, processing_at: null }
-            : {}),
+              : {}),
         })
         .where("id", "=", id)
         .returningAll()
         .executeTakeFirstOrThrow();
-      if (current.status !== status) {
+      if (current.status !== next) {
+        await recordStatusHistory(
+          tx,
+          internalBusinessId,
+          id,
+          current.status,
+          next,
+          userId,
+        );
         if (row.client_id)
           await clientActivity(
             tx,
             internalBusinessId,
             row.client_id,
-            "lead." + status,
+            "lead." + next,
             randomUUID(),
             id,
             userId,
           );
-        if (status === "processing" || status === "closed")
+        if (
+          next === "processing" ||
+          next === "closed" ||
+          next === "completed" ||
+          next === "rejected"
+        )
           await tx
             .insertInto("business_audit_log")
             .values({
               id: randomUUID(),
               business_id: internalBusinessId,
               actor_user_id: userId,
-              action: status === "processing" ? "lead_taken" : "lead_closed",
+              action: next === "processing" ? "lead_taken" : "lead_closed",
               target_user_id: null,
               details: id,
             })
@@ -352,6 +396,7 @@ export async function createLead(
     })
     .returningAll()
     .executeTakeFirstOrThrow();
+  await recordStatusHistory(tx, businessId, lead.id, null, "new", null);
   await clientActivity(
     tx,
     businessId,
@@ -372,7 +417,7 @@ export async function createLead(
       "\nИсточник: " +
       input.source +
       (input.answers?.service ? "\nУслуга: " + input.answers.service : ""),
-    "/leads",
+    "/leads?id=" + lead.id,
   );
   return lead;
 }

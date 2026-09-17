@@ -3,16 +3,27 @@ import type { AttachmentTables } from "../attachments/schema.ts";
 import type { PostTables } from "../posts/schema.ts";
 import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
+import type { OrderTables } from "../orders/schema.ts";
+import type { CalendarTables } from "../calendar/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
-export type LeadStatus = "new" | "processing" | "closed";
+export type LeadStatus =
+  | "new"
+  | "processing"
+  | "waiting_customer"
+  | "completed"
+  | "rejected"
+  | "closed";
+export type BusinessType = "store" | "service" | "hybrid";
 export interface Database
   extends NotificationTables,
     ClientTables,
     BookingTables,
     PostTables,
-    AttachmentTables {
+    AttachmentTables,
+    OrderTables,
+    CalendarTables {
   account_pin: {
     user_id: string;
     pin_hash: string;
@@ -82,6 +93,7 @@ export interface Database
     post_delivery_id: Generated<string | null>;
     api_payload: Generated<unknown>;
     booking_reminder_id: Generated<string | null>;
+    entity_reminder_id: Generated<string | null>;
     delivery_state: Generated<
       "pending" | "sending" | "sent" | "failed" | "uncertain"
     >;
@@ -119,6 +131,7 @@ export interface Database
     post_delivery_id: Generated<string | null>;
     api_payload: Generated<unknown>;
     booking_reminder_id: Generated<string | null>;
+    entity_reminder_id: Generated<string | null>;
     delivery_state: Generated<
       "pending" | "sending" | "sent" | "failed" | "uncertain"
     >;
@@ -173,6 +186,15 @@ export interface Database
     greeting: Generated<string>;
     description: Generated<string>;
     contact_info: Generated<string>;
+    business_type: Generated<BusinessType>;
+    ai_about: Generated<string>;
+    ai_tone: Generated<string>;
+    ai_important_facts: Generated<string>;
+    ai_restrictions: Generated<string>;
+    ai_delivery_info: Generated<string>;
+    ai_geography: Generated<string>;
+    ai_returns_info: Generated<string>;
+    ai_extra_instructions: Generated<string>;
     created_at: Generated<Date>;
     archived_at: Date | null;
   };
@@ -233,7 +255,15 @@ export interface Database
       | "post_scheduled"
       | "post_cancelled"
       | "post_published"
-      | "settings_changed";
+      | "product_created"
+      | "product_updated"
+      | "order_created"
+      | "order_status_changed"
+      | "inventory_adjusted"
+      | "settings_changed"
+      | "calendar_event_created"
+      | "calendar_event_updated"
+      | "calendar_event_cancelled";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;
@@ -270,6 +300,30 @@ export interface Database
     external_event_id: string | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
+  };
+  lead_form_field: {
+    id: string;
+    business_id: string;
+    field_key: string;
+    label: string;
+    field_type: string;
+    required: Generated<boolean>;
+    placeholder: Generated<string>;
+    options: Generated<unknown>;
+    position: Generated<number>;
+    active: Generated<boolean>;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+  };
+  lead_status_history: {
+    id: string;
+    business_id: string;
+    lead_id: string;
+    from_status: string | null;
+    to_status: string;
+    actor_user_id: string | null;
+    note: Generated<string>;
+    created_at: Generated<Date>;
   };
   communication_conversation: {
     client_id: Generated<string | null>;

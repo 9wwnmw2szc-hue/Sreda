@@ -9,7 +9,10 @@ export const notificationTypes = [
   "booking.created",
   "booking.cancelled",
   "booking.rescheduled",
+  "booking.upcoming",
+  "order.created",
   "post.failed",
+  "calendar.reminder",
 ];
 const hash = (code: string) => createHash("sha256").update(code).digest("hex");
 export class NotificationSettings {

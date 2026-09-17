@@ -4,6 +4,7 @@ import {
   materializeRecurringPost,
 } from "../src/server/posts/worker.ts";
 import { queueBookingReminder } from "../src/server/booking/worker.ts";
+import { processEntityReminder } from "../src/server/calendar/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { VKService } from "../src/server/vk/service.ts";
@@ -46,10 +47,18 @@ try {
           oc.column("name").doUpdateSet({ seen_at: new Date() }),
         )
         .execute();
-      const queued = await queueBookingReminder(db);
+      const queued =
+        (await queueBookingReminder(db)) || (await processEntityReminder(db));
       await db
         .insertInto("worker_heartbeat")
         .values({ name: "booking_reminders", seen_at: new Date() })
+        .onConflict((oc) =>
+          oc.column("name").doUpdateSet({ seen_at: new Date() }),
+        )
+        .execute();
+      await db
+        .insertInto("worker_heartbeat")
+        .values({ name: "entity_reminders", seen_at: new Date() })
         .onConflict((oc) =>
           oc.column("name").doUpdateSet({ seen_at: new Date() }),
         )

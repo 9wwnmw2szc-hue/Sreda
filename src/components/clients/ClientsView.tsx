@@ -24,6 +24,14 @@ type Detail = {
     service_name: string;
     specialist_name: string;
   }[];
+  orders: {
+    id: string;
+    status: string;
+    total: string;
+    currency: string;
+    created_at: string;
+    conversation_id: string | null;
+  }[];
   client: Client;
   identities: { kind: string; value: string; username: string | null }[];
   leads: { id: string; name: string; status: string; created_at: string }[];
@@ -148,6 +156,7 @@ function Clients({
         hasMore: next.hasMore,
         leads: unique(detail.leads, next.leads),
         bookings: unique(detail.bookings, next.bookings),
+        orders: unique(detail.orders, next.orders),
         notes: unique(detail.notes, next.notes),
         activity: unique(detail.activity, next.activity),
       });
@@ -377,11 +386,34 @@ function Clients({
               ) : (
                 <p>Записей пока нет.</p>
               )}
+              <h3>Заказы</h3>
+              {detail.orders?.length ? (
+                detail.orders.map((o) => (
+                  <p key={o.id}>
+                    <Link href="/orders">
+                      {new Date(o.created_at).toLocaleDateString("ru", {
+                        timeZone: timezone,
+                      })}{" "}
+                      · {o.status} · {o.total} {o.currency}
+                    </Link>
+                    {o.conversation_id ? (
+                      <>
+                        {" · "}
+                        <Link href="/messages">Диалог</Link>
+                      </>
+                    ) : null}
+                  </p>
+                ))
+              ) : (
+                <p>Заказов пока нет.</p>
+              )}
               <h3>Обращения</h3>
               {detail.conversations.length ? (
                 detail.conversations.map((c) => (
                   <p key={c.id}>
-                    {c.platform} · {c.status}
+                    <Link href="/messages">
+                      {c.platform} · {c.status}
+                    </Link>
                   </p>
                 ))
               ) : (
@@ -434,6 +466,8 @@ function Clients({
                       "booking.cancelled": "Запись отменена",
                       "booking.completed": "Запись завершена",
                       "booking.no_show": "Неявка клиента",
+                      "order.created": "Создан заказ",
+                      "order.status": "Статус заказа изменён",
                     } as Record<string, string>
                   )[a.type] ?? a.type}
                 </p>

@@ -4,11 +4,13 @@ import {
   type FileItem,
 } from "@/components/attachments/AttachmentPicker";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 type Conversation = {
   id: string;
   platform: string;
+  clientId?: string | null;
   clientName?: string;
   externalUserId: string;
   externalUsername: string | null;
@@ -250,6 +252,11 @@ function Inbox({
                   current?.externalUserId ||
                   "Диалог"}
               </h2>
+              {current?.clientId ? (
+                <p>
+                  <Link href="/clients">Карточка клиента</Link>
+                </p>
+              ) : null}
               <div className="message-actions">
                 <button
                   className="button button--primary"

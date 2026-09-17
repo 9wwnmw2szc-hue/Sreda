@@ -60,6 +60,20 @@ function parts(date: Date, timezone: string) {
 export function localDay(date: Date, timezone: string) {
   return parts(date, timezone).date;
 }
+export function localParts(date: Date, timezone: string) {
+  return parts(date, timezone);
+}
+export function mergeIntervals(raw: Interval[]): Interval[] {
+  const sorted = [...raw].sort((a, b) => a.start - b.start);
+  const result: Interval[] = [];
+  for (const item of sorted) {
+    const last = result[result.length - 1];
+    if (last && item.start <= last.end)
+      last.end = Math.max(last.end, item.end);
+    else result.push({ start: item.start, end: item.end });
+  }
+  return result;
+}
 /** Both instants for a DST fold; none for a nonexistent local time. */
 export function localInstants(
   date: string,
@@ -106,7 +120,7 @@ export function calculateSlots(input: {
     .slice(0, 10);
   if (day < today || day > max) return [];
   const output: string[] = [];
-  for (const i of intervals(input.intervals))
+  for (const i of mergeIntervals(input.intervals))
     for (
       let m = Math.ceil((i.start + input.before) / input.step) * input.step;
       m + input.duration + input.after <= i.end;

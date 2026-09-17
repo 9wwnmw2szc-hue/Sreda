@@ -242,6 +242,19 @@ export class PostService {
       text.length > 4096
     )
       throw invalid("Введите текст до 4096 символов.");
+    const platformText = (key: "text_telegram" | "text_vk" | "textTelegram" | "textVk") => {
+      const camel =
+        key === "text_telegram" || key === "textTelegram"
+          ? body.text_telegram ?? body.textTelegram
+          : body.text_vk ?? body.textVk;
+      if (camel == null || camel === "") return null;
+      if (typeof camel !== "string" || camel.length > 4096)
+        throw invalid("Текст для площадки — до 4096 символов.");
+      const trimmed = camel.trim();
+      return trimmed || null;
+    };
+    const textTelegram = platformText("text_telegram");
+    const textVk = platformText("text_vk");
     const attachments = Array.isArray(body.attachments)
       ? [...new Set(body.attachments.map(String))]
       : [];
@@ -356,6 +369,8 @@ export class PostService {
         .update(
           JSON.stringify({
             text,
+            textTelegram,
+            textVk,
             attachments,
             targets: targets.sort(),
             buttons,
@@ -407,6 +422,8 @@ export class PostService {
       const id = postId ?? randomUUID();
       const values = {
         text,
+        text_telegram: textTelegram,
+        text_vk: textVk,
         buttons: JSON.stringify(buttons),
         status: status as "draft" | "scheduled",
         scheduled_at: scheduled,

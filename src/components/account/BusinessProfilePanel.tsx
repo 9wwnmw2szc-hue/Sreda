@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
+
 type Profile = {
   name: string;
   public_name: string | null;
@@ -8,7 +9,23 @@ type Profile = {
   description: string;
   contact_info: string;
   timezone: string;
+  business_type: "store" | "service" | "hybrid";
+  ai_about: string;
+  ai_tone: string;
+  ai_important_facts: string;
+  ai_restrictions: string;
+  ai_delivery_info: string;
+  ai_geography: string;
+  ai_returns_info: string;
+  ai_extra_instructions: string;
 };
+
+const TYPE_LABELS: Record<Profile["business_type"], string> = {
+  store: "Магазин / товары",
+  service: "Услуги",
+  hybrid: "Товары и услуги",
+};
+
 export function BusinessProfilePanel({
   businessId,
   canEdit,
@@ -16,11 +33,12 @@ export function BusinessProfilePanel({
   businessId: string;
   canEdit: boolean;
 }) {
-  const [profile, setProfile] = useState<Profile | null>(null),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
   const url = `/api/v1/businesses/${businessId}/profile`;
+
   useEffect(() => {
     let active = true;
     void apiRequest<Profile>(url)
@@ -34,7 +52,9 @@ export function BusinessProfilePanel({
       active = false;
     };
   }, [url]);
+
   async function save() {
+    if (!profile) return;
     setBusy(true);
     setError("");
     try {
@@ -44,23 +64,40 @@ export function BusinessProfilePanel({
           body: JSON.stringify(profile),
         }),
       );
-      setNotice(
-        "Профиль сохранён. Бот будет использовать публичное название бизнеса.",
-      );
+      setNotice("Профиль сохранён. AI и бот используют эти данные.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить.");
     } finally {
       setBusy(false);
     }
   }
-  const labels: Record<keyof Profile, string> = {
-    name: "Название бизнеса",
-    public_name: "Публичное название",
-    greeting: "Приветствие",
-    description: "Описание",
-    contact_info: "Контакты",
-    timezone: "Часовой пояс IANA",
-  };
+
+  const field = (
+    key: keyof Profile,
+    label: string,
+    opts?: { textarea?: boolean; hint?: string },
+  ) =>
+    profile ? (
+      <label key={key}>
+        {label}
+        {opts?.hint ? <span className="field-hint">{opts.hint}</span> : null}
+        {opts?.textarea ? (
+          <textarea
+            disabled={!canEdit || busy}
+            value={profile[key] ?? ""}
+            onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
+          />
+        ) : (
+          <input
+            disabled={!canEdit || busy}
+            required={key === "name" || key === "timezone"}
+            value={profile[key] ?? ""}
+            onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
+          />
+        )}
+      </label>
+    ) : null;
+
   return (
     <section className="panel crm-panel">
       <h2>Профиль бизнеса</h2>
@@ -79,29 +116,57 @@ export function BusinessProfilePanel({
             void save();
           }}
         >
-          {(Object.keys(labels) as (keyof Profile)[]).map((key) => (
-            <label key={key}>
-              {labels[key]}
-              {["greeting", "description", "contact_info"].includes(key) ? (
-                <textarea
-                  disabled={!canEdit || busy}
-                  value={profile[key] ?? ""}
-                  onChange={(e) =>
-                    setProfile({ ...profile, [key]: e.target.value })
-                  }
-                />
-              ) : (
-                <input
-                  disabled={!canEdit || busy}
-                  required={key === "name" || key === "timezone"}
-                  value={profile[key] ?? ""}
-                  onChange={(e) =>
-                    setProfile({ ...profile, [key]: e.target.value })
-                  }
-                />
-              )}
-            </label>
-          ))}
+          {field("name", "Название бизнеса")}
+          {field("public_name", "Публичное название")}
+          <label>
+            Тип бизнеса
+            <select
+              disabled={!canEdit || busy}
+              value={profile.business_type ?? "hybrid"}
+              onChange={(e) =>
+                setProfile({
+                  ...profile,
+                  business_type: e.target.value as Profile["business_type"],
+                })
+              }
+            >
+              {Object.entries(TYPE_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              Влияет на рекомендации и онбординг. Любые решения можно подключить
+              вручную.
+            </span>
+          </label>
+          {field("greeting", "Приветствие", { textarea: true })}
+          {field("description", "Краткое описание", { textarea: true })}
+          {field("contact_info", "Контакты", { textarea: true })}
+          {field("timezone", "Часовой пояс IANA")}
+
+          <h3>AI-профиль</h3>
+          <p className="field-hint">
+            Расскажите о бизнесе обычным языком. Цены, остатки и расписание AI
+            берёт только из настроек и каталога — не придумывает сам.
+          </p>
+          {field("ai_about", "Расскажите о своём бизнесе", {
+            textarea: true,
+            hint: "Чем занимаетесь, для кого, стиль общения.",
+          })}
+          {field("ai_tone", "Tone of voice")}
+          {field("ai_important_facts", "Важные факты", { textarea: true })}
+          {field("ai_restrictions", "Ограничения: что AI нельзя утверждать", {
+            textarea: true,
+          })}
+          {field("ai_delivery_info", "Доставка", { textarea: true })}
+          {field("ai_geography", "Адрес / география", { textarea: true })}
+          {field("ai_returns_info", "Возврат и гарантия", { textarea: true })}
+          {field("ai_extra_instructions", "Дополнительные инструкции", {
+            textarea: true,
+          })}
+
           {canEdit && (
             <button className="button button--primary" disabled={busy}>
               Сохранить профиль

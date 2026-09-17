@@ -760,7 +760,7 @@ export class CommunicationService {
         "message.received",
         "message:" + inserted.id,
         "Новое обращение",
-        "/messages",
+        "/messages?id=" + conversation.id,
       );
       return {
         accepted: true as const,

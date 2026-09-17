@@ -11,6 +11,7 @@ const routes = [
   "/leads",
   "/messages",
   "/bookings",
+  "/calendar",
   "/posts",
   "/connections",
   "/settings",
