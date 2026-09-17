@@ -4,7 +4,8 @@ ALTER TABLE lead ADD CONSTRAINT lead_status_check
   CHECK (status IN ('new', 'processing', 'waiting_customer', 'completed', 'rejected', 'closed'));
 ALTER TABLE lead ADD CONSTRAINT lead_business_unique UNIQUE (business_id, id);
 
--- Map legacy closed → completed semantics kept for compatibility; new writes use completed/rejected.
+-- Map legacy closed to completed semantics kept for compatibility.
+-- New writes use completed/rejected.
 
 CREATE TABLE lead_form_field (
   id uuid PRIMARY KEY,

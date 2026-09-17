@@ -3,6 +3,7 @@ export const SOLUTION_DESTINATIONS = {
   admin_messages: "/messages",
   booking: "/bookings",
   autopost: "/posts",
+  orders: "/orders",
 } as const;
 
 export type PresentedSolutionCode = keyof typeof SOLUTION_DESTINATIONS;

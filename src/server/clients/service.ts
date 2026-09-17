@@ -280,7 +280,7 @@ export class ClientService {
       .executeTakeFirst();
     if (!client)
       throw new AppError(404, "CLIENT_NOT_FOUND", "Клиент не найден.");
-    const [identities, leads, conversations, activity, notes, bookings] =
+    const [identities, leads, conversations, activity, notes, bookings, orders] =
       await Promise.all([
         this.db
           .selectFrom("client_identity")
@@ -337,9 +337,19 @@ export class ClientService {
           .limit(100)
           .offset(page * 100)
           .execute(),
+        this.db
+          .selectFrom("order")
+          .selectAll()
+          .where("business_id", "=", b.id)
+          .where("client_id", "=", id)
+          .orderBy("created_at", "desc")
+          .orderBy("id", "desc")
+          .limit(100)
+          .offset(page * 100)
+          .execute(),
       ]);
     return {
-      hasMore: [leads, activity, notes, bookings].some(
+      hasMore: [leads, activity, notes, bookings, orders].some(
         (rows) => rows.length === 100,
       ),
       client,
@@ -349,6 +359,7 @@ export class ClientService {
       activity,
       notes,
       bookings,
+      orders,
     };
   }
   async save(

@@ -9,6 +9,7 @@ import {
   Inbox,
   Link2,
   Settings,
+  ShoppingBag,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -24,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Главная", icon: Home },
   { href: "/solutions", label: "Мои решения", icon: Sparkles },
   { href: "/leads", label: "Заявки", icon: Inbox },
+  { href: "/orders", label: "Заказы", icon: ShoppingBag },
   { href: "/posts", label: "Посты", icon: FileText },
   { href: "/clients", label: "Клиенты", icon: Users },
   { href: "/connections", label: "Подключения", icon: Link2 },

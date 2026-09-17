@@ -171,6 +171,15 @@ function multiplyMoney(unit: string, qty: number) {
   return (Math.round(Number(unit) * qty * 100) / 100).toFixed(2);
 }
 
+/** Run work in a new transaction, or inline when `db` is already one. */
+function runInTx<T>(
+  db: Kysely<Database>,
+  fn: (tx: Transaction<Database>) => Promise<T>,
+): Promise<T> {
+  if (db.isTransaction) return fn(db as Transaction<Database>);
+  return db.transaction().execute(fn);
+}
+
 async function writeStatusHistory(
   tx: Transaction<Database>,
   businessId: string,
@@ -436,7 +445,7 @@ export class CatalogService {
     body: Record<string, unknown>,
     categoryId?: string,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "orders.write");
       await tx
         .selectFrom("business")
@@ -479,7 +488,7 @@ export class CatalogService {
   }
 
   async deleteCategory(userId: string, publicId: string, categoryId: string) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "orders.write");
       await tx
         .selectFrom("business")
@@ -593,7 +602,7 @@ export class CatalogService {
     body: Record<string, unknown>,
     productId?: string,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "orders.write");
       await tx
         .selectFrom("business")
@@ -678,7 +687,7 @@ export class CatalogService {
   }
 
   async deleteProduct(userId: string, publicId: string, productId: string) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "orders.write");
       await tx
         .selectFrom("business")
@@ -701,6 +710,83 @@ export class CatalogService {
       });
       return { ok: true };
     });
+  }
+
+  /** Public catalog for bot / unauthenticated channel flows. */
+  async catalogForBusiness(businessId: string) {
+    const categories = await this.db
+      .selectFrom("product_category")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("active", "=", true)
+      .orderBy("position")
+      .orderBy("name")
+      .execute();
+    const products = await this.db
+      .selectFrom("product")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("active", "=", true)
+      .orderBy("position")
+      .orderBy("name")
+      .execute();
+    const ids = products.map((p) => p.id);
+    const [images, variants] = ids.length
+      ? await Promise.all([
+          this.db
+            .selectFrom("product_image")
+            .selectAll()
+            .where("business_id", "=", businessId)
+            .where("product_id", "in", ids)
+            .orderBy("position")
+            .execute(),
+          this.db
+            .selectFrom("product_variant")
+            .selectAll()
+            .where("business_id", "=", businessId)
+            .where("product_id", "in", ids)
+            .where("active", "=", true)
+            .orderBy("created_at")
+            .execute(),
+        ])
+      : [[], []];
+    return {
+      categories,
+      products: products.map((product) => ({
+        ...product,
+        images: images.filter((row) => row.product_id === product.id),
+        variants: variants.filter((row) => row.product_id === product.id),
+      })),
+    };
+  }
+
+  async productForBusiness(businessId: string, productId: string) {
+    const product = await this.db
+      .selectFrom("product")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("id", "=", id(productId))
+      .where("active", "=", true)
+      .executeTakeFirst();
+    if (!product)
+      throw new AppError(404, "PRODUCT_NOT_FOUND", "Товар не найден.");
+    const [images, variants] = await Promise.all([
+      this.db
+        .selectFrom("product_image")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .where("product_id", "=", product.id)
+        .orderBy("position")
+        .execute(),
+      this.db
+        .selectFrom("product_variant")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .where("product_id", "=", product.id)
+        .where("active", "=", true)
+        .execute(),
+    ]);
+    return { ...product, images, variants };
   }
 }
 
@@ -782,7 +868,7 @@ export class OrderService {
     platform: CartPlatform,
     externalUserId: string,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const cart = await this.getOrCreateCart(
         tx,
         businessId,
@@ -799,7 +885,7 @@ export class OrderService {
     externalUserId: string,
     body: Record<string, unknown>,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const cart = await this.getOrCreateCart(
         tx,
         businessId,
@@ -912,7 +998,7 @@ export class OrderService {
     itemId: string,
     quantity: unknown,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const cart = await this.getOrCreateCart(
         tx,
         businessId,
@@ -988,7 +1074,7 @@ export class OrderService {
     externalUserId: string,
     itemId: string,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const cart = await this.getOrCreateCart(
         tx,
         businessId,
@@ -1019,7 +1105,7 @@ export class OrderService {
     platform: CartPlatform,
     externalUserId: string,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const cart = await this.getOrCreateCart(
         tx,
         businessId,
@@ -1046,7 +1132,7 @@ export class OrderService {
     body: Record<string, unknown>,
     actor: string | null = null,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       await tx
         .selectFrom("business")
         .select("id")
@@ -1350,6 +1436,27 @@ export class OrderService {
     return q.execute();
   }
 
+  async listByClient(
+    userId: string,
+    publicId: string,
+    clientId: string,
+    page = 0,
+  ) {
+    if (!Number.isSafeInteger(page) || page < 0 || page > 100000) throw fail();
+    const b = await requireBusiness(this.db, userId, publicId, "orders.write");
+    const key = id(clientId);
+    return this.db
+      .selectFrom("order")
+      .selectAll()
+      .where("business_id", "=", b.id)
+      .where("client_id", "=", key)
+      .orderBy("created_at", "desc")
+      .orderBy("id", "desc")
+      .limit(100)
+      .offset(page * 100)
+      .execute();
+  }
+
   async get(userId: string, publicId: string, orderId: string) {
     const b = await requireBusiness(this.db, userId, publicId, "orders.write");
     const order = await this.db
@@ -1386,7 +1493,7 @@ export class OrderService {
     orderId: string,
     body: Record<string, unknown>,
   ) {
-    return this.db.transaction().execute(async (tx) => {
+    return runInTx(this.db, async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "orders.write");
       await tx
         .selectFrom("business")

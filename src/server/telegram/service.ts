@@ -58,7 +58,9 @@ export class TelegramService {
         if (
           !(draft.step === 3 && draft.channels.includes("telegram")) &&
           !enabled.some((s) =>
-            ["booking", "admin_messages", "autopost"].includes(s.solution_code),
+            ["booking", "admin_messages", "autopost", "orders", "sales"].includes(
+              s.solution_code,
+            ),
           )
         )
           throw new AppError(
