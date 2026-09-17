@@ -10,7 +10,16 @@ import {
   matchClient,
 } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
-import { calculateSlots, dateOnly, intervals, localDay } from "./time.ts";
+import {
+  calculateSlots,
+  dateOnly,
+  intervals,
+  localDay,
+  localInstants,
+  localParts,
+  mergeIntervals,
+} from "./time.ts";
+import type { Interval } from "./time.ts";
 const fail = (message = "Проверьте параметры записи.") =>
   new AppError(400, "INVALID_BOOKING", message);
 function integer(value: unknown, min: number, max: number) {
@@ -88,33 +97,83 @@ export async function availableSlots(
     .selectAll()
     .where("business_id", "=", businessId)
     .executeTakeFirst();
-  const exception = await tx
-    .selectFrom("booking_schedule_exception")
-    .select("intervals")
-    .where("business_id", "=", businessId)
-    .where("specialist_id", "=", specialistId)
-    .where("date", "=", date)
-    .executeTakeFirst();
-  const schedule = await tx
-    .selectFrom("booking_schedule")
-    .select("intervals")
-    .where("business_id", "=", businessId)
-    .where("specialist_id", "=", specialistId)
-    .where("weekday", "=", new Date(date + "T12:00:00Z").getUTCDay())
-    .executeTakeFirst();
   let query = tx
     .selectFrom("booking")
-    .select(["occupied_from as from", "occupied_until as until"])
+    .select(["occupied_from as from", "occupied_until as until", "starts_at"])
     .where("business_id", "=", businessId)
     .where("specialist_id", "=", specialistId)
     .where("status", "in", ["pending", "confirmed"])
     .where("occupied_until", ">", new Date(Date.parse(date) - 86400000))
     .where("occupied_from", "<", new Date(Date.parse(date) + 2 * 86400000));
   if (excludeId) query = query.where("id", "!=", excludeId);
+  const busy = await query.execute();
+  let slotIntervals: Interval[];
+  if (settings?.schedule_mode === "manual") {
+    const dayStart =
+      localInstants(date, 0, business.timezone)[0] ??
+      new Date(date + "T00:00:00Z");
+    const nextDay = new Date(Date.parse(date) + 86400000)
+      .toISOString()
+      .slice(0, 10);
+    const dayEnd =
+      localInstants(nextDay, 0, business.timezone)[0] ??
+      new Date(Date.parse(date) + 86400000);
+    const windows = await tx
+      .selectFrom("booking_manual_slot")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("active", "=", true)
+      .where("starts_at", "<", dayEnd)
+      .where("ends_at", ">", dayStart)
+      .where((eb) =>
+        eb.or([
+          eb("specialist_id", "is", null),
+          eb("specialist_id", "=", specialistId),
+        ]),
+      )
+      .where((eb) =>
+        eb.or([eb("service_id", "is", null), eb("service_id", "=", serviceId)]),
+      )
+      .execute();
+    slotIntervals = [];
+    for (const window of windows) {
+      const from = window.starts_at > dayStart ? window.starts_at : dayStart;
+      const until = window.ends_at < dayEnd ? window.ends_at : dayEnd;
+      if (+until <= +from) continue;
+      const taken = busy.filter(
+        (b) => +b.starts_at >= +window.starts_at && +b.starts_at < +window.ends_at,
+      ).length;
+      if (taken >= window.capacity) continue;
+      const start = localParts(from, business.timezone);
+      const end = localParts(new Date(+until - 1), business.timezone);
+      if (start.date !== date) continue;
+      const endMinutes =
+        end.date === date ? end.minutes + 1 : 1440;
+      if (endMinutes <= start.minutes) continue;
+      slotIntervals.push({ start: start.minutes, end: endMinutes });
+    }
+    slotIntervals = mergeIntervals(slotIntervals);
+  } else {
+    const exception = await tx
+      .selectFrom("booking_schedule_exception")
+      .select("intervals")
+      .where("business_id", "=", businessId)
+      .where("specialist_id", "=", specialistId)
+      .where("date", "=", date)
+      .executeTakeFirst();
+    const schedule = await tx
+      .selectFrom("booking_schedule")
+      .select("intervals")
+      .where("business_id", "=", businessId)
+      .where("specialist_id", "=", specialistId)
+      .where("weekday", "=", new Date(date + "T12:00:00Z").getUTCDay())
+      .executeTakeFirst();
+    slotIntervals = intervals(exception?.intervals ?? schedule?.intervals ?? []);
+  }
   return calculateSlots({
     date,
     timezone: business.timezone,
-    intervals: intervals(exception?.intervals ?? schedule?.intervals ?? []),
+    intervals: slotIntervals,
     duration: service.duration_minutes,
     before: service.buffer_before_minutes,
     after: service.buffer_after_minutes,
@@ -122,7 +181,7 @@ export async function availableSlots(
     notice: settings?.minimum_booking_notice ?? 120,
     horizon: settings?.maximum_booking_horizon ?? 60,
     now: new Date(),
-    busy: await query.execute(),
+    busy: busy.map((b) => ({ from: b.from, until: b.until })),
   });
 }
 export async function bookingReminders(
@@ -172,51 +231,68 @@ export class BookingService {
     return this.catalogForBusiness(b.id);
   }
   async catalogForBusiness(businessId: string) {
-    const [services, specialists, links, schedules, exceptions, settings] =
-      await Promise.all([
-        this.db
-          .selectFrom("booking_service")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .orderBy("name")
-          .execute(),
-        this.db
-          .selectFrom("booking_specialist")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .orderBy("name")
-          .execute(),
-        this.db
-          .selectFrom("booking_service_specialist")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .execute(),
-        this.db
-          .selectFrom("booking_schedule")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .execute(),
-        this.db
-          .selectFrom("booking_schedule_exception")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .execute(),
-        this.db
-          .selectFrom("booking_settings")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .executeTakeFirst(),
-      ]);
+    const [
+      services,
+      specialists,
+      links,
+      schedules,
+      exceptions,
+      settings,
+      manualSlots,
+    ] = await Promise.all([
+      this.db
+        .selectFrom("booking_service")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .orderBy("name")
+        .execute(),
+      this.db
+        .selectFrom("booking_specialist")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .orderBy("name")
+        .execute(),
+      this.db
+        .selectFrom("booking_service_specialist")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .execute(),
+      this.db
+        .selectFrom("booking_schedule")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .execute(),
+      this.db
+        .selectFrom("booking_schedule_exception")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .execute(),
+      this.db
+        .selectFrom("booking_settings")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .executeTakeFirst(),
+      this.db
+        .selectFrom("booking_manual_slot")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .where("active", "=", true)
+        .orderBy("starts_at")
+        .execute(),
+    ]);
     return {
       services,
       specialists,
       links,
       schedules,
       exceptions,
+      manualSlots,
       settings: settings ?? {
         minimum_booking_notice: 120,
         maximum_booking_horizon: 60,
         slot_interval: 15,
+        choose_specialist: true,
+        schedule_mode: "automatic" as const,
       },
     };
   }
@@ -236,6 +312,15 @@ export class BookingService {
       await requireBusiness(tx, userId, publicId, "solutions.manage");
       const kind = body.kind;
       if (kind === "settings") {
+        if (
+          body.choose_specialist != null &&
+          typeof body.choose_specialist !== "boolean"
+        )
+          throw fail();
+        const choose =
+          body.choose_specialist == null ? true : body.choose_specialist;
+        const scheduleMode = String(body.schedule_mode ?? "automatic");
+        if (!["automatic", "manual"].includes(scheduleMode)) throw fail();
         const values = {
           business_id: b.id,
           minimum_booking_notice: integer(
@@ -249,6 +334,8 @@ export class BookingService {
             365,
           ),
           slot_interval: integer(body.slot_interval, 5, 240),
+          choose_specialist: choose,
+          schedule_mode: scheduleMode as "automatic" | "manual",
         };
         await tx
           .insertInto("booking_settings")
@@ -256,6 +343,76 @@ export class BookingService {
           .onConflict((oc) => oc.column("business_id").doUpdateSet(values))
           .execute();
         return { ok: true };
+      }
+      if (kind === "manual_slot" || kind === "manual_slot_delete") {
+        if (kind === "manual_slot_delete") {
+          const key = id(body.id);
+          const changed = await tx
+            .updateTable("booking_manual_slot")
+            .set({ active: false })
+            .where("business_id", "=", b.id)
+            .where("id", "=", key)
+            .returning("id")
+            .executeTakeFirst();
+          if (!changed)
+            throw new AppError(404, "NOT_FOUND", "Слот не найден.");
+          return { ok: true };
+        }
+        const starts = new Date(String(body.starts_at));
+        const ends = new Date(String(body.ends_at));
+        if (!Number.isFinite(+starts) || !Number.isFinite(+ends) || +starts >= +ends)
+          throw fail("Проверьте окно слота.");
+        const specialistId =
+          body.specialist_id == null || body.specialist_id === ""
+            ? null
+            : id(body.specialist_id);
+        const serviceId =
+          body.service_id == null || body.service_id === ""
+            ? null
+            : id(body.service_id);
+        if (specialistId) {
+          const row = await tx
+            .selectFrom("booking_specialist")
+            .select("id")
+            .where("business_id", "=", b.id)
+            .where("id", "=", specialistId)
+            .executeTakeFirst();
+          if (!row) throw new AppError(404, "NOT_FOUND", "Специалист не найден.");
+        }
+        if (serviceId) {
+          const row = await tx
+            .selectFrom("booking_service")
+            .select("id")
+            .where("business_id", "=", b.id)
+            .where("id", "=", serviceId)
+            .executeTakeFirst();
+          if (!row) throw new AppError(404, "NOT_FOUND", "Услуга не найдена.");
+        }
+        const capacity = integer(body.capacity ?? 1, 1, 100);
+        const key = body.id ? id(body.id) : randomUUID();
+        const values = {
+          id: key,
+          business_id: b.id,
+          specialist_id: specialistId,
+          service_id: serviceId,
+          starts_at: starts,
+          ends_at: ends,
+          capacity,
+          active: body.active !== false,
+        };
+        if (body.id) {
+          const changed = await tx
+            .updateTable("booking_manual_slot")
+            .set(values)
+            .where("business_id", "=", b.id)
+            .where("id", "=", key)
+            .returning("id")
+            .executeTakeFirst();
+          if (!changed)
+            throw new AppError(404, "NOT_FOUND", "Слот не найден.");
+        } else
+          await tx.insertInto("booking_manual_slot").values(values).execute();
+        return { id: key };
       }
       if (kind === "service" || kind === "specialist") {
         const key = body.id ? id(body.id) : randomUUID();
@@ -309,18 +466,42 @@ export class BookingService {
             if (!changed)
               throw new AppError(404, "NOT_FOUND", "Услуга не найдена.");
           } else await tx.insertInto("booking_service").values(value).execute();
-        } else if (body.id) {
-          const changed = await tx
-            .updateTable("booking_specialist")
-            .set(common)
-            .where("business_id", "=", b.id)
-            .where("id", "=", key)
-            .returning("id")
-            .executeTakeFirst();
-          if (!changed)
-            throw new AppError(404, "NOT_FOUND", "Специалист не найден.");
-        } else
-          await tx.insertInto("booking_specialist").values(common).execute();
+        } else {
+          const title =
+            body.title == null || body.title === ""
+              ? ""
+              : typeof body.title === "string" && body.title.length <= 120
+                ? body.title.trim()
+                : (() => {
+                    throw fail("Проверьте должность специалиста.");
+                  })();
+          const photo =
+            body.photo_attachment_id == null || body.photo_attachment_id === ""
+              ? null
+              : id(body.photo_attachment_id);
+          if (photo) {
+            const file = await tx
+              .selectFrom("attachment")
+              .select("id")
+              .where("business_id", "=", b.id)
+              .where("id", "=", photo)
+              .executeTakeFirst();
+            if (!file) throw fail("Фото специалиста не найдено.");
+          }
+          const value = { ...common, title, photo_attachment_id: photo };
+          if (body.id) {
+            const changed = await tx
+              .updateTable("booking_specialist")
+              .set(value)
+              .where("business_id", "=", b.id)
+              .where("id", "=", key)
+              .returning("id")
+              .executeTakeFirst();
+            if (!changed)
+              throw new AppError(404, "NOT_FOUND", "Специалист не найден.");
+          } else
+            await tx.insertInto("booking_specialist").values(value).execute();
+        }
         await tx
           .insertInto("business_audit_log")
           .values({

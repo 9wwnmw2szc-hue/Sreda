@@ -13,7 +13,13 @@ export type SolutionStatus =
   | "paused"
   | "unavailable";
 
-export type LeadStatus = "new" | "processing" | "closed";
+export type LeadStatus =
+  | "new"
+  | "processing"
+  | "waiting_customer"
+  | "completed"
+  | "rejected"
+  | "closed";
 
 export type PostStatus = "draft" | "scheduled" | "published";
 

@@ -13,6 +13,9 @@ import type { Lead, LeadStatus } from "@/types";
 const labels: Record<LeadStatus, string> = {
   new: "Новая",
   processing: "В работе",
+  waiting_customer: "Ждём клиента",
+  completed: "Завершена",
+  rejected: "Отклонена",
   closed: "Закрыта",
 };
 export function LeadsView() {
@@ -252,6 +255,9 @@ function LeadList({ businessId }: { businessId: string }) {
             <option value="all">Все заявки</option>
             <option value="new">Новые</option>
             <option value="processing">В работе</option>
+            <option value="waiting_customer">Ждём клиента</option>
+            <option value="completed">Завершённые</option>
+            <option value="rejected">Отклонённые</option>
             <option value="closed">Закрытые</option>
           </select>
         </label>

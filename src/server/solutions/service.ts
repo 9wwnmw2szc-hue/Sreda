@@ -7,6 +7,7 @@ import {
   LEAD_FIELDS,
   type LeadSetupDraft,
 } from "../../lib/leadSetupDraft.ts";
+import { syncLeadFormFields } from "../leads/forms.ts";
 import { SOLUTIONS, normalizeSolutionCode } from "./catalog.ts";
 import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
@@ -169,6 +170,7 @@ export class SolutionService {
               }),
           )
           .execute();
+      if (body.syncFields !== false) await syncLeadFormFields(tx, id, draft);
       await audit(tx, id, userId, "settings_changed", id, {
         solution: "leads",
         revision,

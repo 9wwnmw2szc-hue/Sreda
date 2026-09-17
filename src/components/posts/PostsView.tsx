@@ -11,6 +11,8 @@ type Post = {
   attachments: FileItem[];
   id: string;
   text: string;
+  text_telegram?: string | null;
+  text_vk?: string | null;
   buttons: { text: string; url: string }[];
   status: string;
   revision: number;
@@ -76,6 +78,8 @@ function Editor({
     [filter, setFilter] = useState("all"),
     [page, setPage] = useState(0),
     [text, setText] = useState(""),
+    [textTelegram, setTextTelegram] = useState(""),
+    [textVk, setTextVk] = useState(""),
     [chosen, setChosen] = useState<string[]>([]),
     [buttons, setButtons] = useState<{ text: string; url: string }[]>([]),
     [editing, setEditing] = useState<Post | null>(null),
@@ -131,6 +135,8 @@ function Editor({
   function reset() {
     setEditing(null);
     setText("");
+    setTextTelegram("");
+    setTextVk("");
     setFiles([]);
     setChosen([]);
     setButtons([]);
@@ -149,6 +155,8 @@ function Editor({
         method: editing ? "PATCH" : "POST",
         body: JSON.stringify({
           text,
+          text_telegram: textTelegram || null,
+          text_vk: textVk || null,
           attachments: files.map((f) => f.id),
           targets: chosen,
           buttons,
@@ -284,6 +292,31 @@ function Editor({
               }}
             />
           </label>
+          <details>
+            <summary>Текст для площадок (необязательно)</summary>
+            <label>
+              Telegram
+              <textarea
+                maxLength={4096}
+                value={textTelegram}
+                onChange={(e) => {
+                  setTextTelegram(e.target.value);
+                  key.current = "";
+                }}
+              />
+            </label>
+            <label>
+              ВКонтакте
+              <textarea
+                maxLength={4096}
+                value={textVk}
+                onChange={(e) => {
+                  setTextVk(e.target.value);
+                  key.current = "";
+                }}
+              />
+            </label>
+          </details>
           <AttachmentPicker
             businessId={businessId}
             files={files}
@@ -598,6 +631,8 @@ function Editor({
                         onClick={() => {
                           setEditing(p);
                           setText(p.text);
+                          setTextTelegram(p.text_telegram ?? "");
+                          setTextVk(p.text_vk ?? "");
                           setFiles(p.attachments ?? []);
                           setChosen(p.deliveries.map((d) => d.target_id));
                           setButtons(p.buttons);

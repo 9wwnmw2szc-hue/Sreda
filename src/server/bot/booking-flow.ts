@@ -303,6 +303,15 @@ export async function bookingFlow(
         label: `${i + 1}. ${s.name}`.slice(0, 100),
         value: s.id,
       }));
+    if (catalog.settings.choose_specialist === false) {
+      if (!resources.length) {
+        await queue("Для услуги пока нет специалистов.", ["Отмена"]);
+        return true;
+      }
+      answers.specialist = resources[0]!.value;
+      await datePrompt();
+      return true;
+    }
     await showChoices(
       "specialist",
       resources.length
@@ -332,14 +341,47 @@ export async function bookingFlow(
       answers.date = text;
       answers.page = "0";
     } else answers.page = String(Number(answers.page ?? 0) + 1);
-    const slots = await availableSlots(
+    const catalog = await service.catalogForBusiness(businessId);
+    let specialistId = answers.specialist!;
+    let slots = await availableSlots(
       tx,
       businessId,
       answers.service!,
-      answers.specialist!,
+      specialistId,
       answers.date!,
       answers.bookingId,
     );
+    if (
+      catalog.settings.choose_specialist === false &&
+      !slots.length &&
+      mode === "date"
+    ) {
+      const candidates = catalog.specialists.filter(
+        (s) =>
+          s.active &&
+          catalog.links.some(
+            (l) =>
+              l.service_id === answers.service && l.specialist_id === s.id,
+          ),
+      );
+      for (const candidate of candidates) {
+        if (candidate.id === specialistId) continue;
+        const next = await availableSlots(
+          tx,
+          businessId,
+          answers.service!,
+          candidate.id,
+          answers.date!,
+          answers.bookingId,
+        );
+        if (next.length) {
+          specialistId = candidate.id;
+          answers.specialist = candidate.id;
+          slots = next;
+          break;
+        }
+      }
+    }
     const page = Number(answers.page ?? 0);
     const start = (page * 7) % Math.max(slots.length, 1);
     const times = slots

@@ -5,6 +5,11 @@ const leadStyles: Record<LeadStatus, string> = {
   new: "bg-[color-mix(in_srgb,var(--success)_16%,white)] text-[var(--success)]",
   processing:
     "bg-[color-mix(in_srgb,var(--warning)_18%,white)] text-[#9a6b12]",
+  waiting_customer:
+    "bg-[color-mix(in_srgb,var(--warning)_12%,white)] text-[#8a6410]",
+  completed:
+    "bg-[color-mix(in_srgb,var(--success)_12%,white)] text-[var(--success)]",
+  rejected: "bg-[var(--surface-elevated)] text-[var(--text-muted)]",
   closed: "bg-[var(--surface-elevated)] text-[var(--text-muted)]",
 };
 
