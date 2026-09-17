@@ -13,13 +13,11 @@ export interface AttachmentStorage {
   get(key: string): Promise<Uint8Array>;
   remove(key: string): Promise<void>;
 }
+/** Canonical object key: lowercase UUID business id / lowercase UUID attachment id. */
+const STORAGE_KEY =
+  /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 function keyCheck(key: string) {
-  if (
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
-      key,
-    )
-  )
-    throw new Error("Invalid storage key");
+  if (!STORAGE_KEY.test(key)) throw new Error("Invalid storage key");
 }
 export class FileAttachmentStorage implements AttachmentStorage {
   constructor(private root: string) {
