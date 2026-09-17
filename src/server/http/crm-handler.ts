@@ -32,7 +32,7 @@ export function crmHandler(
           : await service.save(
               user.id,
               businessId,
-              await readJson(request, 16000),
+              await readJson(request, 48000),
             ),
       );
     }

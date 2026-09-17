@@ -20,6 +20,11 @@ export async function POST(
     );
     await limit(r.db, r.secret, "ai:user:" + user.id, 5, 60);
     await limit(r.db, r.secret, "ai:business:" + b.id, 100, 86400);
-    return json(await generatePost(await readJson(request, 20000)));
+    return json(
+      await generatePost(await readJson(request, 20000), {
+        db: r.db,
+        businessId: b.id,
+      }),
+    );
   });
 }

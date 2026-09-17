@@ -173,8 +173,27 @@ export interface Database
     greeting: Generated<string>;
     description: Generated<string>;
     contact_info: Generated<string>;
+    business_type: Generated<"store" | "service" | "hybrid">;
+    ai_about: Generated<string>;
+    ai_tone: Generated<string>;
+    ai_important_facts: Generated<string>;
+    ai_restrictions: Generated<string>;
+    ai_delivery_info: Generated<string>;
+    ai_geography: Generated<string>;
+    ai_returns_info: Generated<string>;
+    ai_extra_instructions: Generated<string>;
     created_at: Generated<Date>;
     archived_at: Date | null;
+  };
+  product: {
+    id: string;
+    business_id: string;
+    name: string;
+    price: string;
+    availability: "quantity" | "in_stock" | "made_to_order" | "out_of_stock";
+    active: Generated<boolean>;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
   };
   business_member: {
     business_id: string;

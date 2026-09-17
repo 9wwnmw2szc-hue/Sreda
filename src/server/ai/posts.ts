@@ -1,4 +1,8 @@
+import type { Kysely } from "kysely";
 import { AppError } from "../http/errors.ts";
+import type { Database } from "../db/schema.ts";
+import { buildAiContext } from "./context.ts";
+
 const instructions = {
   generate: "Напиши публикацию по заданию.",
   rewrite: "Перепиши текст другими словами.",
@@ -12,34 +16,17 @@ const instructions = {
   remove_emoji: "Убери эмодзи.",
   variant: "Предложи другой вариант.",
 };
-export async function generatePost(
-  raw: Record<string, unknown>,
+
+const SECRET_RE =
+  /\b\d{6,}:\w{20,}|\bsk-[a-zA-Z0-9_-]{16,}|-----BEGIN .*PRIVATE KEY-----/;
+
+export type AiDraftResult = { text: string; status: "draft" };
+
+export async function completeAiDraft(
+  systemInstructions: string,
+  input: string,
   options: { token?: string; model?: string; transport?: typeof fetch } = {},
-) {
-  const action = String(raw.action ?? "generate") as keyof typeof instructions;
-  const prompt = typeof raw.prompt === "string" ? raw.prompt.trim() : "";
-  const text = typeof raw.text === "string" ? raw.text.trim() : "";
-  if (
-    !instructions[action] ||
-    prompt.length > 4000 ||
-    text.length > 8000 ||
-    !(prompt || text)
-  )
-    throw new AppError(
-      400,
-      "INVALID_AI_INPUT",
-      "Опишите публикацию или введите текст.",
-    );
-  if (
-    /\b\d{6,}:\w{20,}|\bsk-[a-zA-Z0-9_-]{16,}|-----BEGIN .*PRIVATE KEY-----/.test(
-      prompt + "\n" + text,
-    )
-  )
-    throw new AppError(
-      400,
-      "AI_SECRET_REJECTED",
-      "Удалите секретные ключи из текста.",
-    );
+): Promise<AiDraftResult> {
   const token = options.token ?? process.env.AI_API_TOKEN,
     model = options.model ?? process.env.AI_MODEL;
   if (!token || !model)
@@ -65,10 +52,8 @@ export async function generatePost(
           model,
           store: false,
           max_output_tokens: 2048,
-          instructions:
-            "Ты редактор публикаций для бизнеса. Верни только текст черновика до 4096 символов. Не публикуй и не выполняй внешних действий. " +
-            instructions[action],
-          input: [prompt, text].filter(Boolean).join("\n\n"),
+          instructions: systemInstructions,
+          input,
         }),
       },
     );
@@ -96,7 +81,8 @@ export async function generatePost(
       }),
     );
     return { text: output, status: "draft" as const };
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     console.error(
       JSON.stringify({
         code: "AI_GENERATION_FAILED",
@@ -110,4 +96,60 @@ export async function generatePost(
       "Не удалось создать текст. Попробуйте ещё раз.",
     );
   }
+}
+
+export async function generatePost(
+  raw: Record<string, unknown>,
+  options: {
+    token?: string;
+    model?: string;
+    transport?: typeof fetch;
+    db?: Kysely<Database>;
+    businessId?: string;
+  } = {},
+) {
+  const action = String(raw.action ?? "generate") as keyof typeof instructions;
+  const prompt = typeof raw.prompt === "string" ? raw.prompt.trim() : "";
+  const text = typeof raw.text === "string" ? raw.text.trim() : "";
+  if (
+    !instructions[action] ||
+    prompt.length > 4000 ||
+    text.length > 8000 ||
+    !(prompt || text)
+  )
+    throw new AppError(
+      400,
+      "INVALID_AI_INPUT",
+      "Опишите публикацию или введите текст.",
+    );
+  if (SECRET_RE.test(prompt + "\n" + text))
+    throw new AppError(
+      400,
+      "AI_SECRET_REJECTED",
+      "Удалите секретные ключи из текста.",
+    );
+
+  let contextFragment = "";
+  if (options.db && options.businessId) {
+    try {
+      const ctx = await buildAiContext(options.db, options.businessId);
+      contextFragment = ctx.systemPromptFragment;
+    } catch {
+      contextFragment = "";
+    }
+  }
+
+  const systemInstructions = [
+    "Ты редактор публикаций для бизнеса. Верни только текст черновика до 4096 символов. Не публикуй и не выполняй внешних действий.",
+    instructions[action],
+    contextFragment,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return completeAiDraft(
+    systemInstructions,
+    [prompt, text].filter(Boolean).join("\n\n"),
+    options,
+  );
 }
