@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
+import { DetailDialog } from "@/components/dashboard/DetailDialog";
 
 type OrderRow = {
   id: string;
@@ -18,6 +19,48 @@ type OrderRow = {
   created_at: string;
 };
 
+type OrderItem = {
+  id: string;
+  name: string;
+  variant_label: string;
+  quantity: number;
+  unit_price: string;
+  line_total: string;
+};
+
+type StatusHistory = {
+  id: string;
+  from_status: string | null;
+  to_status: string;
+  note: string;
+  created_at: string;
+};
+
+type OrderDetail = OrderRow & {
+  delivery_address?: string;
+  comment?: string;
+  items: OrderItem[];
+  history: StatusHistory[];
+};
+
+type Category = {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  position: number;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  currency: string;
+  active: boolean;
+  category_id: string | null;
+};
+
 const STATUS_LABEL: Record<string, string> = {
   new: "Новый",
   accepted: "Принят",
@@ -27,6 +70,17 @@ const STATUS_LABEL: Record<string, string> = {
   delivered: "Доставлен",
   completed: "Завершён",
   cancelled: "Отменён",
+};
+
+const STATUS_FLOW: Record<string, string[]> = {
+  new: ["accepted", "cancelled"],
+  accepted: ["assembling", "cancelled"],
+  assembling: ["ready", "cancelled"],
+  ready: ["handed_over", "delivered", "cancelled"],
+  handed_over: ["completed"],
+  delivered: ["completed"],
+  completed: [],
+  cancelled: [],
 };
 
 export function OrdersView() {
@@ -49,10 +103,95 @@ function Orders({
   businessId: string;
   timezone: string;
 }) {
-  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [tab, setTab] = useState<"orders" | "catalog">("orders");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  return (
+    <div className="crm-page">
+      <header>
+        <h1>Заказы</h1>
+        <p>Заказы из каталога бота и витрины.</p>
+      </header>
+      <section className="panel crm-panel">
+        <nav aria-label="Разделы заказов">
+          <button
+            type="button"
+            className={
+              tab === "orders" ? "button button--primary" : "button button--outline"
+            }
+            aria-pressed={tab === "orders"}
+            onClick={() => {
+              setTab("orders");
+              setError("");
+              setNotice("");
+            }}
+          >
+            Заказы
+          </button>
+          <button
+            type="button"
+            className={
+              tab === "catalog"
+                ? "button button--primary"
+                : "button button--outline"
+            }
+            aria-pressed={tab === "catalog"}
+            onClick={() => {
+              setTab("catalog");
+              setError("");
+              setNotice("");
+            }}
+          >
+            Каталог
+          </button>
+        </nav>
+      </section>
+      {error && (
+        <p role="alert" className="account-error">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="account-notice">
+          {notice}
+        </p>
+      )}
+      {tab === "orders" ? (
+        <OrdersPanel
+          businessId={businessId}
+          timezone={timezone}
+          onError={setError}
+          onNotice={setNotice}
+        />
+      ) : (
+        <CatalogPanel
+          businessId={businessId}
+          onError={setError}
+          onNotice={setNotice}
+        />
+      )}
+    </div>
+  );
+}
+
+function OrdersPanel({
+  businessId,
+  timezone,
+  onError,
+  onNotice,
+}: {
+  businessId: string;
+  timezone: string;
+  onError: (message: string) => void;
+  onNotice: (message: string) => void;
+}) {
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [busy, setBusy] = useState(false);
   const base = `/api/v1/businesses/${businessId}/orders`;
 
   useEffect(() => {
@@ -64,11 +203,12 @@ function Orders({
       .then((rows) => {
         if (alive) {
           setOrders(rows);
-          setError("");
+          onError("");
         }
       })
       .catch((e) => {
-        if (alive) setError(e instanceof Error ? e.message : "Ошибка загрузки.");
+        if (alive)
+          onError(e instanceof Error ? e.message : "Ошибка загрузки.");
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -76,23 +216,66 @@ function Orders({
     return () => {
       alive = false;
     };
-  }, [base, status]);
+  }, [base, status, onError]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!selected) {
+      setDetail(null);
+      return;
+    }
+    void apiRequest<OrderDetail>(base + "/" + selected)
+      .then((row) => {
+        if (alive) setDetail(row);
+      })
+      .catch((e) => {
+        if (alive) {
+          onError(e instanceof Error ? e.message : "Не удалось открыть заказ.");
+          setSelected(null);
+        }
+      });
+    return () => {
+      alive = false;
+    };
+  }, [base, selected, onError]);
+
+  async function transition(next: string) {
+    if (!selected || busy) return;
+    setBusy(true);
+    onError("");
+    onNotice("");
+    try {
+      await apiRequest(base + "/" + selected, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next }),
+      });
+      const updated = await apiRequest<OrderDetail>(base + "/" + selected);
+      setDetail(updated);
+      setOrders((rows) =>
+        rows.map((row) =>
+          row.id === selected ? { ...row, status: updated.status } : row,
+        ),
+      );
+      onNotice("Статус заказа обновлён.");
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Не удалось сменить статус.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const nextStatuses = detail ? (STATUS_FLOW[detail.status] ?? []) : [];
 
   return (
-    <div className="crm-page">
-      <header>
-        <h1>Заказы</h1>
-        <p>Заказы из каталога бота и витрины.</p>
-      </header>
-      {error && (
-        <p role="alert" className="account-error">
-          {error}
-        </p>
-      )}
+    <>
       <section className="panel crm-panel">
         <label>
           Статус
-          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select
+            value={status}
+            disabled={busy}
+            onChange={(e) => setStatus(e.target.value)}
+          >
             <option value="">Все</option>
             {Object.entries(STATUS_LABEL).map(([v, l]) => (
               <option key={v} value={v}>
@@ -109,31 +292,397 @@ function Orders({
           <ul className="crm-list">
             {orders.map((o) => (
               <li key={o.id}>
-                <strong>
-                  {o.customer_name} · {STATUS_LABEL[o.status] ?? o.status}
-                </strong>
-                <span>
-                  {o.total} {o.currency} ·{" "}
-                  {o.fulfillment === "delivery" ? "Доставка" : "Самовывоз"}
-                </span>
-                <small>
-                  {new Date(o.created_at).toLocaleString("ru", {
-                    timeZone: timezone,
-                  })}
-                </small>
-                <span>
-                  <Link href="/clients">Клиент</Link>
-                  {o.conversation_id ? (
-                    <>
-                      {" · "}
-                      <Link href="/messages">Диалог</Link>
-                    </>
-                  ) : null}
-                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-pressed={selected === o.id}
+                  onClick={() => {
+                    setSelected(o.id);
+                    onError("");
+                    onNotice("");
+                  }}
+                >
+                  <strong>
+                    {o.customer_name} · {STATUS_LABEL[o.status] ?? o.status}
+                  </strong>
+                  <span>
+                    {o.total} {o.currency} ·{" "}
+                    {o.fulfillment === "delivery" ? "Доставка" : "Самовывоз"}
+                  </span>
+                  <small>
+                    {new Date(o.created_at).toLocaleString("ru", {
+                      timeZone: timezone,
+                    })}
+                  </small>
+                  <span>
+                    <Link href="/clients" onClick={(e) => e.stopPropagation()}>
+                      Клиент
+                    </Link>
+                    {o.conversation_id ? (
+                      <>
+                        {" · "}
+                        <Link
+                          href="/messages"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Диалог
+                        </Link>
+                      </>
+                    ) : null}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         )}
+      </section>
+      {detail && (
+        <DetailDialog
+          title={"Заказ · " + (STATUS_LABEL[detail.status] ?? detail.status)}
+          onClose={() => setSelected(null)}
+        >
+          <div className="detail-facts">
+            <span>Клиент</span>
+            <strong>{detail.customer_name}</strong>
+          </div>
+          <div className="detail-facts">
+            <span>Телефон</span>
+            <strong>{detail.customer_phone}</strong>
+          </div>
+          <div className="detail-facts">
+            <span>Сумма</span>
+            <strong>
+              {detail.total} {detail.currency}
+            </strong>
+          </div>
+          <div className="detail-facts">
+            <span>Получение</span>
+            <strong>
+              {detail.fulfillment === "delivery" ? "Доставка" : "Самовывоз"}
+            </strong>
+          </div>
+          {detail.delivery_address ? (
+            <div className="detail-facts">
+              <span>Адрес</span>
+              <strong>{detail.delivery_address}</strong>
+            </div>
+          ) : null}
+          {detail.comment ? (
+            <p className="message-preview">{detail.comment}</p>
+          ) : null}
+          <nav aria-label="Связь с клиентом">
+            <Link className="button button--outline" href="/clients">
+              Клиент
+            </Link>
+            {detail.conversation_id ? (
+              <Link className="button button--outline" href="/messages">
+                Диалог
+              </Link>
+            ) : null}
+            <Link className="button button--primary" href="/messages">
+              Связаться
+            </Link>
+          </nav>
+          {detail.items?.length ? (
+            <>
+              <h3>Позиции</h3>
+              <ul className="crm-list">
+                {detail.items.map((item) => (
+                  <li key={item.id}>
+                    <strong>
+                      {item.name}
+                      {item.variant_label ? " · " + item.variant_label : ""}
+                    </strong>
+                    <span>
+                      {item.quantity} × {item.unit_price} = {item.line_total}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {nextStatuses.length ? (
+            <fieldset disabled={busy}>
+              <legend>Сменить статус</legend>
+              <nav aria-label="Переходы статуса">
+                {nextStatuses.map((next) => (
+                  <button
+                    key={next}
+                    type="button"
+                    className={
+                      next === "cancelled"
+                        ? "button button--outline"
+                        : "button button--primary"
+                    }
+                    onClick={() => void transition(next)}
+                  >
+                    {STATUS_LABEL[next] ?? next}
+                  </button>
+                ))}
+              </nav>
+            </fieldset>
+          ) : (
+            <p className="account-footnote">Дальнейших переходов нет.</p>
+          )}
+          {detail.history?.length ? (
+            <>
+              <h3>История статусов</h3>
+              <ul className="crm-list">
+                {detail.history.map((row) => (
+                  <li key={row.id}>
+                    <strong>
+                      {(row.from_status
+                        ? (STATUS_LABEL[row.from_status] ?? row.from_status) +
+                          " → "
+                        : "") + (STATUS_LABEL[row.to_status] ?? row.to_status)}
+                    </strong>
+                    <small>
+                      {new Date(row.created_at).toLocaleString("ru", {
+                        timeZone: timezone,
+                      })}
+                    </small>
+                    {row.note ? <span>{row.note}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </DetailDialog>
+      )}
+    </>
+  );
+}
+
+function CatalogPanel({
+  businessId,
+  onError,
+  onNotice,
+}: {
+  businessId: string;
+  onError: (message: string) => void;
+  onNotice: (message: string) => void;
+}) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    price: "",
+    description: "",
+    category_id: "",
+    active: true,
+  });
+  const categoriesBase = `/api/v1/businesses/${businessId}/categories`;
+  const productsBase = `/api/v1/businesses/${businessId}/products`;
+
+  async function reload() {
+    const [cats, rows] = await Promise.all([
+      apiRequest<Category[]>(categoriesBase),
+      apiRequest<Product[]>(productsBase),
+    ]);
+    setCategories(cats);
+    setProducts(rows);
+  }
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    void Promise.all([
+      apiRequest<Category[]>(categoriesBase),
+      apiRequest<Product[]>(productsBase),
+    ])
+      .then(([cats, rows]) => {
+        if (!alive) return;
+        setCategories(cats);
+        setProducts(rows);
+        onError("");
+      })
+      .catch((e) => {
+        if (alive)
+          onError(e instanceof Error ? e.message : "Ошибка загрузки каталога.");
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [categoriesBase, productsBase, onError]);
+
+  async function createProduct(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    onError("");
+    onNotice("");
+    try {
+      await apiRequest(productsBase, {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name,
+          price: form.price,
+          description: form.description,
+          category_id: form.category_id || null,
+          active: form.active,
+        }),
+      });
+      setForm({
+        name: "",
+        price: "",
+        description: "",
+        category_id: "",
+        active: true,
+      });
+      await reload();
+      onNotice("Товар создан.");
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось создать товар.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(product: Product) {
+    if (busy) return;
+    setBusy(true);
+    onError("");
+    onNotice("");
+    try {
+      await apiRequest(productsBase + "/" + product.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: product.name,
+          price: product.price,
+          description: product.description,
+          category_id: product.category_id,
+          active: !product.active,
+        }),
+      });
+      await reload();
+      onNotice(product.active ? "Товар скрыт." : "Товар активирован.");
+    } catch (err) {
+      onError(
+        err instanceof Error ? err.message : "Не удалось обновить товар.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const categoryName = (id: string | null) =>
+    categories.find((c) => c.id === id)?.name ?? "Без категории";
+
+  return (
+    <div className="crm-columns">
+      <section className="panel crm-panel">
+        <h2>Категории</h2>
+        {loading ? (
+          <p role="status">Загрузка…</p>
+        ) : !categories.length ? (
+          <p>Категорий пока нет.</p>
+        ) : (
+          <ul className="crm-list">
+            {categories.map((c) => (
+              <li key={c.id}>
+                <strong>{c.name}</strong>
+                <span>{c.active ? "Активна" : "Скрыта"}</span>
+                {c.description ? <small>{c.description}</small> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        <h2>Товары</h2>
+        {loading ? (
+          <p role="status">Загрузка…</p>
+        ) : !products.length ? (
+          <p>Товаров пока нет.</p>
+        ) : (
+          <ul className="crm-list">
+            {products.map((p) => (
+              <li key={p.id}>
+                <strong>
+                  {p.name} · {p.price} {p.currency || "RUB"}
+                </strong>
+                <span>{categoryName(p.category_id)}</span>
+                <span>{p.active ? "Активен" : "Скрыт"}</span>
+                {p.description ? <small>{p.description}</small> : null}
+                <button
+                  type="button"
+                  className="button button--outline"
+                  disabled={busy}
+                  onClick={() => void toggleActive(p)}
+                >
+                  {p.active ? "Скрыть" : "Активировать"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="panel crm-panel">
+        <h2>Новый товар</h2>
+        <form onSubmit={(e) => void createProduct(e)}>
+          <fieldset disabled={busy}>
+            <label>
+              Название
+              <input
+                required
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Цена
+              <input
+                required
+                inputMode="decimal"
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
+            </label>
+            <label>
+              Описание
+              <textarea
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Категория
+              <select
+                value={form.category_id}
+                onChange={(e) =>
+                  setForm({ ...form, category_id: e.target.value })
+                }
+              >
+                <option value="">Без категории</option>
+                {categories
+                  .filter((c) => c.active)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              <span>Активен</span>
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) =>
+                  setForm({ ...form, active: e.target.checked })
+                }
+              />
+            </label>
+            <button className="button button--primary" type="submit">
+              {busy ? "Сохраняем…" : "Создать товар"}
+            </button>
+          </fieldset>
+        </form>
       </section>
     </div>
   );
