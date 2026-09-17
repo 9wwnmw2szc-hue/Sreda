@@ -15,7 +15,7 @@ export interface AttachmentStorage {
 }
 function keyCheck(key: string) {
   if (
-    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
       key,
     )
   )
@@ -141,12 +141,19 @@ export function attachmentStorage(): AttachmentStorage {
       "STORAGE_NOT_CONFIGURED",
       "Для хранилища требуется HTTPS.",
     );
+  const urlStyle = process.env.S3_URL_STYLE ?? "virtual";
+  if (urlStyle !== "virtual" && urlStyle !== "path")
+    throw new AppError(
+      503,
+      "STORAGE_NOT_CONFIGURED",
+      "Стиль S3 URL настроен некорректно.",
+    );
   return new S3AttachmentStorage(
     new S3Client({
       endpoint,
       region: process.env.S3_REGION ?? "us-east-1",
       credentials: { accessKeyId, secretAccessKey },
-      forcePathStyle: true,
+      forcePathStyle: urlStyle === "path",
       maxAttempts: 3,
     }),
     bucket,
