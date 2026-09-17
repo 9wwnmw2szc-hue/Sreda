@@ -7,10 +7,10 @@ import {
   solutionVisualCode,
 } from "../src/config/solutionPresentation.ts";
 
-test("solution catalog exposes exactly the four implemented products", () => {
+test("solution catalog exposes the implemented products including orders", () => {
   assert.deepEqual(
     mockSolutions.map((solution) => solution.code).sort(),
-    ["admin_messages", "autopost", "booking", "leads"],
+    ["admin_messages", "autopost", "booking", "leads", "orders"],
   );
   assert.equal(mockSolutions.some((solution) => solution.code === "sales"), false);
 });
