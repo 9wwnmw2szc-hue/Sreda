@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import Link from "next/link";
 import Image from "next/image";
@@ -12,59 +13,97 @@ import {
   recommendedSolutionCodes,
 } from "@/lib/businessTypeRecommendations";
 import {
+  formatSolutionPrice,
+  productSolutionByCode,
+  productSolutionCta,
+  productSolutionHref,
+} from "@/lib/productSolutions";
+import {
   solutionRoute,
   solutionVisualCode,
 } from "@/config/solutionPresentation";
-import type { Solution } from "@/types";
+import { getBusinessSolutions } from "@/services/solutions.service";
+import type { BusinessSolution, Solution, SolutionStatus } from "@/types";
 
 type Profile = { business_type?: "store" | "service" | "hybrid" };
 
 export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
+  const router = useRouter();
   const { business, businesses, setBusinessId } = useCurrentBusiness();
   const [notice, setNotice] = useState("");
+  const [busyCode, setBusyCode] = useState("");
+  const [installed, setInstalled] = useState<BusinessSolution[]>([]);
   const [profileHint, setProfileHint] = useState<{
     id: string;
     type: NonNullable<Profile["business_type"]>;
   } | null>(null);
+
+  async function reloadStatuses(businessId: string) {
+    try {
+      setInstalled(await getBusinessSolutions(businessId));
+    } catch {
+      setInstalled([]);
+    }
+  }
+
   async function activate(code: string) {
-    if (!business) return;
+    if (!business || busyCode) return;
+    setBusyCode(code);
     try {
       await apiRequest(`/api/v1/businesses/${business.id}/solutions`, {
         method: "POST",
         body: JSON.stringify({ code, enabled: true }),
       });
-      setNotice("Решение подключено. Откройте раздел и завершите настройку.");
+      await reloadStatuses(business.id);
+      const href = productSolutionHref("setup_required", code);
+      setNotice("Решение подключено. Переходим к настройке.");
+      router.push(href);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Не удалось подключить.");
+    } finally {
+      setBusyCode("");
     }
   }
+
   useEffect(() => {
     if (!business || isDemoMode) return;
     const businessId = business.id;
     let active = true;
-    void apiRequest<Profile>(
-      `/api/v1/businesses/${encodeURIComponent(businessId)}/profile`,
-    )
-      .then((profile) => {
-        if (active)
-          setProfileHint({
-            id: businessId,
-            type: profile.business_type ?? "hybrid",
-          });
+    void Promise.all([
+      apiRequest<Profile>(
+        `/api/v1/businesses/${encodeURIComponent(businessId)}/profile`,
+      ),
+      getBusinessSolutions(businessId),
+    ])
+      .then(([profile, rows]) => {
+        if (!active) return;
+        setProfileHint({
+          id: businessId,
+          type: profile.business_type ?? "hybrid",
+        });
+        setInstalled(rows);
       })
       .catch(() => {
-        if (active) setProfileHint(null);
+        if (active) {
+          setProfileHint(null);
+          setInstalled([]);
+        }
       });
     return () => {
       active = false;
     };
   }, [business]);
+
   const businessType =
     !isDemoMode && business && profileHint?.id === business.id
       ? profileHint.type
       : null;
   const recommended = recommendedSolutionCodes(businessType);
   const hint = recommendationSummary(businessType);
+  const statusBySolutionId = new Map(
+    installed.map((item) => [item.solutionId, item]),
+  );
+
   return (
     <div className="solutions-page">
       <div className="section-topline">
@@ -79,8 +118,8 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         <div>
           <h1>Что поручим Среде?</h1>
           <p>
-            Выберите задачу. Среда поможет с заявками, публикациями, продажами и
-            записью.
+            Выберите задачу. Среда поможет с заявками, заказами, записью,
+            сообщениями и публикациями.
           </p>
         </div>
         <span className="solutions-intro__symbol">
@@ -101,6 +140,15 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       <div className="solution-catalog-grid">
         {solutions.map((solution) => {
           const isRecommended = recommended.includes(solution.code);
+          const row = statusBySolutionId.get(solution.id);
+          const status: SolutionStatus = row?.status ?? "available";
+          const def = productSolutionByCode(solution.code);
+          const cta = productSolutionCta(status, solution.code);
+          const href = productSolutionHref(status, solution.code);
+          const priceLabel = formatSolutionPrice(
+            solution.price,
+            def?.messageLimit,
+          );
           return (
             <article
               key={solution.id}
@@ -123,33 +171,37 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   )}
                 </h2>
                 <p>{solution.description}</p>
+                <p className="catalog-card__status" role="status">
+                  {row?.note ??
+                    (status === "available"
+                      ? "Не подключено"
+                      : cta)}
+                </p>
                 <div className="catalog-card__price">
-                  <strong>{solution.price} ₽</strong>
-                  <span>/ месяц за решение</span>
+                  <strong>{priceLabel}</strong>
+                  {solution.price > 0 && <span>за решение</span>}
                 </div>
-                {solution.code === "leads" ? (
-                  <Link
-                    href="/solutions/leads/setup"
+                {status === "available" && !isDemoMode ? (
+                  <button
                     className="button button--primary"
+                    disabled={busyCode === solution.code}
+                    onClick={() => void activate(solution.code)}
                   >
-                    {isDemoMode ? "Посмотреть настройку" : "Настроить"}
+                    {busyCode === solution.code ? "Подключаем…" : "Подключить"}
+                    <ArrowRight size={18} />
+                  </button>
+                ) : (
+                  <Link href={href} className="button button--primary">
+                    {isDemoMode && status === "available"
+                      ? "Посмотреть"
+                      : cta}
                     <ArrowRight size={18} />
                   </Link>
-                ) : (
-                  <>
-                    <button
-                      className="button button--primary"
-                      onClick={() => void activate(solution.code)}
-                    >
-                      Подключить
-                    </button>
-                    <Link
-                      className="text-link"
-                      href={solutionRoute(solution.code)}
-                    >
-                      Настроить
-                    </Link>
-                  </>
+                )}
+                {status !== "available" && (
+                  <Link className="text-link" href={solutionRoute(solution.code)}>
+                    Открыть раздел
+                  </Link>
                 )}
               </div>
             </article>
@@ -159,8 +211,8 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       <section className="catalog-explanation panel">
         <h2>Один бизнес. Несколько площадок.</h2>
         <p>
-          Telegram и ВКонтакте будут работать с общими заявками. Управление — в
-          одном рабочем пространстве Среды.
+          Telegram и ВКонтакте работают с общими клиентами. Управление — в одном
+          рабочем пространстве Среды.
         </p>
       </section>
     </div>

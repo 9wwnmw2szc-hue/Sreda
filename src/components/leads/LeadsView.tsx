@@ -10,6 +10,7 @@ import { isDemoMode } from "@/lib/dataMode";
 import { formatRelativeDateTime } from "@/lib/format";
 import { ClientError } from "@/lib/apiClient";
 import { LeadFormFieldsPanel } from "@/components/leads/LeadFormFieldsPanel";
+import { EmptyStateCta } from "@/components/solutions/SolutionSetupBanner";
 import type { Lead, LeadStatus } from "@/types";
 const labels: Record<LeadStatus, string> = {
   new: "Новая",
@@ -347,11 +348,16 @@ function LeadList({ businessId }: { businessId: string }) {
             </ul>
           ) : (
             <div className="empty-state">
-              <p>
-                {filter === "all"
-                  ? "Заявок пока нет. Обращения клиентов появятся здесь."
-                  : "Заявок с таким статусом пока нет."}
-              </p>
+              {filter === "all" ? (
+                <EmptyStateCta
+                  title="Заявок пока нет"
+                  description="Настройте форму заявки и подключите Telegram или VK — обращения появятся здесь."
+                  href="/solutions/leads/setup"
+                  action="Настроить приём заявок"
+                />
+              ) : (
+                <p>Заявок с таким статусом пока нет.</p>
+              )}
             </div>
           )}
           {current.more && (

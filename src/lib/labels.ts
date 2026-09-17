@@ -52,13 +52,13 @@ export function postStatusLabel(status: PostStatus): string {
 export function solutionStatusLabel(status: SolutionStatus): string {
   switch (status) {
     case "active":
-      return "Работает";
+      return "Подключено";
     case "available":
-      return "Доступно";
+      return "Не подключено";
     case "setup_required":
-      return "Нужна настройка";
+      return "Продолжить настройку";
     case "paused":
-      return "Пауза";
+      return "Нужна проверка";
     case "unavailable":
       return "Недоступно";
     default:

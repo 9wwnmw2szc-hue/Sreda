@@ -1,9 +1,14 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
 import { DetailDialog } from "@/components/dashboard/DetailDialog";
+import {
+  EmptyStateCta,
+  SolutionSetupBanner,
+} from "@/components/solutions/SolutionSetupBanner";
 
 type OrderRow = {
   id: string;
@@ -103,16 +108,24 @@ function Orders({
   businessId: string;
   timezone: string;
 }) {
-  const [tab, setTab] = useState<"orders" | "catalog">("orders");
+  const search = useSearchParams();
+  const initialTab =
+    search.get("tab") === "catalog" ? "catalog" : "orders";
+  const [tab, setTab] = useState<"orders" | "catalog">(initialTab);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    if (search.get("tab") === "catalog") setTab("catalog");
+  }, [search]);
 
   return (
     <div className="crm-page">
       <header>
-        <h1>Заказы</h1>
-        <p>Заказы из каталога бота и витрины.</p>
+        <h1>Приём заказов</h1>
+        <p>Каталог, товары и обработка заказов из бота.</p>
       </header>
+      <SolutionSetupBanner code="orders" />
       <section className="panel crm-panel">
         <nav aria-label="Разделы заказов">
           <button
@@ -295,7 +308,12 @@ function OrdersPanel({
         {loading ? (
           <p role="status">Загрузка…</p>
         ) : !orders.length ? (
-          <p>Заказов пока нет.</p>
+          <EmptyStateCta
+            title="Заказов пока нет"
+            description="Когда клиенты оформят заказ в боте, он появится здесь. Сначала добавьте товары в каталог."
+            href="/orders?tab=catalog"
+            action="Открыть каталог"
+          />
         ) : (
           <ul className="crm-list">
             {orders.map((o) => (
@@ -474,11 +492,20 @@ function CatalogPanel({
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [categoryName, setCategoryName] = useState("");
   const [form, setForm] = useState({
     name: "",
     price: "",
+    compare_at_price: "",
     description: "",
     category_id: "",
+    sku: "",
+    stock_quantity: "",
+    track_inventory: false,
+    use_variants: false,
+    variant_label: "",
+    variant_price: "",
+    variant_stock: "",
     active: true,
   });
   const categoriesBase = `/api/v1/businesses/${businessId}/categories`;
@@ -523,6 +550,29 @@ function CatalogPanel({
     };
   }, [categoriesBase, productsBase, onError]);
 
+  async function createCategory(e: FormEvent) {
+    e.preventDefault();
+    if (busy || !categoryName.trim()) return;
+    setBusy(true);
+    onError("");
+    onNotice("");
+    try {
+      await apiRequest(categoriesBase, {
+        method: "POST",
+        body: JSON.stringify({ name: categoryName.trim(), active: true }),
+      });
+      setCategoryName("");
+      await reload();
+      onNotice("Категория создана.");
+    } catch (err) {
+      onError(
+        err instanceof Error ? err.message : "Не удалось создать категорию.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function createProduct(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -530,21 +580,51 @@ function CatalogPanel({
     onError("");
     onNotice("");
     try {
+      const payload: Record<string, unknown> = {
+        name: form.name,
+        price: form.price,
+        description: form.description,
+        category_id: form.category_id || null,
+        sku: form.sku || null,
+        compare_at_price: form.compare_at_price || null,
+        active: form.active,
+        use_variants: form.use_variants,
+        track_inventory: form.track_inventory,
+      };
+      if (form.track_inventory && form.stock_quantity !== "") {
+        payload.availability = "quantity";
+        payload.stock_quantity = Number(form.stock_quantity);
+      }
+      if (form.use_variants && form.variant_label.trim()) {
+        payload.variants = [
+          {
+            label: form.variant_label.trim(),
+            price: form.variant_price || form.price,
+            availability: form.track_inventory ? "quantity" : "in_stock",
+            stock_quantity: form.track_inventory
+              ? Number(form.variant_stock || 0)
+              : null,
+            active: true,
+          },
+        ];
+      }
       await apiRequest(productsBase, {
         method: "POST",
-        body: JSON.stringify({
-          name: form.name,
-          price: form.price,
-          description: form.description,
-          category_id: form.category_id || null,
-          active: form.active,
-        }),
+        body: JSON.stringify(payload),
       });
       setForm({
         name: "",
         price: "",
+        compare_at_price: "",
         description: "",
         category_id: "",
+        sku: "",
+        stock_quantity: "",
+        track_inventory: false,
+        use_variants: false,
+        variant_label: "",
+        variant_price: "",
+        variant_stock: "",
         active: true,
       });
       await reload();
@@ -583,7 +663,7 @@ function CatalogPanel({
     }
   }
 
-  const categoryName = (id: string | null) =>
+  const categoryNameOf = (id: string | null) =>
     categories.find((c) => c.id === id)?.name ?? "Без категории";
 
   return (
@@ -593,7 +673,12 @@ function CatalogPanel({
         {loading ? (
           <p role="status">Загрузка…</p>
         ) : !categories.length ? (
-          <p>Категорий пока нет.</p>
+          <EmptyStateCta
+            title="Категорий пока нет"
+            description="Создайте первую категорию, чтобы упорядочить товары."
+            href="#new-category"
+            action="К форме категории"
+          />
         ) : (
           <ul className="crm-list">
             {categories.map((c) => (
@@ -609,7 +694,12 @@ function CatalogPanel({
         {loading ? (
           <p role="status">Загрузка…</p>
         ) : !products.length ? (
-          <p>Товаров пока нет.</p>
+          <EmptyStateCta
+            title="Товаров пока нет"
+            description="Добавьте первый товар: название, цену, описание и при необходимости варианты."
+            href="#new-product"
+            action="К форме товара"
+          />
         ) : (
           <ul className="crm-list">
             {products.map((p) => (
@@ -617,7 +707,7 @@ function CatalogPanel({
                 <strong>
                   {p.name} · {p.price} {p.currency || "RUB"}
                 </strong>
-                <span>{categoryName(p.category_id)}</span>
+                <span>{categoryNameOf(p.category_id)}</span>
                 <span>{p.active ? "Активен" : "Скрыт"}</span>
                 {p.description ? <small>{p.description}</small> : null}
                 <button
@@ -634,7 +724,23 @@ function CatalogPanel({
         )}
       </section>
       <section className="panel crm-panel">
-        <h2>Новый товар</h2>
+        <h2 id="new-category">Новая категория</h2>
+        <form onSubmit={(e) => void createCategory(e)}>
+          <fieldset disabled={busy}>
+            <label>
+              Название
+              <input
+                required
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+              />
+            </label>
+            <button className="button button--outline" type="submit">
+              Создать категорию
+            </button>
+          </fieldset>
+        </form>
+        <h2 id="new-product">Новый товар</h2>
         <form onSubmit={(e) => void createProduct(e)}>
           <fieldset disabled={busy}>
             <label>
@@ -652,6 +758,23 @@ function CatalogPanel({
                 inputMode="decimal"
                 value={form.price}
                 onChange={(e) => setForm({ ...form, price: e.target.value })}
+              />
+            </label>
+            <label>
+              Старая цена / скидка
+              <input
+                inputMode="decimal"
+                value={form.compare_at_price}
+                onChange={(e) =>
+                  setForm({ ...form, compare_at_price: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Артикул (SKU)
+              <input
+                value={form.sku}
+                onChange={(e) => setForm({ ...form, sku: e.target.value })}
               />
             </label>
             <label>
@@ -682,17 +805,76 @@ function CatalogPanel({
               </select>
             </label>
             <label>
-              <span>Активен</span>
               <input
                 type="checkbox"
-                checked={form.active}
+                checked={form.track_inventory}
                 onChange={(e) =>
-                  setForm({ ...form, active: e.target.checked })
+                  setForm({ ...form, track_inventory: e.target.checked })
                 }
-              />
+              />{" "}
+              Учитывать остаток
             </label>
+            {form.track_inventory && !form.use_variants ? (
+              <label>
+                Количество
+                <input
+                  inputMode="numeric"
+                  value={form.stock_quantity}
+                  onChange={(e) =>
+                    setForm({ ...form, stock_quantity: e.target.value })
+                  }
+                />
+              </label>
+            ) : null}
+            <label>
+              <input
+                type="checkbox"
+                checked={form.use_variants}
+                onChange={(e) =>
+                  setForm({ ...form, use_variants: e.target.checked })
+                }
+              />{" "}
+              Есть варианты (размер / цвет)
+            </label>
+            {form.use_variants ? (
+              <>
+                <label>
+                  Вариант
+                  <input
+                    required={form.use_variants}
+                    placeholder="Например: M / красный"
+                    value={form.variant_label}
+                    onChange={(e) =>
+                      setForm({ ...form, variant_label: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Цена варианта
+                  <input
+                    inputMode="decimal"
+                    value={form.variant_price}
+                    onChange={(e) =>
+                      setForm({ ...form, variant_price: e.target.value })
+                    }
+                  />
+                </label>
+                {form.track_inventory ? (
+                  <label>
+                    Остаток варианта
+                    <input
+                      inputMode="numeric"
+                      value={form.variant_stock}
+                      onChange={(e) =>
+                        setForm({ ...form, variant_stock: e.target.value })
+                      }
+                    />
+                  </label>
+                ) : null}
+              </>
+            ) : null}
             <button className="button button--primary" type="submit">
-              {busy ? "Сохраняем…" : "Создать товар"}
+              Создать товар
             </button>
           </fieldset>
         </form>

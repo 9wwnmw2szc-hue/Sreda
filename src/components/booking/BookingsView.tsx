@@ -1,8 +1,14 @@
 "use client";
 import { DetailDialog } from "@/components/dashboard/DetailDialog";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
+import {
+  EmptyStateCta,
+  SolutionSetupBanner,
+} from "@/components/solutions/SolutionSetupBanner";
 type Service = {
   description: string;
   currency: string;
@@ -124,6 +130,8 @@ function Calendar({
     [cancel, setCancel] = useState<Booking | null>(null),
     [selected, setSelected] = useState<Booking | null>(null);
   const requestKey = useRef("");
+  const search = useSearchParams();
+  const focusConfig = search.get("tab") === "config";
   const range =
     mode === "list"
       ? ""
@@ -287,6 +295,15 @@ function Calendar({
     <div>
       <h1>Онлайн-запись</h1>
       <p>Часовой пояс: {timezone}</p>
+      <SolutionSetupBanner code="booking" />
+      {catalog && !catalog.services.length ? (
+        <EmptyStateCta
+          title="Сначала создайте услугу"
+          description="Добавьте услугу, затем специалиста или режим без выбора специалиста и настройте расписание."
+          href="#booking-config"
+          action="К настройке записи"
+        />
+      ) : null}
       <nav aria-label="Страницы записей">
         <button disabled={page === 0 || busy} onClick={() => setPage(page - 1)}>
           Предыдущая
@@ -565,7 +582,12 @@ function Calendar({
             </form>
           </section>
           {canConfigure && (
-            <Configuration base={base} catalog={catalog} onChange={refresh} />
+            <Configuration
+              base={base}
+              catalog={catalog}
+              onChange={refresh}
+              openDetails={focusConfig}
+            />
           )}
         </>
       )}
@@ -616,10 +638,12 @@ function Configuration({
   base,
   catalog,
   onChange,
+  openDetails = false,
 }: {
   base: string;
   catalog: Catalog;
   onChange: () => Promise<void>;
+  openDetails?: boolean;
 }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -701,11 +725,11 @@ function Configuration({
     });
   }
   return (
-    <section className="panel crm-panel">
+    <section className="panel crm-panel" id="booking-config">
       <h2>Настройка записи</h2>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      <details>
+      <details open={openDetails || undefined}>
         <summary>Услуги</summary>
         <select
           value={service.id}

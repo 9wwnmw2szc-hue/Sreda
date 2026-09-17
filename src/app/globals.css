@@ -982,6 +982,46 @@ ul {
   line-height: 1.5;
   max-width: 270px;
 }
+.empty-state--cta {
+  align-items: stretch;
+  text-align: left;
+}
+.empty-state--cta .button {
+  align-self: flex-start;
+  min-height: 44px;
+}
+.solution-setup-banner {
+  margin-bottom: 16px;
+}
+.solution-setup-banner h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.solution-setup-banner ol {
+  margin: 0 0 14px;
+  padding-left: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.solution-setup-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.catalog-card__status {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+.solution-next-steps {
+  margin: 0 0 14px;
+  padding-left: 1.2rem;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
 .mobile-solutions,
 .mobile-account-panels,
 .mobile-only {

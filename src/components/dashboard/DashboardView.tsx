@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, ArrowUpRight, Search, RefreshCw } from "lucide-react";
 import { DashboardHeader } from "./DashboardHeader";
 import { SolutionWorkspace } from "./SolutionWorkspace";
@@ -28,6 +29,12 @@ import {
   recommendedSolutionCodes,
 } from "@/lib/businessTypeRecommendations";
 import { solutionRoute } from "@/config/solutionPresentation";
+import {
+  formatSolutionPrice,
+  productSolutionByCode,
+  productSolutionCta,
+  productSolutionHref,
+} from "@/lib/productSolutions";
 import type { Lead, Post } from "@/types";
 type Selection =
   | { type: "catalog" }
@@ -36,9 +43,12 @@ type Selection =
   | { type: "post"; item: Post };
 export function DashboardView() {
   const data = useDashboardData();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [selectionBusiness, setSelectionBusiness] = useState("");
+  const [activating, setActivating] = useState(false);
+  const [activateError, setActivateError] = useState("");
   const [profileHint, setProfileHint] = useState<{
     id: string;
     type: "store" | "service" | "hybrid";
@@ -78,6 +88,26 @@ export function DashboardView() {
   const selectSolution = (item: WorkspaceSolutionItem) =>
     show({ type: "solution", item });
   const catalog = () => show({ type: "catalog" });
+  async function connectSolution(code: string) {
+    if (!data.businessId || isDemoMode || activating) return;
+    setActivating(true);
+    setActivateError("");
+    try {
+      await apiRequest(`/api/v1/businesses/${data.businessId}/solutions`, {
+        method: "POST",
+        body: JSON.stringify({ code, enabled: true }),
+      });
+      setSelection(null);
+      data.retry();
+      router.push(productSolutionHref("setup_required", code));
+    } catch (e) {
+      setActivateError(
+        e instanceof Error ? e.message : "Не удалось подключить решение.",
+      );
+    } finally {
+      setActivating(false);
+    }
+  }
   const term = query.trim().toLocaleLowerCase("ru-RU");
   const matchingSolutions = term
     ? data.workspaceItems.filter((item) =>
@@ -324,7 +354,9 @@ export function DashboardView() {
                 ))}
               </div>
               <p className="demo-note">
-                Демонстрация: подключение площадок и оплата пока недоступны.
+                {isDemoMode
+                  ? "Демонстрация: подключение площадок и оплата в демо недоступны."
+                  : "Подключите решение и завершите настройку — функции откроются в навигации."}
               </p>
             </>
           )}
@@ -352,25 +384,73 @@ export function DashboardView() {
               </p>
               <div className="detail-facts">
                 <span>Стоимость</span>
-                <strong>{visibleSelection.item.solution.price} ₽/мес.</strong>
+                <strong>
+                  {formatSolutionPrice(
+                    visibleSelection.item.solution.price,
+                    productSolutionByCode(visibleSelection.item.code)
+                      ?.messageLimit,
+                  )}
+                </strong>
               </div>
               {visibleSelection.item.note && <p className="account-notice">{visibleSelection.item.note}</p>}
+              {(() => {
+                const def = productSolutionByCode(visibleSelection.item.code);
+                return def?.nextSteps?.length ? (
+                  <ol className="solution-next-steps">
+                    {def.nextSteps.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                ) : null;
+              })()}
               <p className="demo-note">
                 {isDemoMode
                   ? "Это демонстрация решения."
                   : visibleSelection.item.status === "active"
-                    ? "Решение активно. Его статус учитывает подключения и работу обработчиков."
-                    : "Откройте раздел решения, чтобы завершить настройку."}
+                    ? "Решение подключено. Статус учитывает подключения и работу обработчиков."
+                    : "После подключения завершите настройку по шагам ниже."}
               </p>
-              <Link
-                className="button button--primary button--full"
-                href={solutionRoute(visibleSelection.item.code)}
-              >
-                {visibleSelection.item.code === "leads"
-                  ? "Открыть настройку"
-                  : "Открыть решение"}
-                <ArrowUpRight size={18} />
-              </Link>
+              {activateError && (
+                <p role="alert" className="account-error">
+                  {activateError}
+                </p>
+              )}
+              {visibleSelection.item.status === "available" && !isDemoMode ? (
+                <button
+                  type="button"
+                  className="button button--primary button--full"
+                  disabled={activating}
+                  onClick={() =>
+                    void connectSolution(visibleSelection.item.code)
+                  }
+                >
+                  {activating ? "Подключаем…" : "Подключить"}
+                  <ArrowUpRight size={18} />
+                </button>
+              ) : (
+                <Link
+                  className="button button--primary button--full"
+                  href={productSolutionHref(
+                    visibleSelection.item.status,
+                    visibleSelection.item.code,
+                  )}
+                >
+                  {productSolutionCta(
+                    visibleSelection.item.status,
+                    visibleSelection.item.code,
+                  )}
+                  <ArrowUpRight size={18} />
+                </Link>
+              )}
+              {visibleSelection.item.status !== "available" && (
+                <Link
+                  className="button button--outline button--full"
+                  href={solutionRoute(visibleSelection.item.code)}
+                >
+                  Открыть раздел
+                  <ArrowUpRight size={18} />
+                </Link>
+              )}
             </>
           )}
           {visibleSelection.type === "lead" && (

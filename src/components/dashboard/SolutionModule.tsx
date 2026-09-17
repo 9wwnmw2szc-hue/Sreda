@@ -8,15 +8,23 @@ export function solutionState(item: WorkspaceSolutionItem): {
 } {
   switch (item.status) {
     case "active":
-      return { label: "Работает", tone: "success" };
+      return { label: "Подключено", tone: "success" };
     case "setup_required":
-      return { label: "Нужна настройка", tone: "warning" };
+      return { label: "Продолжить настройку", tone: "warning" };
     case "paused":
-      return { label: "На паузе", tone: "muted" };
+      return { label: "Нужна проверка", tone: "muted" };
     case "unavailable":
-      return { label: "Скоро появится", tone: "muted" };
+      return { label: "Недоступно", tone: "muted" };
+    case "available":
+      return { label: "Подключить", tone: "available" };
     default:
-      return { label: `${item.solution.price} ₽/мес.`, tone: "available" };
+      return {
+        label:
+          item.solution.price <= 0
+            ? "Бесплатно"
+            : `${item.solution.price} ₽/мес.`,
+        tone: "available",
+      };
   }
 }
 interface Props {
