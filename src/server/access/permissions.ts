@@ -7,6 +7,7 @@ export type Permission =
   | "leads.write"
   | "messages.write"
   | "booking.write"
+  | "orders.write"
   | "posts.manage"
   | "settings.manage"
   | "connections.manage"
@@ -18,6 +19,7 @@ const operatorPermissions: readonly Permission[] = [
   "leads.write",
   "messages.write",
   "booking.write",
+  "orders.write",
   "notifications.read",
 ];
 export function allowed(role: Role, permission: Permission) {

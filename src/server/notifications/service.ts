@@ -9,6 +9,7 @@ export type NotificationType =
   | "booking.created"
   | "booking.cancelled"
   | "booking.rescheduled"
+  | "order.created"
   | "post.failed";
 export async function notify(
   tx: Transaction<Database>,

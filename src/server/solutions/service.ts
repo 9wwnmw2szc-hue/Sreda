@@ -7,7 +7,7 @@ import {
   LEAD_FIELDS,
   type LeadSetupDraft,
 } from "../../lib/leadSetupDraft.ts";
-import { SOLUTIONS } from "./catalog.ts";
+import { SOLUTIONS, normalizeSolutionCode } from "./catalog.ts";
 import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
@@ -181,9 +181,11 @@ export class SolutionService {
     publicId: string,
     raw: Record<string, unknown>,
   ) {
-    const code = String(raw.code);
+    const code = normalizeSolutionCode(String(raw.code));
     if (
-      !["leads", "booking", "autopost", "admin_messages"].includes(code) ||
+      !["leads", "booking", "autopost", "admin_messages", "orders"].includes(
+        code,
+      ) ||
       typeof raw.enabled !== "boolean"
     )
       throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
@@ -230,7 +232,7 @@ export class SolutionService {
     const now = Date.now();
     const solutionState = new Map(
       enabledSolutions.map((item) => [
-        item.solution_code,
+        normalizeSolutionCode(item.solution_code),
         {
           active:
             (item.status === "active" || item.status === "trial") &&

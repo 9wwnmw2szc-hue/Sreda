@@ -9,6 +9,7 @@ export const notificationTypes = [
   "booking.created",
   "booking.cancelled",
   "booking.rescheduled",
+  "order.created",
   "post.failed",
 ];
 const hash = (code: string) => createHash("sha256").update(code).digest("hex");
