@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Kysely, Transaction } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -19,6 +19,31 @@ import type {
 
 const fail = (message = "Проверьте параметры заказа.") =>
   new AppError(400, "INVALID_ORDER", message);
+
+function isUniqueViolation(error: unknown) {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    String((error as { code: unknown }).code) === "23505"
+  );
+}
+
+async function withSavepoint<T>(
+  tx: Transaction<Database>,
+  name: string,
+  run: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> {
+  await sql.raw(`SAVEPOINT ${name}`).execute(tx);
+  try {
+    const value = await run();
+    await sql.raw(`RELEASE SAVEPOINT ${name}`).execute(tx);
+    return { ok: true, value };
+  } catch (error) {
+    await sql.raw(`ROLLBACK TO SAVEPOINT ${name}`).execute(tx);
+    return { ok: false, error };
+  }
+}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -957,26 +982,22 @@ export class OrderService {
       external_user_id: externalUserId,
       updated_at: new Date(),
     };
-    try {
+    const inserted = await withSavepoint(tx, "cart_create", async () => {
       await tx.insertInto("cart").values(cart).execute();
       return cart;
-    } catch (error) {
-      const code =
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code: unknown }).code)
-          : "";
-      if (code !== "23505") throw error;
-      const raced = await tx
-        .selectFrom("cart")
-        .selectAll()
-        .where("business_id", "=", businessId)
-        .where("platform", "=", platform)
-        .where("external_user_id", "=", externalUserId)
-        .forUpdate()
-        .executeTakeFirst();
-      if (!raced) throw error;
-      return raced;
-    }
+    });
+    if (inserted.ok) return inserted.value;
+    if (!isUniqueViolation(inserted.error)) throw inserted.error;
+    const raced = await tx
+      .selectFrom("cart")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("platform", "=", platform)
+      .where("external_user_id", "=", externalUserId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!raced) throw inserted.error;
+    return raced;
   }
 
   private async loadCart(
@@ -1125,7 +1146,7 @@ export class OrderService {
           .where("id", "=", existing.id)
           .execute();
       } else {
-        try {
+        const inserted = await withSavepoint(tx, "cart_item_insert", async () => {
           await tx
             .insertInto("cart_item")
             .values({
@@ -1137,12 +1158,9 @@ export class OrderService {
               quantity,
             })
             .execute();
-        } catch (error) {
-          const code =
-            error && typeof error === "object" && "code" in error
-              ? String((error as { code: unknown }).code)
-              : "";
-          if (code !== "23505") throw error;
+        });
+        if (!inserted.ok) {
+          if (!isUniqueViolation(inserted.error)) throw inserted.error;
           const raced = await tx
             .selectFrom("cart_item")
             .selectAll()
@@ -1152,7 +1170,7 @@ export class OrderService {
             .where("variant_id", variantId === null ? "is" : "=", variantId)
             .forUpdate()
             .executeTakeFirst();
-          if (!raced) throw error;
+          if (!raced) throw inserted.error;
           const next = raced.quantity + quantity;
           if (next > 999) throw fail("Слишком много позиций.");
           if (

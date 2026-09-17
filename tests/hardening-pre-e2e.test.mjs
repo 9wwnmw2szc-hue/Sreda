@@ -31,9 +31,59 @@ const db = new Kysely({
     : new PGliteDialect({ pglite: new PGlite() }),
 });
 const secret = "hardening-fixture-secret-32chars!!";
+const createdBusinessIds = [];
 
 before(() => migrate(db, new URL("../migrations", import.meta.url).pathname));
-after(() => db.destroy());
+after(async () => {
+  // Remove fixture businesses and any pending outbox rows so shared CI Postgres
+  // is not polluted for later test files that call deliverOne().
+  for (const businessId of createdBusinessIds) {
+    const conns = await db
+      .selectFrom("business_connection")
+      .select("id")
+      .where("business_id", "=", businessId)
+      .execute();
+    for (const c of conns) {
+      await db
+        .deleteFrom("telegram_outbox")
+        .where("connection_id", "=", c.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("vk_outbox")
+        .where("connection_id", "=", c.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("telegram_runtime")
+        .where("connection_id", "=", c.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("vk_runtime")
+        .where("connection_id", "=", c.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("connection_secret")
+        .where("connection_id", "=", c.id)
+        .execute()
+        .catch(() => {});
+    }
+    await db
+      .deleteFrom("business_connection")
+      .where("business_id", "=", businessId)
+      .execute()
+      .catch(() => {});
+    await db
+      .updateTable("business")
+      .set({ archived_at: new Date() })
+      .where("id", "=", businessId)
+      .execute()
+      .catch(() => {});
+  }
+  await db.destroy();
+});
 
 async function ownerBusiness(name = "Hardening") {
   const uid = randomUUID();
@@ -56,6 +106,7 @@ async function ownerBusiness(name = "Hardening") {
     })
     .returningAll()
     .executeTakeFirstOrThrow();
+  createdBusinessIds.push(b.id);
   await db
     .insertInto("business_member")
     .values({
@@ -290,6 +341,16 @@ test("entity reminder queues to outbox and does not mark sent until delivery", a
   assert.equal(outbox.chat_id, "777");
   // restart/idempotency: second process does nothing (already queued)
   assert.equal(await processEntityReminder(db), false);
+  // Do not leave pending outbox for other test files on shared Postgres.
+  await db
+    .deleteFrom("telegram_outbox")
+    .where("entity_reminder_id", "=", reminderId)
+    .execute();
+  await db
+    .updateTable("telegram_runtime")
+    .set({ status: "error", updated_at: new Date() })
+    .where("connection_id", "=", connectionId)
+    .execute();
 });
 
 test("VK staff reminder fails gracefully without outbox or sent", async () => {
