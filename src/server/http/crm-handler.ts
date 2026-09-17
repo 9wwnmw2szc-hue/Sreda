@@ -41,7 +41,11 @@ export function crmHandler(
       if (request.method === "GET")
         return json(await service.list(user.id, businessId));
       const body = await readJson(request);
-      if (body.action === "mark_all_read" || body.mark_all === true)
+      if (
+        body.action === "mark_all_read" ||
+        body.mark_all === true ||
+        body.all === true
+      )
         return json(await service.markAllRead(user.id, businessId));
       return json(
         await service.read(user.id, businessId, String(body.id)),

@@ -31,6 +31,8 @@ test("upgrade 001–031 then 032+ applies orders/AI/leads/booking extensions ide
     assert.ok(applied.rows.some((r) => r.name.startsWith("032_")));
     assert.ok(applied.rows.some((r) => r.name.startsWith("033_")));
     assert.ok(applied.rows.some((r) => r.name.startsWith("036_")));
+    assert.ok(applied.rows.some((r) => r.name.startsWith("038_")));
+    assert.ok(applied.rows.some((r) => r.name.startsWith("039_")));
 
     // New columns / tables exist
     await sql`select business_type, ai_about from business limit 0`.execute(db);
@@ -39,6 +41,8 @@ test("upgrade 001–031 then 032+ applies orders/AI/leads/booking extensions ide
     await sql`select id from lead_form_field limit 0`.execute(db);
     await sql`select choose_specialist, schedule_mode from booking_settings limit 0`.execute(db);
     await sql`select text_telegram, text_vk from post limit 0`.execute(db);
+    await sql`select id, event_type, all_day from calendar_event limit 0`.execute(db);
+    await sql`select id, entity_kind, offset_minutes from entity_reminder limit 0`.execute(db);
 
     // Existing business row still writable with defaults
     const id = randomUUID();

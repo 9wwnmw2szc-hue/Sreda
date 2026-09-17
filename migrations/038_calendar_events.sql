@@ -67,3 +67,14 @@ CREATE INDEX entity_reminder_due ON entity_reminder (status, fire_at)
 
 ALTER TABLE telegram_outbox ADD COLUMN entity_reminder_id uuid UNIQUE REFERENCES entity_reminder(id);
 ALTER TABLE vk_outbox ADD COLUMN entity_reminder_id uuid UNIQUE REFERENCES entity_reminder(id);
+
+-- Audit actions for calendar events.
+ALTER TABLE business_audit_log DROP CONSTRAINT IF EXISTS business_audit_log_action_check;
+ALTER TABLE business_audit_log ADD CONSTRAINT business_audit_log_action_check CHECK (action IN (
+  'invitation_created', 'invitation_accepted', 'invitation_revoked', 'member_revoked', 'member_role_changed',
+  'connection_connected', 'connection_disconnected', 'lead_taken', 'lead_closed', 'conversation_taken', 'conversation_closed',
+  'booking_created', 'booking_rescheduled', 'booking_cancelled', 'booking_completed', 'service_created', 'service_updated',
+  'specialist_created', 'specialist_updated', 'post_created', 'post_scheduled', 'post_cancelled', 'post_published',
+  'product_created', 'product_updated', 'order_created', 'order_status_changed', 'inventory_adjusted', 'settings_changed',
+  'calendar_event_created', 'calendar_event_updated', 'calendar_event_cancelled'
+));

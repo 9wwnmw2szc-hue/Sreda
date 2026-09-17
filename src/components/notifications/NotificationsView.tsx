@@ -62,11 +62,35 @@ function List({ id }: { id: string }) {
       setError(e instanceof Error ? e.message : "Не удалось отметить.");
     }
   }
+  async function readAll() {
+    try {
+      await apiRequest(url, {
+        method: "PATCH",
+        body: JSON.stringify({ all: true }),
+      });
+      const now = new Date().toISOString();
+      setItems((all) =>
+        all.map((x) => (x.read_at ? x : { ...x, read_at: now })),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось отметить.");
+    }
+  }
+  const unread = items.filter((i) => !i.read_at).length;
   return (
     <section className="panel crm-panel">
       <h1>Уведомления</h1>
       <NotificationSettings businessId={id} />
-      <p>Непрочитанных: {items.filter((i) => !i.read_at).length}</p>
+      <p>Непрочитанных: {unread}</p>
+      {unread > 0 && (
+        <button
+          type="button"
+          className="button button--outline"
+          onClick={() => void readAll()}
+        >
+          Прочитать все
+        </button>
+      )}
       {error && <p role="alert">{error}</p>}
       {!loaded ? (
         <p>Загрузка…</p>

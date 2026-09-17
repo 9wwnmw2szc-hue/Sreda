@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Calendar,
   CalendarDays,
   MessageCircle,
   Bell,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/connections", label: "Подключения", icon: Link2 },
   { href: "/billing", label: "Тариф и оплата", icon: CreditCard },
   { href: "/bookings", label: "Онлайн-запись", icon: CalendarDays },
+  { href: "/calendar", label: "Календарь", icon: Calendar },
   { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/notifications", label: "Уведомления", icon: Bell },
   { href: "/settings", label: "Настройки", icon: Settings },
