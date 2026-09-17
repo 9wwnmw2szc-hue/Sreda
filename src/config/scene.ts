@@ -7,7 +7,11 @@ export const SCENE_FRAME = {
   height: 1024,
   visibleHeight: 850,
 } as const;
-export type SceneModuleCode = "leads" | "sales" | "autopost" | "booking";
+export type SceneModuleCode =
+  | "leads"
+  | "admin_messages"
+  | "autopost"
+  | "booking";
 export interface SceneModuleDock {
   x: number;
   y: number;
@@ -28,7 +32,7 @@ export const MODULE_DOCKS: Record<SceneModuleCode, SceneModuleDock> = {
     side: "left",
     zIndex: 2,
   },
-  sales: {
+  admin_messages: {
     x: 66.4,
     y: 40.5,
     width: 20,
@@ -58,7 +62,7 @@ export const MODULE_DOCKS: Record<SceneModuleCode, SceneModuleDock> = {
 };
 export const SCENE_PAINT_ORDER: SceneModuleCode[] = [
   "leads",
-  "sales",
+  "admin_messages",
   "autopost",
   "booking",
 ];

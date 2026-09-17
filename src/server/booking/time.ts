@@ -1,0 +1,130 @@
+import { AppError } from "../http/errors.ts";
+export type Interval = { start: number; end: number };
+export function dateOnly(value: string) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    !Number.isFinite(Date.parse(value + "T00:00:00Z")) ||
+    new Date(value + "T00:00:00Z").toISOString().slice(0, 10) !== value
+  )
+    throw new AppError(400, "INVALID_DATE", "Проверьте дату.");
+  return value;
+}
+export function intervals(raw: unknown): Interval[] {
+  if (!Array.isArray(raw) || raw.length > 12)
+    throw new AppError(400, "INVALID_SCHEDULE", "Проверьте рабочие интервалы.");
+  const result = raw
+    .map((x) => {
+      if (
+        !x ||
+        !Number.isInteger(x.start) ||
+        !Number.isInteger(x.end) ||
+        x.start < 0 ||
+        x.end > 1440 ||
+        x.end <= x.start
+      )
+        throw new AppError(
+          400,
+          "INVALID_SCHEDULE",
+          "Начало интервала должно быть раньше окончания.",
+        );
+      return { start: x.start, end: x.end };
+    })
+    .sort((a, b) => a.start - b.start);
+  if (result.some((v, i) => i > 0 && v.start < result[i - 1]!.end))
+    throw new AppError(
+      400,
+      "INVALID_SCHEDULE",
+      "Рабочие интервалы пересекаются.",
+    );
+  return result;
+}
+function parts(date: Date, timezone: string) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .map((x) => [x.type, x.value]),
+  );
+  return {
+    date: `${p.year}-${p.month}-${p.day}`,
+    minutes: Number(p.hour) * 60 + Number(p.minute),
+  };
+}
+export function localDay(date: Date, timezone: string) {
+  return parts(date, timezone).date;
+}
+/** Both instants for a DST fold; none for a nonexistent local time. */
+export function localInstants(
+  date: string,
+  minute: number,
+  timezone: string,
+): Date[] {
+  dateOnly(date);
+  const base = Date.parse(date + "T00:00:00Z") + minute * 60000;
+  const offsets = new Set<number>();
+  for (const delta of [-36, -12, 0, 12, 36]) {
+    const probe = new Date(base + delta * 3600000);
+    const p = parts(probe, timezone);
+    offsets.add(
+      Date.parse(p.date + "T00:00:00Z") + p.minutes * 60000 - probe.getTime(),
+    );
+  }
+  return [...offsets]
+    .map((offset) => new Date(base - offset))
+    .filter((d) => {
+      const p = parts(d, timezone);
+      return p.date === date && p.minutes === minute;
+    })
+    .sort((a, b) => +a - +b);
+}
+export function calculateSlots(input: {
+  date: string;
+  timezone: string;
+  intervals: Interval[];
+  duration: number;
+  before: number;
+  after: number;
+  step: number;
+  notice: number;
+  horizon: number;
+  now: Date;
+  busy: { from: Date; until: Date }[];
+}) {
+  const day = dateOnly(input.date);
+  const today = localDay(input.now, input.timezone);
+  const max = new Date(
+    Date.parse(today + "T00:00:00Z") + input.horizon * 86400000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  if (day < today || day > max) return [];
+  const output: string[] = [];
+  for (const i of intervals(input.intervals))
+    for (
+      let m = Math.ceil((i.start + input.before) / input.step) * input.step;
+      m + input.duration + input.after <= i.end;
+      m += input.step
+    ) {
+      for (const start of localInstants(day, m, input.timezone)) {
+        const from = new Date(+start - input.before * 60000),
+          until = new Date(+start + (input.duration + input.after) * 60000);
+        const ending = parts(new Date(+until - 1), input.timezone);
+        if (
+          ending.date !== day ||
+          ending.minutes >= i.end ||
+          +start < +input.now + input.notice * 60000
+        )
+          continue;
+        if (!input.busy.some((b) => +from < +b.until && +until > +b.from))
+          output.push(start.toISOString());
+      }
+    }
+  return [...new Set(output)].sort();
+}

@@ -8,7 +8,12 @@ args=(-f /opt/sreda/deploy/compose.yml)
 if grep -q '^TELEGRAM_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env; then
   args+=(--profile telegram)
 else
-  docker compose "${args[@]}" --profile telegram stop worker || true
+  docker compose "${args[@]}" --profile telegram stop telegram-worker || true
+fi
+if grep -q '^VK_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env; then
+  args+=(--profile vk)
+else
+  docker compose "${args[@]}" --profile vk stop vk-worker || true
 fi
 # yc must be configured with the VM service account (registry viewer only).
 yc iam create-token | docker login --username iam --password-stdin cr.yandex

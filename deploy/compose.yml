@@ -23,12 +23,21 @@ services:
       timeout: 8s
       retries: 3
       start_period: 60s
-  worker:
+  telegram-worker:
     image: ${SREDA_IMAGE:?Set immutable image tag}
     restart: unless-stopped
     env_file: /opt/sreda/app.env
     command: ["node", "--import", "tsx", "scripts/telegram-worker.mts"]
     profiles: ["telegram"]
+    depends_on:
+      db:
+        condition: service_healthy
+  vk-worker:
+    image: ${SREDA_IMAGE:?Set immutable image tag}
+    restart: unless-stopped
+    env_file: /opt/sreda/app.env
+    command: ["node", "--import", "tsx", "scripts/vk-worker.mts"]
+    profiles: ["vk"]
     depends_on:
       db:
         condition: service_healthy

@@ -1,0 +1,47 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  localInstants,
+  calculateSlots,
+  intervals,
+} from "../src/server/booking/time.ts";
+test("DST gap has no instant; repeated hour has two distinct instants", () => {
+  assert.equal(localInstants("2026-03-29", 150, "Europe/Berlin").length, 0);
+  assert.equal(localInstants("2026-10-25", 150, "Europe/Berlin").length, 2);
+  assert.equal(
+    localInstants("2026-09-17", 600, "Asia/Kathmandu")[0].toISOString(),
+    "2026-09-17T04:15:00.000Z",
+  );
+});
+test("slot duration buffers breaks and overlapping appointments are honored", () => {
+  const slots = calculateSlots({
+    date: "2026-09-17",
+    timezone: "Europe/Kaliningrad",
+    intervals: [
+      { start: 540, end: 720 },
+      { start: 780, end: 1080 },
+    ],
+    duration: 60,
+    before: 15,
+    after: 15,
+    step: 15,
+    notice: 120,
+    horizon: 60,
+    now: new Date("2026-09-16T00:00:00Z"),
+    busy: [
+      {
+        from: new Date("2026-09-17T08:00:00Z"),
+        until: new Date("2026-09-17T09:00:00Z"),
+      },
+    ],
+  });
+  assert.ok(slots.includes("2026-09-17T07:15:00.000Z") === false);
+  assert.ok(slots.includes("2026-09-17T11:15:00.000Z"));
+  assert.ok(!slots.includes("2026-09-17T10:00:00.000Z"));
+  assert.throws(() =>
+    intervals([
+      { start: 0, end: 60 },
+      { start: 30, end: 100 },
+    ]),
+  );
+});

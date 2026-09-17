@@ -1,0 +1,129 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import {
+  FileAttachmentStorage,
+  S3AttachmentStorage,
+  attachmentStorage,
+  readLimited,
+} from "../src/server/attachments/storage.ts";
+import { validateFile } from "../src/server/attachments/service.ts";
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5z8AAAAASUVORK5CYII=",
+  "base64",
+);
+test("attachment content validation rejects disguised files and enforces stream size", async () => {
+  validateFile(png, "image/png", "image");
+  assert.throws(
+    () =>
+      validateFile(Buffer.from("<script>bad</script>"), "image/png", "image"),
+    (e) => e.code === "INVALID_ATTACHMENT",
+  );
+  assert.throws(
+    () => validateFile(png, "image/png", "voice"),
+    (e) => e.code === "INVALID_ATTACHMENT",
+  );
+  const stream = new ReadableStream({
+    start(c) {
+      c.enqueue(new Uint8Array(20));
+      c.close();
+    },
+  });
+  await assert.rejects(
+    readLimited(stream.getReader(), 10),
+    (e) => e.code === "FILE_TOO_LARGE",
+  );
+});
+test("filesystem storage round-trips bytes and rejects traversal and overwrite", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sreda-media-"));
+  try {
+    const s = new FileAttachmentStorage(root),
+      key = randomUUID() + "/" + randomUUID();
+    await s.put(key, png, "image/png");
+    assert.deepEqual(await s.get(key), png);
+    await assert.rejects(s.put(key, png, "image/png"));
+    await assert.rejects(s.get("../secret"));
+    await s.remove(key);
+    await assert.rejects(s.get(key));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("S3 adapter uses private object operations without exposing a public URL", async () => {
+  const commands = [];
+  const fake = {
+    async send(command) {
+      commands.push(command);
+      return {
+        ContentLength: png.length,
+        Body: {
+          transformToWebStream: () =>
+            new ReadableStream({
+              start(c) {
+                c.enqueue(png);
+                c.close();
+              },
+            }),
+        },
+      };
+    },
+  };
+  const s = new S3AttachmentStorage(fake, "private-bucket"),
+    key = randomUUID() + "/" + randomUUID();
+  await s.put(key, png, "image/png");
+  assert.deepEqual(await s.get(key), png);
+  await s.remove(key);
+  assert.deepEqual(
+    commands.map((c) => c.constructor.name),
+    ["PutObjectCommand", "GetObjectCommand", "DeleteObjectCommand"],
+  );
+  assert.ok(
+    commands.every(
+      (c) =>
+        c.input.Bucket === "private-bucket" &&
+        c.input.Key === key &&
+        !c.input.ACL,
+    ),
+  );
+});
+
+test("storage configuration fails closed for incomplete or unsafe modes", () => {
+  const keys = [
+    "ATTACHMENT_STORAGE",
+    "ATTACHMENT_STORAGE_PATH",
+    "S3_ENDPOINT",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+  ];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.ATTACHMENT_STORAGE = "filesystem";
+    delete process.env.ATTACHMENT_STORAGE_PATH;
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+    process.env.ATTACHMENT_STORAGE = "public-url";
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+    process.env.ATTACHMENT_STORAGE = "s3";
+    process.env.S3_ENDPOINT = "https://user:password@s3.example.invalid";
+    process.env.S3_BUCKET = "private";
+    process.env.S3_ACCESS_KEY_ID = "key";
+    process.env.S3_SECRET_ACCESS_KEY = "secret";
+    assert.throws(
+      () => attachmentStorage(),
+      (error) => error.code === "STORAGE_NOT_CONFIGURED",
+    );
+  } finally {
+    for (const key of keys)
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+  }
+});

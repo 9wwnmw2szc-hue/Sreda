@@ -3,9 +3,9 @@ export const SOLUTION_ACCENTS = {
     cssVar: "--solution-leads",
     label: "Приём заявок",
   },
-  sales: {
+  admin_messages: {
     cssVar: "--solution-sales",
-    label: "Продажи",
+    label: "Связь с администрацией",
   },
   autopost: {
     cssVar: "--solution-autopost",

@@ -1,13 +1,32 @@
 "use client";
+import { useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
 import { isDemoMode } from "@/lib/dataMode";
+import {
+  solutionRoute,
+  solutionVisualCode,
+} from "@/config/solutionPresentation";
 import type { Solution } from "@/types";
 export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
   const { business, businesses, setBusinessId } = useCurrentBusiness();
+  const [notice, setNotice] = useState("");
+  async function activate(code: string) {
+    if (!business) return;
+    try {
+      await apiRequest(`/api/v1/businesses/${business.id}/solutions`, {
+        method: "POST",
+        body: JSON.stringify({ code, enabled: true }),
+      });
+      setNotice("Решение подключено. Откройте раздел и завершите настройку.");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Не удалось подключить.");
+    }
+  }
   return (
     <div className="solutions-page">
       <div className="section-topline">
@@ -31,17 +50,20 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         </span>
       </header>
       <p className="prototype-banner">
-        {isDemoMode ? "Демонстрация: доступен предпросмотр настройки «Приёма заявок»." : "Настройте «Приём заявок» и подключите своего Telegram-бота. VK и оплата появятся отдельно."}
+        {isDemoMode
+          ? "Демонстрация четырёх решений для Telegram и ВКонтакте."
+          : "Все четыре решения работают с едиными клиентами, сотрудниками и подключениями Telegram/VK."}
       </p>
+      {notice && <p role="status">{notice}</p>}
       <div className="solution-catalog-grid">
         {solutions.map((solution) => (
           <article
             key={solution.id}
-            className={`catalog-card catalog-card--${solution.code}`}
+            className={`catalog-card catalog-card--${solutionVisualCode(solution.code)}`}
           >
             <div className="catalog-card__art">
               <Image
-                src={`/assets/sreda/v2/module-${solution.code}.webp`}
+                src={`/assets/sreda/v2/module-${solutionVisualCode(solution.code)}.webp`}
                 alt=""
                 width={200}
                 height={200}
@@ -64,7 +86,20 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   <ArrowRight size={18} />
                 </Link>
               ) : (
-                <span className="catalog-soon">Скоро в Среде</span>
+                <>
+                  <button
+                    className="button button--primary"
+                    onClick={() => void activate(solution.code)}
+                  >
+                    Подключить
+                  </button>
+                  <Link
+                    className="text-link"
+                    href={solutionRoute(solution.code)}
+                  >
+                    Настроить
+                  </Link>
+                </>
               )}
             </div>
           </article>

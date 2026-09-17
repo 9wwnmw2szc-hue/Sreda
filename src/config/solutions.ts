@@ -13,7 +13,8 @@ function visual(code: SolutionAccentCode): SolutionVisual {
   return {
     code,
     accentVar: SOLUTION_ACCENTS[code].cssVar,
-    assetSrc: `/assets/sreda/v2/module-${code}.webp`,
+    // The pink chat cube is the approved visual for the administration inbox.
+    assetSrc: `/assets/sreda/v2/module-${code === "admin_messages" ? "sales" : code}.webp`,
     assetWidth: 1024,
     assetHeight: 1024,
     dock: MODULE_DOCKS[code],
@@ -21,13 +22,13 @@ function visual(code: SolutionAccentCode): SolutionVisual {
 }
 export const SOLUTION_VISUALS: Record<SolutionAccentCode, SolutionVisual> = {
   leads: visual("leads"),
-  sales: visual("sales"),
+  admin_messages: visual("admin_messages"),
   autopost: visual("autopost"),
   booking: visual("booking"),
 };
 export const WORKSPACE_SOLUTION_ORDER: SolutionAccentCode[] = [
   "leads",
-  "sales",
+  "admin_messages",
   "autopost",
   "booking",
 ];

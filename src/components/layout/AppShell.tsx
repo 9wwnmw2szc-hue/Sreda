@@ -1,9 +1,13 @@
 "use client";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Home, Layers2, Inbox, Ellipsis } from "lucide-react";
-import { BusinessProvider, useBusinessContext } from "@/hooks/useBusinessContext";
+import {
+  BusinessProvider,
+  useBusinessContext,
+} from "@/hooks/useBusinessContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Brand } from "@/components/ui/Brand";
 import type { User } from "@/types";
@@ -50,6 +54,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <Sidebar mobile onClose={() => setOpen(false)} />
       </dialog>
       <div className="app-main">
+        <div className="notification-toolbar">
+          <NotificationBell />
+        </div>
         <header className="mobile-header">
           <button
             className="icon-button"
@@ -105,7 +112,13 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-export function AppShell({ children, user }: { children: React.ReactNode; user: User }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user: User;
+}) {
   return (
     <BusinessProvider user={user}>
       <a href="#main-content" className="skip-link">
