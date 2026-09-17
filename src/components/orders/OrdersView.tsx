@@ -196,33 +196,41 @@ function OrdersPanel({
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    void apiRequest<OrderRow[]>(
-      base + (status ? "?status=" + encodeURIComponent(status) : ""),
-    )
-      .then((rows) => {
-        if (alive) {
-          setOrders(rows);
-          onError("");
-        }
-      })
-      .catch((e) => {
-        if (alive)
-          onError(e instanceof Error ? e.message : "Ошибка загрузки.");
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    const timer = setTimeout(() => {
+      setLoading(true);
+      void apiRequest<OrderRow[]>(
+        base + (status ? "?status=" + encodeURIComponent(status) : ""),
+      )
+        .then((rows) => {
+          if (alive) {
+            setOrders(rows);
+            onError("");
+          }
+        })
+        .catch((e) => {
+          if (alive)
+            onError(e instanceof Error ? e.message : "Ошибка загрузки.");
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+    }, 0);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [base, status, onError]);
 
   useEffect(() => {
     let alive = true;
     if (!selected) {
-      setDetail(null);
-      return;
+      const timer = setTimeout(() => {
+        if (alive) setDetail(null);
+      }, 0);
+      return () => {
+        alive = false;
+        clearTimeout(timer);
+      };
     }
     void apiRequest<OrderDetail>(base + "/" + selected)
       .then((row) => {
@@ -487,26 +495,31 @@ function CatalogPanel({
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    void Promise.all([
-      apiRequest<Category[]>(categoriesBase),
-      apiRequest<Product[]>(productsBase),
-    ])
-      .then(([cats, rows]) => {
-        if (!alive) return;
-        setCategories(cats);
-        setProducts(rows);
-        onError("");
-      })
-      .catch((e) => {
-        if (alive)
-          onError(e instanceof Error ? e.message : "Ошибка загрузки каталога.");
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    const timer = setTimeout(() => {
+      setLoading(true);
+      void Promise.all([
+        apiRequest<Category[]>(categoriesBase),
+        apiRequest<Product[]>(productsBase),
+      ])
+        .then(([cats, rows]) => {
+          if (!alive) return;
+          setCategories(cats);
+          setProducts(rows);
+          onError("");
+        })
+        .catch((e) => {
+          if (alive)
+            onError(
+              e instanceof Error ? e.message : "Ошибка загрузки каталога.",
+            );
+        })
+        .finally(() => {
+          if (alive) setLoading(false);
+        });
+    }, 0);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [categoriesBase, productsBase, onError]);
 
