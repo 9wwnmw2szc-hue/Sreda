@@ -10,6 +10,13 @@ export const mockSolutions: Solution[] = [
     price: 250,
   },
   {
+    id: "sol_orders",
+    code: "orders",
+    name: "Заказы",
+    description: "Каталог, корзина и обработка заказов из бота.",
+    price: 250,
+  },
+  {
     id: "sol_admin_messages",
     code: "admin_messages",
     name: "Связь с администрацией",

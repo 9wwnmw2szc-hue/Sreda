@@ -14,5 +14,6 @@ export function solutionRoute(code: string) {
 
 /** The approved pink cube was originally exported under the legacy sales name. */
 export function solutionVisualCode(code: string) {
-  return code === "admin_messages" ? "sales" : code;
+  if (code === "admin_messages" || code === "orders") return "sales";
+  return code;
 }

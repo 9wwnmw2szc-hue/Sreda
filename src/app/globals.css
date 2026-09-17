@@ -2698,3 +2698,89 @@ ul {
   .crm-panel .button { white-space:normal; }
   .detail-dialog__inner { padding:18px; }
 }
+
+/* Soft business-type recommendations */
+.catalog-card.is-recommended,
+.solution-card.is-recommended {
+  outline: 2px solid #315c40;
+  outline-offset: 2px;
+}
+.recommend-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #e7f0e8;
+  color: #214d38;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+.catalog-card h2 .recommend-badge,
+.solution-card__text strong .recommend-badge {
+  font-size: 12px;
+}
+
+/* Custom lead form fields */
+.lead-form-fields-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: grid;
+  gap: 10px;
+}
+.lead-form-fields-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dce2d8;
+}
+.lead-form-fields-list strong {
+  display: block;
+}
+.lead-form-fields-list small {
+  color: var(--text-secondary);
+}
+.lead-form-fields-add {
+  display: grid;
+  gap: 4px;
+}
+.lead-form-fields-required {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: none !important;
+}
+
+/* Posts calendar hint */
+.posts-calendar {
+  margin-bottom: 20px;
+}
+.posts-calendar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.posts-calendar-list > li > strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.posts-calendar-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.posts-calendar-list ul span {
+  color: var(--text-primary);
+  font-weight: 650;
+}
