@@ -8,7 +8,11 @@ import {
   type LeadSetupDraft,
 } from "../../lib/leadSetupDraft.ts";
 import { syncLeadFormFields } from "../leads/forms.ts";
-import { SOLUTIONS, normalizeSolutionCode } from "./catalog.ts";
+import {
+  ACTIVATABLE_SOLUTIONS,
+  SOLUTIONS,
+  normalizeSolutionCode,
+} from "./catalog.ts";
 import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
@@ -185,9 +189,7 @@ export class SolutionService {
   ) {
     const code = normalizeSolutionCode(String(raw.code));
     if (
-      !["leads", "booking", "autopost", "admin_messages", "orders"].includes(
-        code,
-      ) ||
+      !(ACTIVATABLE_SOLUTIONS as readonly string[]).includes(code) ||
       typeof raw.enabled !== "boolean"
     )
       throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
@@ -274,10 +276,35 @@ export class SolutionService {
           (r?.status === "ready" && !alive(c.platform)),
       });
     }
-    return SOLUTIONS.map((solution) => {
+    const [productCount, serviceCount, targetCount] = await Promise.all([
+      this.db
+        .selectFrom("product")
+        .select(({ fn }) => fn.countAll<number>().as("n"))
+        .where("business_id", "=", id)
+        .where("active", "=", true)
+        .executeTakeFirst()
+        .then((row) => Number(row?.n ?? 0)),
+      this.db
+        .selectFrom("booking_service")
+        .select(({ fn }) => fn.countAll<number>().as("n"))
+        .where("business_id", "=", id)
+        .where("active", "=", true)
+        .executeTakeFirst()
+        .then((row) => Number(row?.n ?? 0)),
+      this.db
+        .selectFrom("post_target")
+        .select(({ fn }) => fn.countAll<number>().as("n"))
+        .where("business_id", "=", id)
+        .executeTakeFirst()
+        .then((row) => Number(row?.n ?? 0)),
+    ]);
+    const connectedChannels = [...states.keys()];
+    return SOLUTIONS.filter((solution) =>
+      (ACTIVATABLE_SOLUTIONS as readonly string[]).includes(solution.code),
+    ).map((solution) => {
       const configured = solutionState.get(solution.code)?.active;
       const channels =
-        solution.code === "leads" ? setup.draft.channels : [...states.keys()];
+        solution.code === "leads" ? setup.draft.channels : connectedChannels;
       const ready =
         channels.length > 0 && channels.every((c) => states.get(c)?.ready);
       const scheduler =
@@ -286,16 +313,8 @@ export class SolutionService {
           : solution.code === "booking"
             ? alive("booking_reminders")
             : true;
-      let status: SolutionStatus = configured
-        ? ready && scheduler
-          ? "active"
-          : "paused"
-        : "unavailable";
-      let note = configured
-        ? ready && scheduler
-          ? "Подключения и обработчики отвечают."
-          : "Проверьте запуск каналов и состояние обработчиков на сервере."
-        : "Подключите решение, чтобы настроить его функции.";
+      let status: SolutionStatus = "available";
+      let note = "Подключите решение, чтобы настроить его функции.";
       if (solution.code === "leads") {
         if (!setup.revision) {
           status = "available";
@@ -317,6 +336,34 @@ export class SolutionService {
           status = "setup_required";
           note = "Запустите выбранные каналы в разделе «Подключения».";
         }
+      } else if (solution.code === "moderation") {
+        status = "unavailable";
+        note = "Решение пока не подключено к продукту.";
+      } else if (!configured) {
+        status = "available";
+        note = "Подключите решение, чтобы пройти настройку.";
+      } else if (solution.code === "orders" && productCount === 0) {
+        status = "setup_required";
+        note = "Добавьте первый товар в каталог.";
+      } else if (solution.code === "booking" && serviceCount === 0) {
+        status = "setup_required";
+        note = "Создайте услугу и настройте расписание.";
+      } else if (solution.code === "autopost" && targetCount === 0) {
+        status = "setup_required";
+        note = "Подключите площадку Telegram или VK для публикаций.";
+      } else if (
+        solution.code === "admin_messages" &&
+        connectedChannels.length === 0
+      ) {
+        status = "setup_required";
+        note = "Подключите Telegram или VK, чтобы принимать сообщения.";
+      } else if (ready && scheduler) {
+        status = "active";
+        note = "Подключения и обработчики отвечают.";
+      } else {
+        status = "paused";
+        note =
+          "Проверьте запуск каналов и состояние обработчиков на сервере.";
       }
       return {
         id: publicId + ":" + solution.code,

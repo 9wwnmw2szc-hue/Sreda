@@ -6,6 +6,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
+import {
+  EmptyStateCta,
+  SolutionSetupBanner,
+} from "@/components/solutions/SolutionSetupBanner";
 type Target = { id: string; title: string; platform: string; active: boolean };
 type Post = {
   attachments: FileItem[];
@@ -268,16 +272,25 @@ function Editor({
   })();
   return (
     <div>
-      <h1>Публикации</h1>
+      <h1>Автопостинг</h1>
       <p>
         Планирование в часовом поясе {timezone}. AI создаёт только черновики.
       </p>
+      <SolutionSetupBanner code="autopost" />
       {error && (
         <p role="alert" className="account-error">
           {error}
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {!targets.length && loaded ? (
+        <EmptyStateCta
+          title="Подключите площадку"
+          description="Выберите Telegram или VK, затем создайте первую публикацию."
+          href="#post-targets"
+          action="К подключению площадок"
+        />
+      ) : null}
       {calendarGroups.length > 0 && (
         <section className="panel crm-panel posts-calendar" aria-label="Календарь">
           <h2>Календарь</h2>
@@ -314,7 +327,7 @@ function Editor({
       )}
       <div className="crm-columns">
         <section className="panel crm-panel">
-          <h2>{editing ? "Редактировать публикацию" : "Создать публикацию"}</h2>
+          <h2 id="new-post">{editing ? "Редактировать публикацию" : "Создать публикацию"}</h2>
           {targets
             .filter((t) => t.active)
             .map((t) => (
@@ -566,7 +579,7 @@ function Editor({
               <button onClick={reset}>Закончить редактирование</button>
             )}
           </div>
-          <details>
+          <details id="post-targets">
             <summary>Подключить площадку</summary>
             <label>
               Платформа
@@ -644,7 +657,12 @@ function Editor({
           {!loaded ? (
             <p>Загрузка…</p>
           ) : !posts.length ? (
-            <p>Публикаций пока нет.</p>
+            <EmptyStateCta
+              title="Публикаций пока нет"
+              description="Создайте текст, выберите площадки и опубликуйте сейчас или по расписанию."
+              href="#new-post"
+              action="Создать публикацию"
+            />
           ) : (
             posts
               .filter(

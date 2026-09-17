@@ -7,6 +7,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
+import {
+  EmptyStateCta,
+  SolutionSetupBanner,
+} from "@/components/solutions/SolutionSetupBanner";
 type Conversation = {
   id: string;
   platform: string;
@@ -160,6 +164,8 @@ function Inbox({
   return (
     <div>
       <h1>Сообщения</h1>
+      <p>Бесплатный inbox · до 300 сообщений в месяц на бизнес.</p>
+      <SolutionSetupBanner code="admin_messages" />
       {error && (
         <p role="alert" className="account-error">
           {error}
@@ -204,7 +210,12 @@ function Inbox({
           {!loaded ? (
             <p>Загрузка…</p>
           ) : !conversations.length ? (
-            <p>Сообщений пока нет.</p>
+            <EmptyStateCta
+              title="Сообщений пока нет"
+              description="Подключите Telegram или VK — диалоги клиентов появятся здесь."
+              href="/connections"
+              action="Открыть подключения"
+            />
           ) : (
             <ul className="crm-list">
               {conversations.map((c) => (

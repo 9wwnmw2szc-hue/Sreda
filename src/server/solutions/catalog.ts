@@ -1,3 +1,8 @@
+import {
+  PRODUCT_SOLUTIONS,
+  type ProductSolutionCode,
+} from "../../lib/productSolutions.ts";
+
 export type SolutionCode =
   | "leads"
   | "orders"
@@ -8,22 +13,56 @@ export type SolutionCode =
   | "moderation";
 
 export type SolutionDefinition = {
-  code: "leads" | "orders" | "autopost" | "booking" | "admin_messages" | "moderation";
+  code: Exclude<SolutionCode, "sales">;
   id: string;
   title: string;
   description: string;
   priceRub: number;
   menu: string[];
+  messageLimit?: number;
+};
+
+const PRODUCT_MENUS: Record<ProductSolutionCode, string[]> = {
+  leads: ["Новая заявка", "Все заявки", "Статусы"],
+  orders: ["Товары", "Заказы", "Клиенты"],
+  autopost: [
+    "Создать публикацию",
+    "Запланированные посты",
+    "Черновики",
+    "История",
+  ],
+  booking: ["Новая запись", "Расписание", "Клиенты"],
+  admin_messages: ["Новое сообщение", "Диалоги", "Ответственные"],
 };
 
 /** Единственный каталог возможностей универсального бота. */
 export const SOLUTIONS: readonly SolutionDefinition[] = [
-  { code: "leads", id: "sol_leads", title: "Заявки", description: "Сбор и обработка обращений клиентов.", priceRub: 250, menu: ["Новая заявка", "Все заявки", "Статусы"] },
-  { code: "orders", id: "sol_orders", title: "Заказы", description: "Каталог, корзина и обработка заказов.", priceRub: 250, menu: ["Товары", "Заказы", "Клиенты"] },
-  { code: "autopost", id: "sol_autopost", title: "Автопостинг", description: "Подготовка и публикация контента по расписанию.", priceRub: 250, menu: ["Создать публикацию", "Запланированные посты", "Черновики", "История"] },
-  { code: "booking", id: "sol_booking", title: "Запись клиентов", description: "Онлайн-запись и расписание для клиентов.", priceRub: 250, menu: ["Новая запись", "Расписание", "Клиенты"] },
-  { code: "admin_messages", id: "sol_admin_messages", title: "Сообщения администраторам", description: "Приём обращений и передача их ответственным сотрудникам.", priceRub: 250, menu: ["Новое сообщение", "Диалоги", "Ответственные"] },
-  { code: "moderation", id: "sol_moderation", title: "Модерация", description: "Фильтрация спама и подозрительных сообщений.", priceRub: 250, menu: ["Правила", "На проверке", "Журнал фильтрации"] },
+  ...PRODUCT_SOLUTIONS.map((item) => ({
+    code: item.code,
+    id: item.id,
+    title: item.name,
+    description: item.description,
+    priceRub: item.price,
+    menu: PRODUCT_MENUS[item.code],
+    ...(item.messageLimit ? { messageLimit: item.messageLimit } : {}),
+  })),
+  {
+    code: "moderation",
+    id: "sol_moderation",
+    title: "Модерация",
+    description: "Фильтрация спама и подозрительных сообщений.",
+    priceRub: 250,
+    menu: ["Правила", "На проверке", "Журнал фильтрации"],
+  },
+];
+
+/** Solutions exposed in owner UI / activation allowlist. */
+export const ACTIVATABLE_SOLUTIONS: readonly ProductSolutionCode[] = [
+  "leads",
+  "orders",
+  "booking",
+  "admin_messages",
+  "autopost",
 ];
 
 /** Normalize legacy `sales` activations to `orders`. */
