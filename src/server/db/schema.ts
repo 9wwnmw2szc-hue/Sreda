@@ -3,6 +3,7 @@ import type { AttachmentTables } from "../attachments/schema.ts";
 import type { PostTables } from "../posts/schema.ts";
 import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
+import type { OrderTables } from "../orders/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
@@ -12,7 +13,8 @@ export interface Database
     ClientTables,
     BookingTables,
     PostTables,
-    AttachmentTables {
+    AttachmentTables,
+    OrderTables {
   account_pin: {
     user_id: string;
     pin_hash: string;
@@ -184,16 +186,6 @@ export interface Database
     ai_extra_instructions: Generated<string>;
     created_at: Generated<Date>;
     archived_at: Date | null;
-  };
-  product: {
-    id: string;
-    business_id: string;
-    name: string;
-    price: string;
-    availability: "quantity" | "in_stock" | "made_to_order" | "out_of_stock";
-    active: Generated<boolean>;
-    created_at: Generated<Date>;
-    updated_at: Generated<Date>;
   };
   business_member: {
     business_id: string;
