@@ -2,7 +2,6 @@
 import { DetailDialog } from "@/components/dashboard/DetailDialog";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import {

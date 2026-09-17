@@ -109,15 +109,11 @@ function Orders({
   timezone: string;
 }) {
   const search = useSearchParams();
-  const initialTab =
-    search.get("tab") === "catalog" ? "catalog" : "orders";
-  const [tab, setTab] = useState<"orders" | "catalog">(initialTab);
+  const [manualTab, setManualTab] = useState<"orders" | "catalog" | null>(null);
+  const tab =
+    manualTab ?? (search.get("tab") === "catalog" ? "catalog" : "orders");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    if (search.get("tab") === "catalog") setTab("catalog");
-  }, [search]);
 
   return (
     <div className="crm-page">
@@ -135,7 +131,7 @@ function Orders({
             }
             aria-pressed={tab === "orders"}
             onClick={() => {
-              setTab("orders");
+              setManualTab("orders");
               setError("");
               setNotice("");
             }}
@@ -151,7 +147,7 @@ function Orders({
             }
             aria-pressed={tab === "catalog"}
             onClick={() => {
-              setTab("catalog");
+              setManualTab("catalog");
               setError("");
               setNotice("");
             }}
