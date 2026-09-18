@@ -1,5 +1,5 @@
 -- Analytics domain: uploaded business tables, saved AI analyses, audit actions.
--- Numbered 042 to leave 040–041 for the parallel Configuration UX branch.
+-- Numbered 043 after cart hardening (040), AI interview (041), industry setup (042).
 
 CREATE TABLE business_data_file (
   id uuid PRIMARY KEY,
