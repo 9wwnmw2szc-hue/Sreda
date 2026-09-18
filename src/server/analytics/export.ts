@@ -83,6 +83,7 @@ export class AnalyticsExportService {
           .selectFrom("order")
           .select([
             "id",
+            "order_number",
             "created_at",
             "customer_name",
             "source",
@@ -119,7 +120,7 @@ export class AnalyticsExportService {
             "Комментарий",
           ],
           ...rows.map((r) => [
-            r.id.slice(0, 8),
+            r.order_number != null ? String(r.order_number) : "",
             new Date(r.created_at).toISOString(),
             r.customer_name,
             r.source,

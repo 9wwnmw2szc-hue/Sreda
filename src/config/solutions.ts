@@ -1,6 +1,7 @@
 import type { SolutionAccentCode } from "@/config/design";
 import { SOLUTION_ACCENTS } from "@/config/design";
 import { MODULE_DOCKS, type SceneModuleDock } from "./scene";
+import { solutionModuleAsset } from "./solutionPresentation";
 
 export interface SolutionVisual {
   code: SolutionAccentCode;
@@ -29,8 +30,7 @@ function visual(code: SolutionAccentCode): SolutionVisual {
   return {
     code,
     accentVar: SOLUTION_ACCENTS[code].cssVar,
-    // Pink cube asset is shared by inbox and orders (legacy "sales" export name).
-    assetSrc: `/assets/sreda/v2/module-${code === "admin_messages" || code === "orders" ? "sales" : code}.webp`,
+    assetSrc: solutionModuleAsset(code),
     assetWidth: 1024,
     assetHeight: 1024,
     dock,

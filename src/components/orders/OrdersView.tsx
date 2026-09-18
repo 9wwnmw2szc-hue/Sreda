@@ -12,6 +12,7 @@ import {
 
 type OrderRow = {
   id: string;
+  order_number: number | null;
   status: string;
   fulfillment: string;
   customer_name: string;
@@ -330,6 +331,7 @@ function OrdersPanel({
                   }}
                 >
                   <strong>
+                    {o.order_number != null ? `№${o.order_number} · ` : ""}
                     {o.customer_name} · {STATUS_LABEL[o.status] ?? o.status}
                   </strong>
                   <span>
@@ -365,7 +367,12 @@ function OrdersPanel({
       </section>
       {detail && (
         <DetailDialog
-          title={"Заказ · " + (STATUS_LABEL[detail.status] ?? detail.status)}
+          title={
+            "Заказ" +
+            (detail.order_number != null ? " №" + detail.order_number : "") +
+            " · " +
+            (STATUS_LABEL[detail.status] ?? detail.status)
+          }
           onClose={() => setSelected(null)}
         >
           <div className="detail-facts">

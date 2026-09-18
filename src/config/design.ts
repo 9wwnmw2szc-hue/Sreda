@@ -4,7 +4,7 @@ export const SOLUTION_ACCENTS = {
     label: "Приём заявок",
   },
   admin_messages: {
-    cssVar: "--solution-sales",
+    cssVar: "--solution-admin-messages",
     label: "Связь с администратором",
   },
   autopost: {
@@ -16,7 +16,7 @@ export const SOLUTION_ACCENTS = {
     label: "Онлайн-запись",
   },
   orders: {
-    cssVar: "--solution-sales",
+    cssVar: "--solution-orders",
     label: "Приём заказов",
   },
 } as const;

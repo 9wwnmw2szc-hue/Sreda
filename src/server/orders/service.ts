@@ -196,6 +196,34 @@ function multiplyMoney(unit: string, qty: number) {
   return (Math.round(Number(unit) * qty * 100) / 100).toFixed(2);
 }
 
+async function allocateOrderNumber(
+  tx: Transaction<Database>,
+  businessId: string,
+): Promise<number> {
+  await tx
+    .insertInto("business_order_seq")
+    .values({ business_id: businessId, next_number: 1001 })
+    .onConflict((oc) => oc.column("business_id").doNothing())
+    .execute();
+  const seq = await tx
+    .selectFrom("business_order_seq")
+    .select("next_number")
+    .where("business_id", "=", businessId)
+    .forUpdate()
+    .executeTakeFirstOrThrow();
+  const orderNumber = seq.next_number;
+  await tx
+    .updateTable("business_order_seq")
+    .set({ next_number: orderNumber + 1 })
+    .where("business_id", "=", businessId)
+    .execute();
+  return orderNumber;
+}
+
+export function formatOrderLabel(orderNumber: number | null | undefined) {
+  return orderNumber != null ? "Заказ №" + orderNumber : "Заказ";
+}
+
 /** Run work in a new transaction, or inline when `db` is already one. */
 function runInTx<T>(
   db: Kysely<Database>,
@@ -1605,6 +1633,7 @@ export class OrderService {
 
       const orderId = randomUUID();
       const total = (totalCents / 100).toFixed(2);
+      const orderNumber = await allocateOrderNumber(tx, businessId);
       const order = await tx
         .insertInto("order")
         .values({
@@ -1625,6 +1654,7 @@ export class OrderService {
           request_hash: hash,
           conversation_id: conversationId,
           inventory_restored_at: null,
+          order_number: orderNumber,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -1688,7 +1718,13 @@ export class OrderService {
         businessId,
         "order.created",
         "order:" + orderId,
-        "Новый заказ: " + customerName + "\n" + total + " " + currency,
+        formatOrderLabel(orderNumber) +
+          ": " +
+          customerName +
+          "\n" +
+          total +
+          " " +
+          (currency ?? "RUB"),
         "/orders?id=" + orderId,
       );
       await audit(tx, businessId, actor, "order_created", orderId, {

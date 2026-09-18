@@ -26,9 +26,11 @@
   --sidebar-muted: #c1c8be;
   --sidebar-icon: #d0d7cc;
   --solution-leads: #60ac6d;
-  --solution-sales: #da8b9c;
-  --solution-autopost: #70aadb;
+  --solution-orders: #da8b9c;
+  --solution-admin-messages: #70aadb;
+  --solution-autopost: #8b7bb8;
   --solution-booking: #d6a34a;
+  --solution-sales: var(--solution-orders); /* legacy alias */
   --sidebar-width: 224px;
   --right-panel-width: 260px;
   --radius-card: 16px;
@@ -71,7 +73,9 @@
   --color-danger: var(--danger);
   --color-sidebar: var(--sidebar-bg);
   --color-solution-leads: var(--solution-leads);
-  --color-solution-sales: var(--solution-sales);
+  --color-solution-orders: var(--solution-orders);
+  --color-solution-admin-messages: var(--solution-admin-messages);
+  --color-solution-sales: var(--solution-orders);
   --color-solution-autopost: var(--solution-autopost);
   --color-solution-booking: var(--solution-booking);
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;

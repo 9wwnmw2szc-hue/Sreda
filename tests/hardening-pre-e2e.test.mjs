@@ -390,7 +390,7 @@ test("VK staff reminder fails gracefully without outbox or sent", async () => {
     .where("id", "=", reminderId)
     .executeTakeFirstOrThrow();
   assert.equal(row.status, "failed");
-  assert.equal(row.last_error, "VK_STAFF_BINDING_UNSUPPORTED");
+  assert.equal(row.last_error, "NO_READY_STAFF_VK_BINDING");
   assert.equal(
     (
       await db
@@ -1165,4 +1165,143 @@ test("expireClaims marks entity_reminder uncertain when outbox lease expires", a
     .executeTakeFirstOrThrow();
   assert.equal(row.status, "uncertain");
   assert.equal(row.last_error, "DELIVERY_UNKNOWN");
+});
+
+test("VK staff reminder queues when binding and runtime are ready", async () => {
+  const { uid, b } = await ownerBusiness("VkStaffOk");
+  const connectionId = randomUUID();
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: connectionId,
+      business_id: b.id,
+      platform: "vk",
+      external_account_id: randomUUID(),
+      display_name: "vk",
+      status: "connected",
+    })
+    .execute();
+  await db
+    .insertInto("connection_secret")
+    .values({
+      connection_id: connectionId,
+      encrypted_token: encryptSecret("token", secret),
+      encrypted_publish_token: null,
+      key_version: 1,
+    })
+    .execute();
+  await db
+    .insertInto("vk_runtime")
+    .values({
+      connection_id: connectionId,
+      generation: randomUUID(),
+      status: "ready",
+    })
+    .execute();
+  await db
+    .insertInto("notification_binding")
+    .values({
+      business_id: b.id,
+      user_id: uid,
+      platform: "vk",
+      connection_id: connectionId,
+      chat_id: "2001",
+      code_hash: null,
+      expires_at: null,
+    })
+    .execute();
+  const starts = new Date(Date.now() + 3 * 3600000);
+  const event = await new CalendarService(db).create(uid, b.public_id, {
+    title: "VK task",
+    event_type: "task",
+    starts_at: starts.toISOString(),
+    ends_at: new Date(+starts + 3600000).toISOString(),
+  });
+  const reminderId = randomUUID();
+  await db
+    .insertInto("entity_reminder")
+    .values({
+      id: reminderId,
+      business_id: b.id,
+      entity_kind: "calendar_event",
+      entity_id: event.id,
+      offset_minutes: 15,
+      fire_at: new Date(Date.now() - 500),
+      audience: "staff",
+      channel: "vk",
+      status: "pending",
+      recipient_user_id: uid,
+      message_template: "",
+      last_error: null,
+    })
+    .execute();
+  assert.equal(await processEntityReminder(db), true);
+  const row = await db
+    .selectFrom("entity_reminder")
+    .select("status")
+    .where("id", "=", reminderId)
+    .executeTakeFirstOrThrow();
+  assert.equal(row.status, "queued");
+  assert.equal(
+    (
+      await db
+        .selectFrom("vk_outbox")
+        .select("id")
+        .where("entity_reminder_id", "=", reminderId)
+        .execute()
+    ).length,
+    1,
+  );
+});
+
+test("order numbers are sequential and concurrency-safe", async () => {
+  const { uid, b } = await ownerBusiness("OrderNum");
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "orders",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const catalog = new CatalogService(db);
+  const orders = new OrderService(db);
+  const product = await catalog.saveProduct(uid, b.public_id, {
+    name: "Item",
+    price: "10",
+    active: true,
+  });
+  const make = (i) =>
+    orders.checkout(b.id, {
+      platform: "web",
+      external_user_id: "num-" + i + "-" + randomUUID().slice(0, 6),
+      customer_name: "Buyer",
+      customer_phone: "+7999000" + String(1000 + i),
+      fulfillment: "pickup",
+      request_key: "rk-num-" + randomUUID(),
+      cart_items: [{ product_id: product.id, quantity: 1 }],
+    });
+  const created = await Promise.all([make(1), make(2), make(3), make(4)]);
+  const numbers = created.map((o) => o.order_number).sort((a, b) => a - b);
+  assert.deepEqual(numbers, [1001, 1002, 1003, 1004]);
+  assert.equal(new Set(numbers).size, 4);
+});
+
+test("solution visual codes are distinct for orders and admin_messages", async () => {
+  const { solutionVisualCode, solutionModuleAsset } = await import(
+    "../src/config/solutionPresentation.ts"
+  );
+  assert.equal(solutionVisualCode("orders"), "orders");
+  assert.equal(solutionVisualCode("admin_messages"), "admin-messages");
+  assert.notEqual(
+    solutionModuleAsset("orders"),
+    solutionModuleAsset("admin_messages"),
+  );
+  assert.match(solutionModuleAsset("orders"), /module-orders\.webp$/);
+  assert.match(
+    solutionModuleAsset("admin_messages"),
+    /module-admin-messages\.webp$/,
+  );
 });

@@ -3,6 +3,7 @@ import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { requireBusiness } from "../access/permissions.ts";
 import { AppError } from "../http/errors.ts";
+
 export const notificationTypes = [
   "lead.created",
   "message.received",
@@ -14,9 +15,19 @@ export const notificationTypes = [
   "post.failed",
   "calendar.reminder",
 ];
+
+type StaffPlatform = "telegram" | "vk";
+
 const hash = (code: string) => createHash("sha256").update(code).digest("hex");
+
+function platformOf(value: unknown): StaffPlatform {
+  if (value === "vk") return "vk";
+  return "telegram";
+}
+
 export class NotificationSettings {
   constructor(private db: Kysely<Database>) {}
+
   async get(user: string, publicId: string) {
     const b = await requireBusiness(
       this.db,
@@ -24,12 +35,12 @@ export class NotificationSettings {
       publicId,
       "notifications.read",
     );
-    const binding = await this.db
+    const bindings = await this.db
       .selectFrom("notification_binding")
-      .select("chat_id")
+      .select(["platform", "chat_id"])
       .where("business_id", "=", b.id)
       .where("user_id", "=", user)
-      .executeTakeFirst();
+      .execute();
     const members = await this.db
       .selectFrom("business_member as m")
       .innerJoin("user as u", "u.id", "m.user_id")
@@ -42,8 +53,12 @@ export class NotificationSettings {
       .select(["user_id", "type", "enabled"])
       .where("business_id", "=", b.id)
       .execute();
+    const telegram = bindings.find((x) => x.platform === "telegram");
+    const vk = bindings.find((x) => x.platform === "vk");
     return {
-      connected: !!binding?.chat_id,
+      connected: !!telegram?.chat_id,
+      telegramConnected: !!telegram?.chat_id,
+      vkConnected: !!vk?.chat_id,
       canManage: b.role !== "operator",
       members:
         b.role === "operator" ? members.filter((m) => m.id === user) : members,
@@ -54,6 +69,7 @@ export class NotificationSettings {
       types: notificationTypes,
     };
   }
+
   async save(user: string, publicId: string, body: Record<string, unknown>) {
     return this.db.transaction().execute(async (tx) => {
       const b = await requireBusiness(
@@ -78,11 +94,13 @@ export class NotificationSettings {
           ? "settings.manage"
           : "notifications.read",
       );
+      const platform = platformOf(body.platform);
       if (body.action === "disconnect") {
         await tx
           .deleteFrom("notification_binding")
           .where("business_id", "=", b.id)
           .where("user_id", "=", user)
+          .where("platform", "=", platform)
           .execute();
         return { ok: true };
       }
@@ -123,20 +141,38 @@ export class NotificationSettings {
       }
       if (body.action !== "connect")
         throw new AppError(400, "INVALID_ACTION", "Действие недоступно.");
-      const connection = await tx
-        .selectFrom("business_connection as c")
-        .innerJoin("telegram_runtime as r", "r.connection_id", "c.id")
-        .select("c.id")
-        .where("c.business_id", "=", b.id)
-        .where("c.platform", "=", "telegram")
-        .where("c.status", "=", "connected")
-        .where("r.status", "=", "ready")
-        .executeTakeFirst();
-      if (!connection)
+
+      let connectionId: string | undefined;
+      if (platform === "telegram") {
+        const connection = await tx
+          .selectFrom("business_connection as c")
+          .innerJoin("telegram_runtime as r", "r.connection_id", "c.id")
+          .select("c.id")
+          .where("c.business_id", "=", b.id)
+          .where("c.platform", "=", "telegram")
+          .where("c.status", "=", "connected")
+          .where("r.status", "=", "ready")
+          .executeTakeFirst();
+        connectionId = connection?.id;
+      } else {
+        const connection = await tx
+          .selectFrom("business_connection as c")
+          .innerJoin("vk_runtime as r", "r.connection_id", "c.id")
+          .select("c.id")
+          .where("c.business_id", "=", b.id)
+          .where("c.platform", "=", "vk")
+          .where("c.status", "=", "connected")
+          .where("r.status", "=", "ready")
+          .executeTakeFirst();
+        connectionId = connection?.id;
+      }
+      if (!connectionId)
         throw new AppError(
           409,
           "CONNECTION_REQUIRED",
-          "Сначала запустите Telegram-бота бизнеса.",
+          platform === "telegram"
+            ? "Сначала запустите Telegram-бота бизнеса."
+            : "Сначала подключите и запустите VK-сообщество бизнеса.",
         );
       const code = randomBytes(24).toString("base64url");
       await tx
@@ -144,26 +180,35 @@ export class NotificationSettings {
         .values({
           business_id: b.id,
           user_id: user,
-          connection_id: connection.id,
+          platform,
+          connection_id: connectionId,
           chat_id: null,
           code_hash: hash(code),
           expires_at: new Date(Date.now() + 600000),
         })
         .onConflict((oc) =>
           oc
-            .columns(["business_id", "user_id"])
+            .columns(["business_id", "user_id", "platform"])
             .doUpdateSet({
-              connection_id: connection.id,
+              connection_id: connectionId!,
               chat_id: null,
               code_hash: hash(code),
               expires_at: new Date(Date.now() + 600000),
             }),
         )
         .execute();
-      return { command: "/start notify_" + code, expiresIn: 600 };
+      return {
+        command:
+          platform === "telegram"
+            ? "/start notify_" + code
+            : "notify_" + code,
+        platform,
+        expiresIn: 600,
+      };
     });
   }
 }
+
 export async function bindNotification(
   tx: Transaction<Database>,
   businessId: string,
@@ -172,6 +217,16 @@ export async function bindNotification(
   code: string,
 ) {
   if (!/^[\w-]{32}$/.test(code)) return false;
+  const connection = await tx
+    .selectFrom("business_connection")
+    .select(["id", "platform"])
+    .where("business_id", "=", businessId)
+    .where("id", "=", connectionId)
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+  if (!connection || (connection.platform !== "telegram" && connection.platform !== "vk"))
+    return false;
+  const platform = connection.platform as StaffPlatform;
   const row = await tx
     .selectFrom("notification_binding as n")
     .innerJoin("business_member as m", (j) =>
@@ -182,6 +237,7 @@ export async function bindNotification(
     .select("n.user_id")
     .where("n.business_id", "=", businessId)
     .where("n.connection_id", "=", connectionId)
+    .where("n.platform", "=", platform)
     .where("n.code_hash", "=", hash(code))
     .where("n.expires_at", ">", new Date())
     .where("m.status", "=", "active")
@@ -192,6 +248,7 @@ export async function bindNotification(
     .select("user_id")
     .where("connection_id", "=", connectionId)
     .where("chat_id", "=", chatId)
+    .where("platform", "=", platform)
     .executeTakeFirst();
   if (bound && bound.user_id !== row.user_id) return false;
   await tx
@@ -199,6 +256,7 @@ export async function bindNotification(
     .set({ chat_id: chatId, code_hash: null, expires_at: null })
     .where("business_id", "=", businessId)
     .where("user_id", "=", row.user_id)
+    .where("platform", "=", platform)
     .execute();
   return true;
 }

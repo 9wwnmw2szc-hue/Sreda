@@ -130,6 +130,8 @@ export interface Database
     created_at: Generated<Date>;
   };
   vk_outbox: {
+    notification_id: Generated<string | null>;
+    notification_user_id: Generated<string | null>;
     post_step: Generated<number>;
     attachment_ids: Generated<unknown>;
     post_delivery_id: Generated<string | null>;

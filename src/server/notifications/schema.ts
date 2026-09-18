@@ -3,6 +3,7 @@ export interface NotificationTables {
   notification_binding: {
     business_id: string;
     user_id: string;
+    platform: Generated<"telegram" | "vk">;
     connection_id: string;
     chat_id: string | null;
     code_hash: string | null;
