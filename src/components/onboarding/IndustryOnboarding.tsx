@@ -82,8 +82,10 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    void reload()
+    void apiRequest<IndustryState>(url)
+      .then((next) => {
+        if (active) setData(next);
+      })
       .catch((e) => {
         if (active)
           setError(e instanceof Error ? e.message : "Не удалось загрузить.");
@@ -94,7 +96,7 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
     return () => {
       active = false;
     };
-  }, [reload]);
+  }, [url]);
 
   async function patch(body: Record<string, unknown>) {
     setBusy(true);

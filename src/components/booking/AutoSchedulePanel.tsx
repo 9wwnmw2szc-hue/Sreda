@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import {
   CustomerPreview,
@@ -67,6 +67,42 @@ function emptyWeek(): Record<number, DayState> {
   return week;
 }
 
+function weekFromSchedules(
+  specialistId: string,
+  schedules: { specialist_id: string; weekday: number; intervals: Interval[] }[],
+): Record<number, DayState> {
+  const next = emptyWeek();
+  if (!specialistId) return next;
+  for (const row of schedules.filter((s) => s.specialist_id === specialistId)) {
+    const intervals = row.intervals ?? [];
+    if (!intervals.length) {
+      next[row.weekday] = {
+        enabled: false,
+        start: "09:00",
+        end: "18:00",
+        breaks: [],
+      };
+      continue;
+    }
+    const start = intervals[0]!.start;
+    const end = intervals[intervals.length - 1]!.end;
+    const breaks: { start: string; end: string }[] = [];
+    for (let i = 0; i < intervals.length - 1; i++) {
+      breaks.push({
+        start: fromMinutes(intervals[i]!.end),
+        end: fromMinutes(intervals[i + 1]!.start),
+      });
+    }
+    next[row.weekday] = {
+      enabled: true,
+      start: fromMinutes(start),
+      end: fromMinutes(end),
+      breaks,
+    };
+  }
+  return next;
+}
+
 export function AutoSchedulePanel({
   businessId,
   timezone,
@@ -94,7 +130,27 @@ export function AutoSchedulePanel({
   const [mode, setMode] = useState<"automatic" | "manual">(
     settings.schedule_mode === "manual" ? "manual" : "automatic",
   );
-  const [week, setWeek] = useState(emptyWeek);
+  const serverWeek = useMemo(
+    () => weekFromSchedules(specialistId, schedules),
+    [specialistId, schedules],
+  );
+  const [draftWeek, setDraftWeek] = useState<Record<number, DayState> | null>(
+    null,
+  );
+  const [draftFor, setDraftFor] = useState<string | null>(null);
+  const week =
+    draftWeek && draftFor === specialistId ? draftWeek : serverWeek;
+  const setWeek = (
+    updater:
+      | Record<number, DayState>
+      | ((prev: Record<number, DayState>) => Record<number, DayState>),
+  ) => {
+    setDraftFor(specialistId);
+    setDraftWeek((prev) => {
+      const base = prev && draftFor === specialistId ? prev : serverWeek;
+      return typeof updater === "function" ? updater(base) : updater;
+    });
+  };
   const [slotInterval, setSlotInterval] = useState(
     settings.slot_interval ?? 30,
   );
@@ -123,40 +179,6 @@ export function AutoSchedulePanel({
   const [aiBusy, setAiBusy] = useState(false);
 
   useUnsavedChanges(dirty);
-
-  useEffect(() => {
-    if (!specialistId) return;
-    const next = emptyWeek();
-    for (const row of schedules.filter((s) => s.specialist_id === specialistId)) {
-      const intervals = row.intervals ?? [];
-      if (!intervals.length) {
-        next[row.weekday] = {
-          enabled: false,
-          start: "09:00",
-          end: "18:00",
-          breaks: [],
-        };
-        continue;
-      }
-      const start = intervals[0]!.start;
-      const end = intervals[intervals.length - 1]!.end;
-      const breaks: { start: string; end: string }[] = [];
-      for (let i = 0; i < intervals.length - 1; i++) {
-        breaks.push({
-          start: fromMinutes(intervals[i]!.end),
-          end: fromMinutes(intervals[i + 1]!.start),
-        });
-      }
-      next[row.weekday] = {
-        enabled: true,
-        start: fromMinutes(start),
-        end: fromMinutes(end),
-        breaks,
-      };
-    }
-    setWeek(next);
-    setDirty(false);
-  }, [specialistId, schedules]);
 
   const previewLines = useMemo(() => {
     if (!previewSlots.length)
@@ -207,6 +229,8 @@ export function AutoSchedulePanel({
         });
       }
       setDirty(false);
+      setDraftWeek(null);
+      setDraftFor(null);
       setSavedNotice("Расписание сохранено.");
       await onSaved();
       if (previewService && specialistId) await loadPreview();
@@ -353,7 +377,12 @@ export function AutoSchedulePanel({
         Специалист
         <select
           value={specialistId}
-          onChange={(e) => setSpecialistId(e.target.value)}
+          onChange={(e) => {
+            setSpecialistId(e.target.value);
+            setDraftWeek(null);
+            setDraftFor(null);
+            setDirty(false);
+          }}
         >
           {specialists.map((s) => (
             <option key={s.id} value={s.id}>

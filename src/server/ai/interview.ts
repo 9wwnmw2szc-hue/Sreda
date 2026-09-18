@@ -329,7 +329,7 @@ export class AiInterviewService {
   }
 
   async suggestSchedule(userId: string, publicId: string, notes: string) {
-    const b = await requireBusiness(
+    await requireBusiness(
       this.db,
       userId,
       publicId,
@@ -352,6 +352,6 @@ export class AiInterviewService {
     } catch {
       proposal = null;
     }
-    return { text: draft.text, proposal, model: draft.model };
+    return { text: draft.text, proposal };
   }
 }

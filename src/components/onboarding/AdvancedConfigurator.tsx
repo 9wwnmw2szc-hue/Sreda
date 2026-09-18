@@ -60,7 +60,6 @@ export function AdvancedConfigurator({
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     void apiRequest<IndustryPayload>(url)
       .then((data) => {
         if (!active) return;
@@ -82,10 +81,7 @@ export function AdvancedConfigurator({
 
   useEffect(() => {
     const q = query.trim();
-    if (!q) {
-      setSearchRemote(null);
-      return;
-    }
+    if (!q) return;
     let active = true;
     const t = window.setTimeout(() => {
       void apiRequest<{ results: { id: CapabilityId }[] }>(

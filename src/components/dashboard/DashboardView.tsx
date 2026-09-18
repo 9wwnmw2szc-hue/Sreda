@@ -53,6 +53,11 @@ export function DashboardView() {
     id: string;
     type: "store" | "service" | "hybrid";
   } | null>(null);
+  const [industryHint, setIndustryHint] = useState<{
+    id: string;
+    industry: string | null;
+    onboardingDone: boolean;
+  } | null>(null);
   useEffect(() => {
     if (!data.businessId || isDemoMode || data.isLoading) return;
     const businessId = data.businessId;
@@ -74,12 +79,40 @@ export function DashboardView() {
       active = false;
     };
   }, [data.businessId, data.isLoading]);
+  useEffect(() => {
+    if (!data.businessId || isDemoMode || data.isLoading) return;
+    const businessId = data.businessId;
+    let active = true;
+    void apiRequest<{
+      industry?: string | null;
+      onboarding_completed_at?: string | null;
+    }>(`/api/v1/businesses/${encodeURIComponent(businessId)}/industry`)
+      .then((row) => {
+        if (active)
+          setIndustryHint({
+            id: businessId,
+            industry: row.industry ?? null,
+            onboardingDone: !!row.onboarding_completed_at,
+          });
+      })
+      .catch(() => {
+        if (active) setIndustryHint(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [data.businessId, data.isLoading]);
   const businessType =
     !isDemoMode && profileHint?.id === data.businessId
       ? profileHint.type
       : null;
   const recommended = recommendedSolutionCodes(businessType);
   const recommendHint = recommendationSummary(businessType);
+  const showIndustryNudge =
+    !isDemoMode &&
+    industryHint?.id === data.businessId &&
+    !industryHint.industry &&
+    !industryHint.onboardingDone;
   const show = (value: Selection) => {
     setQuery("");
     setSelectionBusiness(data.businessId);
@@ -240,6 +273,14 @@ export function DashboardView() {
                 connections={data.connections}
                 loading={data.isLoading}
               />
+              {showIndustryNudge ? (
+                <p className="account-notice" role="status">
+                  Помогите Среде лучше настроиться под ваш бизнес.{" "}
+                  <Link href="/onboarding">Выбрать направление</Link>
+                  {" · "}
+                  <Link href="/settings/advanced">Расширенная настройка</Link>
+                </p>
+              ) : null}
               {data.isLoading ? (
                 <div className="workspace-loading" role="status">
                   <span className="loading-orbit" />
