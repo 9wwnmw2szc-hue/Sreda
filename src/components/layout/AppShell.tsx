@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Ellipsis,
   Plus,
-  Search,
+  BarChart3,
   ChevronDown,
 } from "lucide-react";
 import {
@@ -98,9 +98,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             <Link
               href="/analytics"
               className="icon-button"
-              aria-label="Поиск и аналитика"
+              aria-label="Аналитика"
             >
-              <Search size={20} strokeWidth={1.7} />
+              <BarChart3 size={20} strokeWidth={1.7} />
             </Link>
             <NotificationBell />
             <Link href="/settings" className="desktop-profile">

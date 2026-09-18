@@ -1974,6 +1974,26 @@ ul {
     fill: color-mix(in srgb, var(--brand-primary) 35%, transparent);
     color: var(--brand-primary-text);
   }
+
+  [data-theme="dark"] .mobile-bottom-nav {
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+    border-top-color: var(--border-subtle);
+  }
+
+  [data-theme="dark"] .mobile-bottom-nav > a,
+  [data-theme="dark"] .mobile-bottom-nav > button {
+    color: var(--text-muted);
+  }
+
+  [data-theme="dark"] .mobile-bottom-nav > [aria-current="page"] {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--brand-primary) 22%, transparent);
+  }
+
+  [data-theme="dark"] .mobile-bottom-nav > [aria-current="page"] svg {
+    fill: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    color: var(--text-primary);
+  }
   .workspace-loading {
     aspect-ratio: auto;
     min-height: 270px;
@@ -3858,10 +3878,10 @@ ul {
 }
 
 .soty-hero h1 {
-  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  font-size: clamp(1.7rem, 2.8vw, 2.5rem);
   font-weight: 700;
   letter-spacing: -0.03em;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--text-primary);
 }
 
@@ -3937,9 +3957,17 @@ ul {
   }
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1024px) {
   .soty-solutions-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Desktop reference: five solution cells in one row */
+@media (min-width: 1280px) {
+  .soty-solutions-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-3);
   }
 }
 
@@ -4023,6 +4051,42 @@ ul {
 
 .soty-solution-card--autopost {
   background: color-mix(in srgb, var(--solution-autopost) 55%, var(--bg-surface));
+}
+
+@media (min-width: 1280px) {
+  .soty-solution-card {
+    min-height: 0;
+    padding: 14px 12px 12px;
+    gap: 8px;
+  }
+
+  .soty-solution-card__art {
+    display: grid;
+    place-items: center;
+    width: 100%;
+  }
+
+  .soty-solution-card__art img {
+    width: 88px;
+    height: 88px;
+  }
+
+  .soty-solution-card h3 {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .soty-solution-card p {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .soty-solution-card__chevron {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    color: var(--text-muted);
+  }
 }
 
 .soty-solution-card__status {
