@@ -12,7 +12,11 @@ export type Permission =
   | "settings.manage"
   | "connections.manage"
   | "solutions.manage"
-  | "notifications.read";
+  | "notifications.read"
+  | "analytics.view"
+  | "analytics.export"
+  | "analytics.upload"
+  | "analytics.ai";
 const operatorPermissions: readonly Permission[] = [
   "clients.read",
   "clients.write",
@@ -21,6 +25,7 @@ const operatorPermissions: readonly Permission[] = [
   "booking.write",
   "orders.write",
   "notifications.read",
+  "analytics.view",
 ];
 export function allowed(role: Role, permission: Permission) {
   return (
