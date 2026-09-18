@@ -26,7 +26,7 @@ export async function bookingFlow(
   const direct = text.match(/^(Перенести|Отменить) ([a-f0-9]{8})$/);
   if (
     !direct &&
-    !["Онлайн-запись", "Мои записи"].includes(text) &&
+    !["Записаться", "Онлайн-запись", "Мои записи"].includes(text) &&
     !state?.mode.startsWith("booking:")
   )
     return false;
@@ -180,7 +180,7 @@ export async function bookingFlow(
     await showChoices("list", "Ваши записи:", choices);
     return true;
   }
-  if (text === "Онлайн-запись") {
+  if (text === "Записаться" || text === "Онлайн-запись") {
     answers = {};
     const catalog = await service.catalogForBusiness(businessId);
     const choices = catalog.services

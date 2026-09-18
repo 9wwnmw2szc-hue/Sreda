@@ -10,6 +10,7 @@ import { AuditLogPanel } from "./AuditLogPanel";
 import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 import { PasswordChangePanel } from "./PasswordChangePanel";
 import { BusinessProfilePanel } from "./BusinessProfilePanel";
+import { IndustrySetupCard } from "./IndustrySetupCard";
 import { PinPanel } from "./PinPanel";
 
 export function SettingsView() {
@@ -120,6 +121,13 @@ export function SettingsView() {
           </div>
         </dl>
       </section>
+      {!isDemoMode && currentBusiness && (
+        <IndustrySetupCard
+          key={`industry:${currentBusiness.id}`}
+          businessId={currentBusiness.id}
+          canEdit={currentBusiness.role !== "operator"}
+        />
+      )}
       {!isDemoMode && currentBusiness && (
         <BusinessProfilePanel
           key={currentBusiness.id}

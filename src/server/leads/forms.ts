@@ -304,4 +304,58 @@ export class LeadFormService {
       return { ok: true };
     });
   }
+
+  /**
+   * Seed industry lead-form presets only when the business has no active fields yet.
+   * Does not activate paid solutions.
+   */
+  async applyIndustryPreset(
+    userId: string,
+    publicId: string,
+    fields: { id: string; label: string; required?: boolean }[],
+  ) {
+    const { leadPresetToFieldBodies } = await import(
+      "../../lib/leadFormPresets.ts"
+    );
+    const bodies = leadPresetToFieldBodies(fields);
+    return this.db.transaction().execute(async (tx) => {
+      const b = await requireBusiness(tx, userId, publicId, "solutions.manage");
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", b.id)
+        .forUpdate()
+        .execute();
+      const existing = await tx
+        .selectFrom("lead_form_field")
+        .select("id")
+        .where("business_id", "=", b.id)
+        .where("active", "=", true)
+        .execute();
+      if (existing.length) {
+        return { applied: false, reason: "fields_exist" as const, count: 0 };
+      }
+      let count = 0;
+      for (const body of bodies) {
+        await tx
+          .insertInto("lead_form_field")
+          .values({
+            id: randomUUID(),
+            business_id: b.id,
+            field_key: body.fieldKey,
+            label: body.label,
+            field_type: body.fieldType as FieldType,
+            required: body.required,
+            placeholder: body.placeholder,
+            options: JSON.stringify(body.options),
+            position: body.position,
+            active: true,
+            updated_at: new Date(),
+          })
+          .execute();
+        count += 1;
+      }
+      return { applied: true, reason: "seeded" as const, count };
+    });
+  }
 }

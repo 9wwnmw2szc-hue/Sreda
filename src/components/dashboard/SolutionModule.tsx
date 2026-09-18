@@ -32,6 +32,7 @@ interface Props {
   onSelect: (item: WorkspaceSolutionItem) => void;
   placement?: "scene" | "card";
   debug?: boolean;
+  /** Soft ordering hint from parent; no badge UI. */
   recommended?: boolean;
 }
 export function SolutionModule({
@@ -39,7 +40,6 @@ export function SolutionModule({
   onSelect,
   placement = "card",
   debug = false,
-  recommended = false,
 }: Props) {
   const { dock } = item.visual;
   const state = solutionState(item);
@@ -103,15 +103,12 @@ export function SolutionModule({
   return (
     <button
       type="button"
-      className={`solution-card solution-card--${item.code}${recommended ? " is-recommended" : ""}`}
+      className={`solution-card solution-card--${item.code}`}
       onClick={() => onSelect(item)}
     >
       <span className="solution-card__art">{image}</span>
       <span className="solution-card__text">
-        <strong>
-          {item.solution.name}
-          {recommended && <span className="recommend-badge">Рекомендуем</span>}
-        </strong>
+        <strong>{item.solution.name}</strong>
         <span className={`solution-state tone-${state.tone}`}>
           {item.status !== "available" && <i aria-hidden />}
           {state.label}

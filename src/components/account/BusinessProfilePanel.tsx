@@ -1,6 +1,10 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
+import { AiInterviewPanel } from "@/components/ai/AiInterviewPanel";
+import { FieldHint } from "@/components/ui/SetupChrome";
+import { FIELD_HINTS } from "@/lib/setupUx";
 
 type Profile = {
   name: string;
@@ -141,10 +145,26 @@ export function BusinessProfilePanel({
               вручную.
             </span>
           </label>
-          {field("greeting", "Приветствие", { textarea: true })}
+          {field("greeting", "Приветствие", {
+            textarea: true,
+            hint: FIELD_HINTS.greeting,
+          })}
           {field("description", "Краткое описание", { textarea: true })}
           {field("contact_info", "Контакты", { textarea: true })}
           {field("timezone", "Часовой пояс IANA")}
+
+          <p className="message-actions">
+            <Link href="/onboarding" className="text-link">
+              Онбординг по отрасли
+            </Link>
+            <Link href="/settings/advanced" className="text-link">
+              Расширенная настройка бота
+            </Link>
+          </p>
+          <FieldHint>
+            Режим настройки (guided / advanced) меняется в блоке «Настройка по
+            отрасли» выше или в онбординге.
+          </FieldHint>
 
           <h3>AI-профиль</h3>
           <p className="field-hint">
@@ -159,6 +179,7 @@ export function BusinessProfilePanel({
           {field("ai_important_facts", "Важные факты", { textarea: true })}
           {field("ai_restrictions", "Ограничения: что AI нельзя утверждать", {
             textarea: true,
+            hint: FIELD_HINTS.aiRestrictions,
           })}
           {field("ai_delivery_info", "Доставка", { textarea: true })}
           {field("ai_geography", "Адрес / география", { textarea: true })}
@@ -174,6 +195,12 @@ export function BusinessProfilePanel({
           )}
         </form>
       )}
+      {canEdit ? (
+        <details>
+          <summary>AI-интервью</summary>
+          <AiInterviewPanel businessId={businessId} />
+        </details>
+      ) : null}
     </section>
   );
 }

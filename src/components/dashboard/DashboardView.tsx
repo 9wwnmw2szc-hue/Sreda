@@ -53,6 +53,12 @@ export function DashboardView() {
     id: string;
     type: "store" | "service" | "hybrid";
   } | null>(null);
+  const [industryHint, setIndustryHint] = useState<{
+    id: string;
+    industry: string | null;
+    onboardingDone: boolean;
+    progress: Record<string, boolean>;
+  } | null>(null);
   useEffect(() => {
     if (!data.businessId || isDemoMode || data.isLoading) return;
     const businessId = data.businessId;
@@ -74,12 +80,61 @@ export function DashboardView() {
       active = false;
     };
   }, [data.businessId, data.isLoading]);
+  useEffect(() => {
+    if (!data.businessId || isDemoMode || data.isLoading) return;
+    const businessId = data.businessId;
+    let active = true;
+    void apiRequest<{
+      industry?: string | null;
+      onboarding_completed_at?: string | null;
+      setup_progress?: Record<string, boolean>;
+    }>(`/api/v1/businesses/${encodeURIComponent(businessId)}/industry`)
+      .then((row) => {
+        if (active)
+          setIndustryHint({
+            id: businessId,
+            industry: row.industry ?? null,
+            onboardingDone: !!row.onboarding_completed_at,
+            progress: row.setup_progress ?? {},
+          });
+      })
+      .catch(() => {
+        if (active) setIndustryHint(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [data.businessId, data.isLoading]);
   const businessType =
     !isDemoMode && profileHint?.id === data.businessId
       ? profileHint.type
       : null;
   const recommended = recommendedSolutionCodes(businessType);
   const recommendHint = recommendationSummary(businessType);
+  const showIndustryNudge =
+    !isDemoMode &&
+    industryHint?.id === data.businessId &&
+    !industryHint.industry &&
+    !industryHint.onboardingDone;
+  const setupPct = (() => {
+    if (!industryHint || industryHint.id !== data.businessId) return null;
+    if (industryHint.onboardingDone) return null;
+    const p = industryHint.progress;
+    const keys = Object.keys(p);
+    if (!keys.length) return industryHint.industry ? 20 : 0;
+    const done = keys.filter((k) => p[k]).length;
+    return Math.min(100, Math.round((done / Math.max(keys.length, 4)) * 100));
+  })();
+  const nextSetupHint = (() => {
+    if (!industryHint?.industry || industryHint.onboardingDone) return null;
+    if (!industryHint.progress.schedule && ["beauty", "education", "rental", "sport_health", "automotive"].includes(industryHint.industry))
+      return "Настройте расписание, чтобы открыть онлайн-запись.";
+    if (!industryHint.progress.telegram)
+      return "Подключите Telegram, чтобы клиенты могли писать боту.";
+    if (!industryHint.progress.catalog && ["retail", "food"].includes(industryHint.industry))
+      return "Заполните каталог товаров.";
+    return "Продолжите настройку бизнеса.";
+  })();
   const show = (value: Selection) => {
     setQuery("");
     setSelectionBusiness(data.businessId);
@@ -240,6 +295,21 @@ export function DashboardView() {
                 connections={data.connections}
                 loading={data.isLoading}
               />
+              {showIndustryNudge ? (
+                <p className="account-notice" role="status">
+                  Помогите Среде лучше настроиться под ваш бизнес.{" "}
+                  <Link href="/onboarding">Выбрать направление</Link>
+                  {" · "}
+                  <Link href="/settings/advanced">Расширенная настройка</Link>
+                </p>
+              ) : null}
+              {setupPct != null && setupPct < 100 && !showIndustryNudge ? (
+                <p className="account-notice" role="status">
+                  Настройка бизнеса — {setupPct}%.
+                  {nextSetupHint ? ` ${nextSetupHint}` : ""}{" "}
+                  <Link href="/onboarding">Продолжить</Link>
+                </p>
+              ) : null}
               {data.isLoading ? (
                 <div className="workspace-loading" role="status">
                   <span className="loading-orbit" />
