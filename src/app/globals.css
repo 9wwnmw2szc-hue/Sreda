@@ -88,7 +88,7 @@
   --field-disabled-bg: color-mix(in srgb, var(--bg-page) 80%, var(--border-subtle));
   --field-disabled-text: var(--text-muted);
   --field-height: 48px;
-  --content-gutter: 14px;
+  --content-gutter: 12px;
   --bottom-nav-clearance: calc(96px + env(safe-area-inset-bottom, 0px));
   --field-font-size: 16px;
 }
