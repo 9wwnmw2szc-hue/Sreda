@@ -26,7 +26,7 @@ export function SolutionSetupBanner({
         <Link className="button button--primary" href={def.setupPath}>
           Продолжить настройку
         </Link>
-        <Link className="text-link" href="/solutions">
+        <Link className="button button--ghost" href="/solutions">
           Все решения
         </Link>
       </div>
@@ -50,7 +50,7 @@ export function EmptyStateCta({
       <p>
         <strong>{title}</strong>
       </p>
-      <p>{description}</p>
+      <p className="empty-copy">{description}</p>
       <Link className="button button--primary" href={href}>
         {action}
       </Link>

@@ -129,7 +129,7 @@ function Orders({
       </header>
       <SolutionSetupBanner code="orders" />
       <section className="panel crm-panel">
-        <nav aria-label="Разделы заказов">
+        <nav className="crm-segment" aria-label="Разделы заказов">
           <button
             type="button"
             className={

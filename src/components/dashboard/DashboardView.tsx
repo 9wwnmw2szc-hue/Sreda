@@ -353,7 +353,7 @@ export function DashboardView() {
               <div className="soty-dashboard__actions">
                 <button
                   type="button"
-                  className="button button--outline"
+                  className="button button--outline button--full"
                   onClick={catalog}
                 >
                   Все решения
