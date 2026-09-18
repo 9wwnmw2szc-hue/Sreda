@@ -303,6 +303,7 @@ async function replaceProductVariants(
     .execute();
   const optionById = new Map(productOptions.map((o) => [o.id, o.group_id]));
   const keep = new Set<string>();
+  const seenCombos = new Set<string>();
   for (const raw of variants) {
     if (!raw || typeof raw !== "object") throw fail();
     const body = raw as Record<string, unknown>;
@@ -321,6 +322,12 @@ async function replaceProductVariants(
       if (groups.has(groupId))
         throw fail("В варианте не больше одной опции из группы.");
       groups.add(groupId);
+    }
+    if (optionIds.length) {
+      const combo = [...optionIds].sort().join("\0");
+      if (seenCombos.has(combo))
+        throw fail("Два варианта с одинаковым набором опций.");
+      seenCombos.add(combo);
     }
     const mode = availability(body.availability ?? "in_stock");
     const stock =
@@ -365,13 +372,14 @@ async function replaceProductVariants(
   }
 }
 
+/** Returns true when quantity-tracked stock was actually decremented. */
 async function decrementStock(
   tx: Transaction<Database>,
   businessId: string,
   productId: string,
   variantId: string | null,
   quantity: number,
-) {
+): Promise<boolean> {
   if (variantId) {
     const variant = await tx
       .selectFrom("product_variant")
@@ -392,6 +400,8 @@ async function decrementStock(
       .executeTakeFirst();
     if (!product?.active || !variant.active)
       throw new AppError(409, "PRODUCT_UNAVAILABLE", "Товар недоступен.");
+    if (!product.use_variants)
+      throw fail("Этот товар больше не использует варианты.");
     if (!isSellable(variant.availability, variant.stock_quantity))
       throw new AppError(409, "OUT_OF_STOCK", "Недостаточно товара на складе.");
     if (
@@ -427,8 +437,9 @@ async function decrementStock(
         },
         "system",
       );
+      return true;
     }
-    return;
+    return false;
   }
 
   const product = await tx
@@ -467,9 +478,15 @@ async function decrementStock(
       { delta: -quantity, remaining: stock - quantity },
       "system",
     );
+    return true;
   }
+  return false;
 }
 
+/**
+ * Restore stock that was actually deducted at checkout.
+ * Does not re-infer from the live catalog mode (merchant may have changed it).
+ */
 async function restoreStock(
   tx: Transaction<Database>,
   businessId: string,
@@ -487,22 +504,13 @@ async function restoreStock(
       .forUpdate()
       .executeTakeFirst();
     if (!variant) return;
-    const product = await tx
+    await tx
       .selectFrom("product")
-      .select(["track_inventory"])
+      .select("id")
       .where("business_id", "=", businessId)
       .where("id", "=", productId)
       .forUpdate()
       .executeTakeFirst();
-    if (!product?.track_inventory) return;
-    // Only quantity-tracked variants were decremented at checkout.
-    if (
-      variant.availability !== "quantity" &&
-      variant.availability !== "out_of_stock"
-    )
-      return;
-    if (variant.availability === "out_of_stock" && variant.stock_quantity == null)
-      return;
     const stock = (variant.stock_quantity ?? 0) + quantity;
     await tx
       .updateTable("product_variant")
@@ -538,20 +546,14 @@ async function restoreStock(
     .where("id", "=", productId)
     .forUpdate()
     .executeTakeFirst();
-  if (!product?.track_inventory) return;
-  if (
-    product.availability !== "quantity" &&
-    product.availability !== "out_of_stock"
-  )
-    return;
-  if (product.availability === "out_of_stock" && product.stock_quantity == null)
-    return;
+  if (!product) return;
   const stock = (product.stock_quantity ?? 0) + quantity;
   await tx
     .updateTable("product")
     .set({
       stock_quantity: stock,
       availability: "quantity",
+      track_inventory: true,
       updated_at: new Date(),
     })
     .where("business_id", "=", businessId)
@@ -575,12 +577,12 @@ async function restoreOrderInventory(
 ) {
   const items = await tx
     .selectFrom("order_item")
-    .select(["product_id", "variant_id", "quantity"])
+    .select(["product_id", "variant_id", "quantity", "stock_deducted"])
     .where("business_id", "=", businessId)
     .where("order_id", "=", orderId)
     .execute();
   for (const item of items) {
-    if (!item.product_id) continue;
+    if (!item.product_id || !item.stock_deducted) continue;
     await restoreStock(
       tx,
       businessId,
@@ -782,65 +784,135 @@ export class CatalogService {
         : body.id
           ? id(body.id)
           : randomUUID();
-      const categoryId = optionalId(body.category_id);
-      if (categoryId) {
-        const category = await tx
-          .selectFrom("product_category")
-          .select("id")
-          .where("business_id", "=", b.id)
-          .where("id", "=", categoryId)
-          .executeTakeFirst();
-        if (!category)
-          throw new AppError(
-            404,
-            "CATEGORY_NOT_FOUND",
-            "Категория не найдена.",
-          );
+      const updating = !!(productId || body.id);
+      const existing = updating
+        ? await tx
+            .selectFrom("product")
+            .selectAll()
+            .where("business_id", "=", b.id)
+            .where("id", "=", key)
+            .executeTakeFirst()
+        : undefined;
+      if (updating && !existing)
+        throw new AppError(404, "PRODUCT_NOT_FOUND", "Товар не найден.");
+
+      const has = (field: string) =>
+        Object.prototype.hasOwnProperty.call(body, field);
+
+      let categoryId: string | null;
+      if (has("category_id")) {
+        categoryId = optionalId(body.category_id);
+        if (categoryId) {
+          const category = await tx
+            .selectFrom("product_category")
+            .select("id")
+            .where("business_id", "=", b.id)
+            .where("id", "=", categoryId)
+            .executeTakeFirst();
+          if (!category)
+            throw new AppError(
+              404,
+              "CATEGORY_NOT_FOUND",
+              "Категория не найдена.",
+            );
+        }
+      } else if (existing) {
+        categoryId = existing.category_id;
+      } else {
+        categoryId = optionalId(body.category_id);
+        if (categoryId) {
+          const category = await tx
+            .selectFrom("product_category")
+            .select("id")
+            .where("business_id", "=", b.id)
+            .where("id", "=", categoryId)
+            .executeTakeFirst();
+          if (!category)
+            throw new AppError(
+              404,
+              "CATEGORY_NOT_FOUND",
+              "Категория не найдена.",
+            );
+        }
       }
-      const mode = availability(body.availability ?? "in_stock");
-      const trackInventory = body.track_inventory === true;
+
+      const mode = availability(
+        has("availability")
+          ? body.availability
+          : (existing?.availability ?? "in_stock"),
+      );
+      const trackInventory = has("track_inventory")
+        ? body.track_inventory === true
+        : (existing?.track_inventory ?? false);
       const stock =
         mode === "quantity"
-          ? integer(body.stock_quantity ?? 0, 0, 1_000_000)
+          ? integer(
+              has("stock_quantity")
+                ? (body.stock_quantity ?? 0)
+                : (existing?.stock_quantity ?? 0),
+              0,
+              1_000_000,
+            )
           : null;
       if (trackInventory && mode === "quantity" && stock === null)
         throw fail("Укажите количество на складе.");
+
+      const currencyRaw = has("currency")
+        ? String(body.currency ?? "RUB")
+        : (existing?.currency ?? "RUB");
+      if (!/^[A-Z]{3}$/.test(currencyRaw)) throw fail();
+
       const value = {
         id: key,
         business_id: b.id,
         category_id: categoryId,
-        name: text(body.name, 1, 200, "Укажите название товара."),
-        description: optionalText(body.description, 8000),
-        price: money(body.price),
-        compare_at_price: optionalMoney(body.compare_at_price),
-        currency: (() => {
-          const currency = String(body.currency ?? "RUB");
-          if (!/^[A-Z]{3}$/.test(currency)) throw fail();
-          return currency;
-        })(),
-        sku:
-          body.sku == null || body.sku === ""
+        name: text(
+          has("name") ? body.name : (existing?.name ?? body.name),
+          1,
+          200,
+          "Укажите название товара.",
+        ),
+        description: has("description")
+          ? optionalText(body.description, 8000)
+          : (existing?.description ?? optionalText(body.description, 8000)),
+        price: money(has("price") ? body.price : (existing?.price ?? body.price)),
+        compare_at_price: has("compare_at_price")
+          ? optionalMoney(body.compare_at_price)
+          : (existing?.compare_at_price ?? optionalMoney(body.compare_at_price)),
+        currency: currencyRaw,
+        sku: has("sku")
+          ? body.sku == null || body.sku === ""
             ? null
-            : text(body.sku, 1, 64, "Проверьте артикул."),
-        active: body.active === false ? false : true,
-        position: integer(body.position ?? 0, 0, 100000),
-        use_variants: body.use_variants === true,
+            : text(body.sku, 1, 64, "Проверьте артикул.")
+          : (existing?.sku ??
+            (body.sku == null || body.sku === ""
+              ? null
+              : text(body.sku, 1, 64, "Проверьте артикул."))),
+        active: has("active")
+          ? body.active === false
+            ? false
+            : true
+          : (existing?.active ?? true),
+        position: integer(
+          has("position") ? (body.position ?? 0) : (existing?.position ?? 0),
+          0,
+          100000,
+        ),
+        use_variants: has("use_variants")
+          ? body.use_variants === true
+          : (existing?.use_variants ?? false),
         track_inventory: trackInventory,
         availability: mode,
         stock_quantity: stock,
         updated_at: new Date(),
       };
-      const updating = !!(productId || body.id);
       if (updating) {
-        const changed = await tx
+        await tx
           .updateTable("product")
           .set(value)
           .where("business_id", "=", b.id)
           .where("id", "=", key)
-          .returning("id")
-          .executeTakeFirst();
-        if (!changed)
-          throw new AppError(404, "PRODUCT_NOT_FOUND", "Товар не найден.");
+          .execute();
         await audit(tx, b.id, userId, "product_updated", key);
       } else {
         await tx.insertInto("product").values(value).execute();
@@ -1476,6 +1548,7 @@ export class OrderService {
         unit_price: string;
         quantity: number;
         line_total: string;
+        stock_deducted: boolean;
       }[] = [];
       let currency: string | null = null;
       let totalCents = 0;
@@ -1494,7 +1567,7 @@ export class OrderService {
             "MIXED_CURRENCY",
             "В одном заказе должны быть товары одной валюты.",
           );
-        await decrementStock(
+        const stockDeducted = await decrementStock(
           tx,
           businessId,
           item.product_id,
@@ -1526,6 +1599,7 @@ export class OrderService {
           unit_price: unit,
           quantity: item.quantity,
           line_total: lineTotal,
+          stock_deducted: stockDeducted,
         });
       }
 
@@ -1570,6 +1644,7 @@ export class OrderService {
             unit_price: line.unit_price,
             quantity: line.quantity,
             line_total: line.line_total,
+            stock_deducted: line.stock_deducted,
           })
           .execute();
       }

@@ -122,27 +122,28 @@ export async function ordersFlow(
     const cart = await orders.getCart(businessId, platform, userId);
     if (!cart.items.length) return { cart, text: "Корзина пуста." };
     let total = 0;
-    let currency = "RUB";
+    const currency = cart.items[0]?.currency ?? "RUB";
+    let mixed = false;
     const lines = cart.items.map((item, i) => {
       const unit = lineUnit(item.product_price, item.variant_price);
       const line = Math.round(Number(unit) * item.quantity * 100) / 100;
-      total += line;
-      currency = item.currency;
+      if (item.currency !== currency) mixed = true;
+      else total += line;
       const variant = item.variant_label ? ` (${item.variant_label})` : "";
       return `${i + 1}. ${item.product_name}${variant} × ${item.quantity} = ${moneyLabel(line.toFixed(2), item.currency)}`;
     });
+    const footer = mixed
+      ? "\n\nВ корзине товары в разных валютах. Оформите заказ по одной валюте."
+      : "\n\nИтого: " + moneyLabel(total.toFixed(2), currency);
     return {
       cart,
-      text:
-        "Ваша корзина:\n" +
-        lines.join("\n") +
-        "\n\nИтого: " +
-        moneyLabel(total.toFixed(2), currency),
+      mixed,
+      text: "Ваша корзина:\n" + lines.join("\n") + footer,
     };
   };
 
   const showCart = async (prefix = "") => {
-    const { cart, text: body } = await formatCart();
+    const { cart, text: body, mixed } = await formatCart();
     const choices = cart.items.map((item, i) => ({
       label: `${i + 1}. ${item.product_name}`.slice(0, 100),
       value: item.id,
@@ -150,7 +151,12 @@ export async function ordersFlow(
     answers = { choicePage: "0" };
     await save("cart", choices);
     const buttons = cart.items.length
-      ? ["Оформить заказ", "Изменить позицию", "Очистить корзину", ...shopNav]
+      ? [
+          ...(mixed ? [] : ["Оформить заказ"]),
+          "Изменить позицию",
+          "Очистить корзину",
+          ...shopNav,
+        ]
       : shopNav;
     await queue((prefix ? prefix + "\n\n" : "") + body, buttons);
   };

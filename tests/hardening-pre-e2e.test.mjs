@@ -17,6 +17,8 @@ import {
   CatalogService,
   OrderService,
 } from "../src/server/orders/service.ts";
+import { LeadService } from "../src/server/leads/service.ts";
+import { expireClaims } from "../src/server/outbox/claim.ts";
 import { encryptSecret } from "../src/server/connections/crypto.ts";
 
 const usePg = !!process.env.TEST_DATABASE_URL;
@@ -853,3 +855,314 @@ test("cart_item unique indexes reject duplicate null-variant rows", async () => 
   );
 });
 
+
+test("partial product PATCH preserves inventory fields", async () => {
+  const { uid, b } = await ownerBusiness("PatchInv");
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "orders",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const catalog = new CatalogService(db);
+  const product = await catalog.saveProduct(uid, b.public_id, {
+    name: "Tea",
+    price: "100",
+    track_inventory: true,
+    availability: "quantity",
+    stock_quantity: 7,
+    active: true,
+  });
+  await catalog.saveProduct(
+    uid,
+    b.public_id,
+    { name: "Tea", price: "100", active: false },
+    product.id,
+  );
+  const after = await catalog.getProduct(uid, b.public_id, product.id);
+  assert.equal(after.active, false);
+  assert.equal(after.track_inventory, true);
+  assert.equal(after.availability, "quantity");
+  assert.equal(after.stock_quantity, 7);
+});
+
+test("cancel restores stock after catalog track_inventory was turned off", async () => {
+  const { uid, b } = await ownerBusiness("RestoreFlag");
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "orders",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const catalog = new CatalogService(db);
+  const orders = new OrderService(db);
+  const product = await catalog.saveProduct(uid, b.public_id, {
+    name: "Tea",
+    price: "100",
+    track_inventory: true,
+    availability: "quantity",
+    stock_quantity: 4,
+    active: true,
+  });
+  const order = await orders.checkout(b.id, {
+    platform: "web",
+    external_user_id: "buyer-" + randomUUID().slice(0, 8),
+    customer_name: "Buyer",
+    customer_phone: "+79990001133",
+    fulfillment: "pickup",
+    request_key: "rk-" + randomUUID(),
+    cart_items: [{ product_id: product.id, quantity: 2 }],
+  });
+  assert.equal(
+    (await catalog.getProduct(uid, b.public_id, product.id)).stock_quantity,
+    2,
+  );
+  const deducted = await db
+    .selectFrom("order_item")
+    .select("stock_deducted")
+    .where("order_id", "=", order.id)
+    .executeTakeFirstOrThrow();
+  assert.equal(deducted.stock_deducted, true);
+
+  await catalog.saveProduct(
+    uid,
+    b.public_id,
+    {
+      name: "Tea",
+      price: "100",
+      track_inventory: false,
+    },
+    product.id,
+  );
+  const mid = await catalog.getProduct(uid, b.public_id, product.id);
+  assert.equal(mid.track_inventory, false);
+  assert.equal(mid.availability, "quantity");
+  assert.equal(mid.stock_quantity, 2);
+  await orders.transitionStatus(uid, b.public_id, order.id, {
+    status: "cancelled",
+  });
+  const restored = await catalog.getProduct(uid, b.public_id, product.id);
+  assert.equal(restored.track_inventory, true);
+  assert.equal(restored.availability, "quantity");
+  assert.equal(restored.stock_quantity, 4);
+});
+
+test("variant checkout rejects when use_variants was disabled", async () => {
+  const { uid, b } = await ownerBusiness("UseVar");
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "orders",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const catalog = new CatalogService(db);
+  const orders = new OrderService(db);
+  const product = await catalog.saveProduct(uid, b.public_id, {
+    name: "Shirt",
+    price: "200",
+    use_variants: true,
+    track_inventory: true,
+    availability: "quantity",
+    stock_quantity: 0,
+    active: true,
+    variants: [
+      { label: "M", availability: "quantity", stock_quantity: 2, active: true },
+    ],
+  });
+  const variantId = (
+    await catalog.getProduct(uid, b.public_id, product.id)
+  ).variants[0].id;
+  await catalog.saveProduct(
+    uid,
+    b.public_id,
+    { name: "Shirt", price: "200", use_variants: false },
+    product.id,
+  );
+  await assert.rejects(
+    orders.checkout(b.id, {
+      platform: "web",
+      external_user_id: "buyer-" + randomUUID().slice(0, 8),
+      customer_name: "Buyer",
+      customer_phone: "+79990001144",
+      fulfillment: "pickup",
+      request_key: "rk-" + randomUUID(),
+      cart_items: [
+        { product_id: product.id, variant_id: variantId, quantity: 1 },
+      ],
+    }),
+    (e) => e.code === "INVALID_ORDER" || /вариант/i.test(e.message),
+  );
+});
+
+test("duplicate variant option combinations are rejected", async () => {
+  const { uid, b } = await ownerBusiness("DupCombo");
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "orders",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const catalog = new CatalogService(db);
+  const product = await catalog.saveProduct(uid, b.public_id, {
+    name: "Mug",
+    price: "50",
+    use_variants: true,
+    active: true,
+  });
+  const groupId = randomUUID();
+  const optA = randomUUID();
+  const optB = randomUUID();
+  await db
+    .insertInto("product_option_group")
+    .values({
+      id: groupId,
+      business_id: b.id,
+      product_id: product.id,
+      name: "Size",
+      position: 0,
+    })
+    .execute();
+  await db
+    .insertInto("product_option")
+    .values([
+      { id: optA, business_id: b.id, group_id: groupId, name: "S", position: 0 },
+      { id: optB, business_id: b.id, group_id: groupId, name: "M", position: 1 },
+    ])
+    .execute();
+  await assert.rejects(
+    catalog.saveProduct(
+      uid,
+      b.public_id,
+      {
+        name: "Mug",
+        price: "50",
+        use_variants: true,
+        variants: [
+          { label: "S1", option_ids: [optA], availability: "in_stock" },
+          { label: "S2", option_ids: [optA], availability: "in_stock" },
+        ],
+      },
+      product.id,
+    ),
+    (e) => /одинаков/i.test(e.message) || e.code === "INVALID_ORDER",
+  );
+});
+
+test(
+  "two staff cannot concurrently take the same lead",
+  { skip: !usePg && "Requires PostgreSQL row locks" },
+  async () => {
+  const { uid, b } = await ownerBusiness("LeadRace");
+  const opA = randomUUID();
+  const opB = randomUUID();
+  for (const id of [opA, opB]) {
+    await db
+      .insertInto("user")
+      .values({
+        id,
+        name: "Op",
+        email: id + "@test.invalid",
+        emailVerified: false,
+        username: "u" + id.replace(/-/g, "").slice(0, 20),
+      })
+      .execute();
+    await db
+      .insertInto("business_member")
+      .values({
+        business_id: b.id,
+        user_id: id,
+        role: "operator",
+        status: "active",
+      })
+      .execute();
+  }
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "leads",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
+  const leads = new LeadService(db);
+  const lead = await leads.create(uid, b.public_id, {
+    source: "telegram",
+    name: "Клиент",
+  });
+  const results = await Promise.allSettled([
+    leads.updateStatus(opA, b.public_id, lead.id, "processing"),
+    leads.updateStatus(opB, b.public_id, lead.id, "processing"),
+  ]);
+  const ok = results.filter((r) => r.status === "fulfilled");
+  const fail = results.filter((r) => r.status === "rejected");
+  assert.equal(ok.length, 1);
+  assert.equal(fail.length, 1);
+  assert.equal(fail[0].reason.code, "LEAD_ASSIGNED");
+  const row = await db
+    .selectFrom("lead")
+    .select("processing_by")
+    .where("id", "=", lead.id)
+    .executeTakeFirstOrThrow();
+  assert.ok(row.processing_by === opA || row.processing_by === opB);
+});
+
+test("expireClaims marks entity_reminder uncertain when outbox lease expires", async () => {
+  const { b } = await ownerBusiness("ExpireEnt");
+  const { connectionId } = await connectTelegram(b.id);
+  const reminderId = randomUUID();
+  await db
+    .insertInto("entity_reminder")
+    .values({
+      id: reminderId,
+      business_id: b.id,
+      entity_kind: "calendar_event",
+      entity_id: randomUUID(),
+      offset_minutes: 30,
+      fire_at: new Date(Date.now() - 1000),
+      audience: "staff",
+      channel: "telegram",
+      status: "queued",
+      recipient_user_id: null,
+      message_template: "",
+      last_error: null,
+    })
+    .execute();
+  await db
+    .insertInto("telegram_outbox")
+    .values({
+      connection_id: connectionId,
+      chat_id: "1001",
+      message: "reminder",
+      delivery_state: "sending",
+      claimed_at: new Date(Date.now() - 400000),
+      entity_reminder_id: reminderId,
+      available_at: new Date(Date.now() - 400000),
+    })
+    .execute();
+  await expireClaims(db, "telegram");
+  const row = await db
+    .selectFrom("entity_reminder")
+    .select(["status", "last_error"])
+    .where("id", "=", reminderId)
+    .executeTakeFirstOrThrow();
+  assert.equal(row.status, "uncertain");
+  assert.equal(row.last_error, "DELIVERY_UNKNOWN");
+});
