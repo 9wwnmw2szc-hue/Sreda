@@ -4,6 +4,7 @@ import { prepareVKMedia } from "../attachments/send.ts";
 import { vkAttachments } from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
+import { entityReminderValid } from "../calendar/worker.ts";
 import { claimDelivery, expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -418,6 +419,23 @@ export class VKService {
           .execute();
         return true;
       }
+      if (
+        row.entity_reminder_id &&
+        !(await entityReminderValid(tx, row.entity_reminder_id))
+      ) {
+        await tx
+          .updateTable("vk_outbox")
+          .set({ delivery_state: "failed", last_error: "STALE_REMINDER" })
+          .where("id", "=", row.id)
+          .execute();
+        await tx
+          .updateTable("entity_reminder")
+          .set({ status: "cancelled", last_error: "STALE_REMINDER" })
+          .where("id", "=", row.entity_reminder_id)
+          .where("status", "in", ["pending", "queued", "uncertain"])
+          .execute();
+        return true;
+      }
       try {
         // Keep random_id stable across retries so VK deduplicates a response
         // when the network fails after the platform accepted the message.
@@ -491,6 +509,13 @@ export class VKService {
             .set({ status: "sent" })
             .where("id", "=", row.booking_reminder_id)
             .execute();
+        if (row.entity_reminder_id)
+          await tx
+            .updateTable("entity_reminder")
+            .set({ status: "sent", last_error: null })
+            .where("id", "=", row.entity_reminder_id)
+            .where("status", "in", ["pending", "queued", "uncertain"])
+            .execute();
         if (row.communication_message_id) {
           const remaining = await tx
             .selectFrom("vk_outbox")
@@ -522,6 +547,13 @@ export class VKService {
               .set({ status: "uncertain", last_error: "DELIVERY_UNKNOWN" })
               .where("id", "=", row.booking_reminder_id)
               .execute();
+          if (row.entity_reminder_id)
+            await tx
+              .updateTable("entity_reminder")
+              .set({ status: "uncertain", last_error: "DELIVERY_UNKNOWN" })
+              .where("id", "=", row.entity_reminder_id)
+              .where("status", "in", ["pending", "queued"])
+              .execute();
           if (row.post_delivery_id)
             await postDeliveryResult(
               tx,
@@ -552,6 +584,7 @@ export class VKService {
             .select([
               "communication_message_id",
               "booking_reminder_id",
+              "entity_reminder_id",
               "post_delivery_id",
             ])
             .where("connection_id", "=", row.connection_id)
@@ -570,6 +603,13 @@ export class VKService {
                 .updateTable("booking_reminder")
                 .set({ status: "failed", last_error: "CHAT_UNAVAILABLE" })
                 .where("id", "=", job.booking_reminder_id)
+                .execute();
+            if (job.entity_reminder_id)
+              await tx
+                .updateTable("entity_reminder")
+                .set({ status: "failed", last_error: "CHAT_UNAVAILABLE" })
+                .where("id", "=", job.entity_reminder_id)
+                .where("status", "in", ["pending", "queued", "uncertain"])
                 .execute();
             if (job.post_delivery_id)
               await postDeliveryResult(
@@ -622,6 +662,13 @@ export class VKService {
             .updateTable("booking_reminder")
             .set({ status: "failed", last_error: "DELIVERY_FAILED" })
             .where("id", "=", row.booking_reminder_id)
+            .execute();
+        if (exhausted && row.entity_reminder_id)
+          await tx
+            .updateTable("entity_reminder")
+            .set({ status: "failed", last_error: "DELIVERY_FAILED" })
+            .where("id", "=", row.entity_reminder_id)
+            .where("status", "in", ["pending", "queued", "uncertain"])
             .execute();
         if (exhausted && row.post_delivery_id)
           await postDeliveryResult(

@@ -121,6 +121,7 @@ export interface OrderTables {
     request_key: string;
     request_hash: string;
     conversation_id: string | null;
+    inventory_restored_at: Date | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };

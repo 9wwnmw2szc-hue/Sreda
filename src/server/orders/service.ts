@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Kysely, Transaction } from "kysely";
+import { sql, type Kysely, type Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -19,6 +19,31 @@ import type {
 
 const fail = (message = "Проверьте параметры заказа.") =>
   new AppError(400, "INVALID_ORDER", message);
+
+function isUniqueViolation(error: unknown) {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    String((error as { code: unknown }).code) === "23505"
+  );
+}
+
+async function withSavepoint<T>(
+  tx: Transaction<Database>,
+  name: string,
+  run: () => Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> {
+  await sql.raw(`SAVEPOINT ${name}`).execute(tx);
+  try {
+    const value = await run();
+    await sql.raw(`RELEASE SAVEPOINT ${name}`).execute(tx);
+    return { ok: true, value };
+  } catch (error) {
+    await sql.raw(`ROLLBACK TO SAVEPOINT ${name}`).execute(tx);
+    return { ok: false, error };
+  }
+}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -268,6 +293,15 @@ async function replaceProductVariants(
     .where("business_id", "=", businessId)
     .where("product_id", "=", productId)
     .execute();
+  const productOptions = await tx
+    .selectFrom("product_option as o")
+    .innerJoin("product_option_group as g", "g.id", "o.group_id")
+    .select(["o.id", "o.group_id"])
+    .where("o.business_id", "=", businessId)
+    .where("g.business_id", "=", businessId)
+    .where("g.product_id", "=", productId)
+    .execute();
+  const optionById = new Map(productOptions.map((o) => [o.id, o.group_id]));
   const keep = new Set<string>();
   for (const raw of variants) {
     if (!raw || typeof raw !== "object") throw fail();
@@ -277,6 +311,17 @@ async function replaceProductVariants(
     const optionIds = Array.isArray(body.option_ids)
       ? body.option_ids.map(id)
       : [];
+    if (new Set(optionIds).size !== optionIds.length)
+      throw fail("Вариант содержит повторяющиеся опции.");
+    const groups = new Set<string>();
+    for (const optionId of optionIds) {
+      const groupId = optionById.get(optionId);
+      if (!groupId)
+        throw fail("Опция варианта должна принадлежать этому товару.");
+      if (groups.has(groupId))
+        throw fail("В варианте не больше одной опции из группы.");
+      groups.add(groupId);
+    }
     const mode = availability(body.availability ?? "in_stock");
     const stock =
       mode === "quantity"
@@ -421,6 +466,127 @@ async function decrementStock(
       productId,
       { delta: -quantity, remaining: stock - quantity },
       "system",
+    );
+  }
+}
+
+async function restoreStock(
+  tx: Transaction<Database>,
+  businessId: string,
+  productId: string,
+  variantId: string | null,
+  quantity: number,
+) {
+  if (variantId) {
+    const variant = await tx
+      .selectFrom("product_variant")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("id", "=", variantId)
+      .where("product_id", "=", productId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!variant) return;
+    const product = await tx
+      .selectFrom("product")
+      .select(["track_inventory"])
+      .where("business_id", "=", businessId)
+      .where("id", "=", productId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!product?.track_inventory) return;
+    // Only quantity-tracked variants were decremented at checkout.
+    if (
+      variant.availability !== "quantity" &&
+      variant.availability !== "out_of_stock"
+    )
+      return;
+    if (variant.availability === "out_of_stock" && variant.stock_quantity == null)
+      return;
+    const stock = (variant.stock_quantity ?? 0) + quantity;
+    await tx
+      .updateTable("product_variant")
+      .set({
+        stock_quantity: stock,
+        availability: "quantity",
+        updated_at: new Date(),
+      })
+      .where("business_id", "=", businessId)
+      .where("id", "=", variantId)
+      .execute();
+    await audit(
+      tx,
+      businessId,
+      null,
+      "inventory_adjusted",
+      variantId,
+      {
+        product_id: productId,
+        delta: quantity,
+        remaining: stock,
+        reason: "order_cancelled",
+      },
+      "system",
+    );
+    return;
+  }
+
+  const product = await tx
+    .selectFrom("product")
+    .selectAll()
+    .where("business_id", "=", businessId)
+    .where("id", "=", productId)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!product?.track_inventory) return;
+  if (
+    product.availability !== "quantity" &&
+    product.availability !== "out_of_stock"
+  )
+    return;
+  if (product.availability === "out_of_stock" && product.stock_quantity == null)
+    return;
+  const stock = (product.stock_quantity ?? 0) + quantity;
+  await tx
+    .updateTable("product")
+    .set({
+      stock_quantity: stock,
+      availability: "quantity",
+      updated_at: new Date(),
+    })
+    .where("business_id", "=", businessId)
+    .where("id", "=", productId)
+    .execute();
+  await audit(
+    tx,
+    businessId,
+    null,
+    "inventory_adjusted",
+    productId,
+    { delta: quantity, remaining: stock, reason: "order_cancelled" },
+    "system",
+  );
+}
+
+async function restoreOrderInventory(
+  tx: Transaction<Database>,
+  businessId: string,
+  orderId: string,
+) {
+  const items = await tx
+    .selectFrom("order_item")
+    .select(["product_id", "variant_id", "quantity"])
+    .where("business_id", "=", businessId)
+    .where("order_id", "=", orderId)
+    .execute();
+  for (const item of items) {
+    if (!item.product_id) continue;
+    await restoreStock(
+      tx,
+      businessId,
+      item.product_id,
+      item.variant_id,
+      item.quantity,
     );
   }
 }
@@ -816,8 +982,22 @@ export class OrderService {
       external_user_id: externalUserId,
       updated_at: new Date(),
     };
-    await tx.insertInto("cart").values(cart).execute();
-    return cart;
+    const inserted = await withSavepoint(tx, "cart_create", async () => {
+      await tx.insertInto("cart").values(cart).execute();
+      return cart;
+    });
+    if (inserted.ok) return inserted.value;
+    if (!isUniqueViolation(inserted.error)) throw inserted.error;
+    const raced = await tx
+      .selectFrom("cart")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("platform", "=", platform)
+      .where("external_user_id", "=", externalUserId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!raced) throw inserted.error;
+    return raced;
   }
 
   private async loadCart(
@@ -966,17 +1146,49 @@ export class OrderService {
           .where("id", "=", existing.id)
           .execute();
       } else {
-        await tx
-          .insertInto("cart_item")
-          .values({
-            id: randomUUID(),
-            business_id: businessId,
-            cart_id: cart.id,
-            product_id: productId,
-            variant_id: variantId,
-            quantity,
-          })
-          .execute();
+        const inserted = await withSavepoint(tx, "cart_item_insert", async () => {
+          await tx
+            .insertInto("cart_item")
+            .values({
+              id: randomUUID(),
+              business_id: businessId,
+              cart_id: cart.id,
+              product_id: productId,
+              variant_id: variantId,
+              quantity,
+            })
+            .execute();
+        });
+        if (!inserted.ok) {
+          if (!isUniqueViolation(inserted.error)) throw inserted.error;
+          const raced = await tx
+            .selectFrom("cart_item")
+            .selectAll()
+            .where("business_id", "=", businessId)
+            .where("cart_id", "=", cart.id)
+            .where("product_id", "=", productId)
+            .where("variant_id", variantId === null ? "is" : "=", variantId)
+            .forUpdate()
+            .executeTakeFirst();
+          if (!raced) throw inserted.error;
+          const next = raced.quantity + quantity;
+          if (next > 999) throw fail("Слишком много позиций.");
+          if (
+            tracksQuantity(product.track_inventory, mode) &&
+            (stock ?? 0) < next
+          )
+            throw new AppError(
+              409,
+              "OUT_OF_STOCK",
+              "Недостаточно товара на складе.",
+            );
+          await tx
+            .updateTable("cart_item")
+            .set({ quantity: next, updated_at: new Date() })
+            .where("business_id", "=", businessId)
+            .where("id", "=", raced.id)
+            .execute();
+        }
       }
       await tx
         .updateTable("cart")
@@ -1265,10 +1477,23 @@ export class OrderService {
         quantity: number;
         line_total: string;
       }[] = [];
-      let currency = "RUB";
+      let currency: string | null = null;
       let totalCents = 0;
 
       for (const item of cartItems) {
+        const product = await tx
+          .selectFrom("product")
+          .selectAll()
+          .where("business_id", "=", businessId)
+          .where("id", "=", item.product_id)
+          .executeTakeFirstOrThrow();
+        if (currency == null) currency = product.currency;
+        else if (currency !== product.currency)
+          throw new AppError(
+            400,
+            "MIXED_CURRENCY",
+            "В одном заказе должны быть товары одной валюты.",
+          );
         await decrementStock(
           tx,
           businessId,
@@ -1276,12 +1501,6 @@ export class OrderService {
           item.variant_id,
           item.quantity,
         );
-        const product = await tx
-          .selectFrom("product")
-          .selectAll()
-          .where("business_id", "=", businessId)
-          .where("id", "=", item.product_id)
-          .executeTakeFirstOrThrow();
         let variantLabel = "";
         let variantSku: string | null = null;
         let unit = product.price;
@@ -1298,7 +1517,6 @@ export class OrderService {
         }
         const lineTotal = multiplyMoney(unit, item.quantity);
         totalCents += Math.round(Number(lineTotal) * 100);
-        currency = product.currency;
         snapshot.push({
           product_id: product.id,
           variant_id: item.variant_id,
@@ -1325,13 +1543,14 @@ export class OrderService {
           customer_phone: customerPhone,
           delivery_address: deliveryAddress,
           comment,
-          currency,
+          currency: currency ?? "RUB",
           total,
           items_snapshot: JSON.stringify(snapshot),
           source,
           request_key: key,
           request_hash: hash,
           conversation_id: conversationId,
+          inventory_restored_at: null,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -1523,9 +1742,20 @@ export class OrderService {
           "Этот статус недоступен для текущего заказа.",
         );
       const note = optionalText(body.note, 2000);
+      let inventoryRestoredAt = current.inventory_restored_at;
+      if (to === "cancelled" && !current.inventory_restored_at) {
+        await restoreOrderInventory(tx, b.id, current.id);
+        inventoryRestoredAt = new Date();
+      }
       await tx
         .updateTable("order")
-        .set({ status: to, updated_at: new Date() })
+        .set({
+          status: to,
+          updated_at: new Date(),
+          ...(inventoryRestoredAt && !current.inventory_restored_at
+            ? { inventory_restored_at: inventoryRestoredAt }
+            : {}),
+        })
         .where("business_id", "=", b.id)
         .where("id", "=", current.id)
         .execute();
@@ -1550,6 +1780,9 @@ export class OrderService {
       await audit(tx, b.id, userId, "order_status_changed", current.id, {
         from: current.status,
         to,
+        inventory_restored: !!(
+          inventoryRestoredAt && !current.inventory_restored_at
+        ),
       });
       return { id: current.id, status: to };
     });

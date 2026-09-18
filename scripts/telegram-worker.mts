@@ -30,6 +30,7 @@ let nextCleanup = 0;
 try {
   while (!stopping) {
     try {
+      // Sole owner of shared scheduled work across Telegram/VK workers.
       await queueNotification(db, config.origin);
       await materializeRecurringPost(db);
       await queueScheduledPost(db);
