@@ -46,7 +46,9 @@ export async function ordersFlow(
   const orders = new OrderService(tx);
   let answers: Record<string, string> = state ? JSON.parse(state.answers) : {};
 
-  const contact = options.contactShop ? (["Связаться с магазином"] as const) : [];
+  const contact = options.contactShop
+    ? (["Связаться с администратором"] as const)
+    : [];
   const shopNav = ["Каталог", "Корзина", ...contact, "Отмена"] as string[];
 
   const save = async (

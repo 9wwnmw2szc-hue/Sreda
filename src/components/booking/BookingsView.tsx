@@ -8,6 +8,8 @@ import {
   EmptyStateCta,
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
+import { AutoSchedulePanel } from "@/components/booking/AutoSchedulePanel";
+import { FIELD_HINTS } from "@/lib/setupUx";
 type Service = {
   description: string;
   currency: string;
@@ -583,6 +585,7 @@ function Calendar({
           {canConfigure && (
             <Configuration
               base={base}
+              timezone={timezone}
               catalog={catalog}
               onChange={refresh}
               openDetails={focusConfig}
@@ -635,11 +638,13 @@ function Calendar({
 }
 function Configuration({
   base,
+  timezone,
   catalog,
   onChange,
   openDetails = false,
 }: {
   base: string;
+  timezone: string;
   catalog: Catalog;
   onChange: () => Promise<void>;
   openDetails?: boolean;
@@ -784,7 +789,13 @@ function Configuration({
             ] as const
           ).map((k, i) => (
             <label key={k}>
-              {["Длительность, мин", "Буфер до, мин", "Буфер после, мин"][i]}
+              {
+                [
+                  "Длительность, мин",
+                  "Подготовка до записи, мин",
+                  "Перерыв между клиентами, мин",
+                ][i]
+              }
               <input
                 type="number"
                 min={k === "duration_minutes" ? 5 : 0}
@@ -794,6 +805,9 @@ function Configuration({
                   setService({ ...service, [k]: Number(e.target.value) })
                 }
               />
+              {k === "buffer_after_minutes" ? (
+                <p className="field-hint">{FIELD_HINTS.bufferAfter}</p>
+              ) : null}
             </label>
           ))}
           <label>
@@ -907,8 +921,24 @@ function Configuration({
           <button disabled={busy}>Сохранить специалиста</button>
         </form>
       </details>
+      <AutoSchedulePanel
+        businessId={base.replace("/api/v1/businesses/", "")}
+        timezone={timezone}
+        specialists={catalog.specialists.map((s) => ({
+          id: s.id,
+          name: s.name,
+        }))}
+        services={catalog.services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          duration_minutes: s.duration_minutes,
+        }))}
+        schedules={catalog.schedules}
+        settings={catalog.settings}
+        onSaved={onChange}
+      />
       <details>
-        <summary>Услуги специалиста и расписание</summary>
+        <summary>Услуги специалиста (связи) и исключения</summary>
         <label>
           Специалист
           <select

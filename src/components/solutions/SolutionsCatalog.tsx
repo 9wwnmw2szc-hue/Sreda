@@ -103,6 +103,11 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
   const statusBySolutionId = new Map(
     installed.map((item) => [item.solutionId, item]),
   );
+  const orderedSolutions = [...solutions].sort((a, b) => {
+    const ar = recommended.includes(a.code) ? 0 : 1;
+    const br = recommended.includes(b.code) ? 0 : 1;
+    return ar - br;
+  });
 
   return (
     <div className="solutions-page">
@@ -138,8 +143,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       )}
       {notice && <p role="status">{notice}</p>}
       <div className="solution-catalog-grid">
-        {solutions.map((solution) => {
-          const isRecommended = recommended.includes(solution.code);
+        {orderedSolutions.map((solution) => {
           const row = statusBySolutionId.get(solution.id);
           const status: SolutionStatus = row?.status ?? "available";
           const def = productSolutionByCode(solution.code);
@@ -152,7 +156,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
           return (
             <article
               key={solution.id}
-              className={`catalog-card catalog-card--${solutionVisualCode(solution.code)}${isRecommended ? " is-recommended" : ""}`}
+              className={`catalog-card catalog-card--${solutionVisualCode(solution.code)}`}
             >
               <div className="catalog-card__art">
                 <Image
@@ -164,12 +168,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                 />
               </div>
               <div className="catalog-card__body">
-                <h2>
-                  {solution.name}
-                  {isRecommended && (
-                    <span className="recommend-badge">Рекомендуем</span>
-                  )}
-                </h2>
+                <h2>{solution.name}</h2>
                 <p>{solution.description}</p>
                 <p className="catalog-card__status" role="status">
                   {row?.note ??

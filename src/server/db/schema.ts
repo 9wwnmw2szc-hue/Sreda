@@ -16,6 +16,8 @@ export type LeadStatus =
   | "rejected"
   | "closed";
 export type BusinessType = "store" | "service" | "hybrid";
+export type SetupMode = "guided" | "advanced";
+export type BusinessModel = "services" | "commerce" | "hybrid";
 export interface Database
   extends NotificationTables,
     ClientTables,
@@ -187,6 +189,13 @@ export interface Database
     description: Generated<string>;
     contact_info: Generated<string>;
     business_type: Generated<BusinessType>;
+    industry: Generated<string | null>;
+    industry_subtype: Generated<string | null>;
+    business_model: Generated<BusinessModel | null>;
+    setup_mode: Generated<SetupMode>;
+    capabilities: Generated<unknown>;
+    setup_progress: Generated<unknown>;
+    onboarding_completed_at: Generated<Date | null>;
     ai_about: Generated<string>;
     ai_tone: Generated<string>;
     ai_important_facts: Generated<string>;
@@ -195,6 +204,8 @@ export interface Database
     ai_geography: Generated<string>;
     ai_returns_info: Generated<string>;
     ai_extra_instructions: Generated<string>;
+    ai_interview: Generated<unknown>;
+    ai_summary_confirmed_at: Generated<Date | null>;
     created_at: Generated<Date>;
     archived_at: Date | null;
   };

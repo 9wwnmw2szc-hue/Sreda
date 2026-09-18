@@ -616,6 +616,30 @@ export class BookingService {
             .execute();
         return { ok: true };
       }
+      if (kind === "schedule_bulk") {
+        if (!Array.isArray(body.days) || body.days.length > 7) throw fail();
+        for (const day of body.days) {
+          if (!day || typeof day !== "object") throw fail();
+          const row = day as Record<string, unknown>;
+          const weekday = integer(row.weekday, 0, 6);
+          const dayIntervals = intervals(row.intervals ?? []);
+          await tx
+            .insertInto("booking_schedule")
+            .values({
+              business_id: b.id,
+              specialist_id: specialistId,
+              weekday,
+              intervals: JSON.stringify(dayIntervals),
+            })
+            .onConflict((oc) =>
+              oc
+                .columns(["specialist_id", "weekday"])
+                .doUpdateSet({ intervals: JSON.stringify(dayIntervals) }),
+            )
+            .execute();
+        }
+        return { ok: true };
+      }
       const value = {
         business_id: b.id,
         specialist_id: specialistId,
@@ -631,6 +655,14 @@ export class BookingService {
               .columns(["specialist_id", "weekday"])
               .doUpdateSet({ intervals: value.intervals }),
           )
+          .execute();
+      } else if (kind === "exception_delete") {
+        const date = dateOnly(String(body.date));
+        await tx
+          .deleteFrom("booking_schedule_exception")
+          .where("business_id", "=", b.id)
+          .where("specialist_id", "=", specialistId)
+          .where("date", "=", date)
           .execute();
       } else if (kind === "exception") {
         const date = dateOnly(String(body.date));
