@@ -265,7 +265,7 @@ function LeadsWizard({
     <>
       <header className="setup-intro">
         <Image
-          src="/assets/sreda/v2/module-leads.webp"
+          src="/assets/soty/v1/module-leads.webp"
           width={140}
           height={140}
           alt=""
@@ -692,7 +692,7 @@ function LeadsWizard({
         </section>
         <aside className="setup-summary panel">
           <Image
-            src="/assets/sreda/v2/module-leads.webp"
+            src="/assets/soty/v1/module-leads.webp"
             alt=""
             width={180}
             height={180}

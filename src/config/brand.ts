@@ -7,6 +7,8 @@ export const APP_TAGLINE_LONG =
 export const APP_DESCRIPTION =
   "Соты — простые готовые инструменты для малого бизнеса в Telegram и ВКонтакте.";
 export const SUPPORT_TELEGRAM_URL = "https://t.me/sreda_support";
+/** Neutral label — do not surface the legacy username in UI. */
+export const SUPPORT_LABEL = "Поддержка";
 
 export const BRAND_ASSETS = {
   mark: "/assets/soty/brand/logo-mark.svg",
