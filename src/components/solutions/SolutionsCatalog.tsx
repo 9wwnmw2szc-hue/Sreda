@@ -212,7 +212,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         <h2>Один бизнес. Несколько площадок.</h2>
         <p>
           Telegram и ВКонтакте работают с общими клиентами. Управление — в одном
-          рабочем пространстве Среды.
+          рабочем пространстве Соты.
         </p>
       </section>
     </div>

@@ -268,10 +268,17 @@ ul {
   gap: 8px;
   color: var(--text-primary);
 }
-.brand__leaf {
+.brand__leaf,
+.brand__mark {
   width: 40px;
   height: 40px;
   object-fit: contain;
+  flex-shrink: 0;
+}
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .brand strong {
   display: block;
@@ -1584,6 +1591,9 @@ ul {
   .desktop-sidebar {
     display: none;
   }
+  .desktop-topbar {
+    display: none;
+  }
   .mobile-header {
     height: 64px;
     display: flex;
@@ -1598,7 +1608,8 @@ ul {
     font-size: 27px;
     letter-spacing: -1px;
   }
-  .brand--compact .brand__leaf {
+  .brand--compact .brand__leaf,
+  .brand--compact .brand__mark {
     width: 32px;
     height: 32px;
   }
@@ -3639,6 +3650,12 @@ ul {
   min-height: 64px;
 }
 
+@media (max-width: 1099px) {
+  .desktop-topbar {
+    display: none !important;
+  }
+}
+
 .desktop-profile {
   display: inline-flex;
   align-items: center;
@@ -4102,6 +4119,10 @@ ul {
   background: var(--border-subtle);
 }
 
+.mobile-business-switcher {
+  display: none;
+}
+
 /* Mobile bottom nav — 5 items + safe area (base + mobile overrides) */
 .mobile-bottom-nav {
   --mbn-safe: env(safe-area-inset-bottom, 0px);
@@ -4111,7 +4132,23 @@ ul {
   .mobile-bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    padding-bottom: calc(8px + var(--mbn-safe));
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 25;
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+    backdrop-filter: blur(18px);
+    border-top: 1px solid var(--border-subtle);
+    padding: 10px 8px calc(9px + var(--mbn-safe));
+    box-shadow: 0 -4px 16px rgba(32, 37, 43, 0.04);
+  }
+  .app-main {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-business-switcher {
+    display: block;
+    padding: 12px 16px 0;
   }
 }
 
