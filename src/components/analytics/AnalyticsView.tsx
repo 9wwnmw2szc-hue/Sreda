@@ -130,7 +130,8 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
 
   const orders = data.sections.orders as {
     topProducts?: { name: string; sold: number; revenue: number; currency: string }[];
-    averageCheckDisplay?: string;
+    averageCheckDisplay?: string | null;
+    averageCheckByCurrency?: { currency: string; amount: number; display: string }[];
   };
   const leads = data.sections.leads as { byStatus?: Record<string, number> };
   const bookings = data.sections.bookings as {
@@ -399,7 +400,12 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
       {section === "orders" ? (
         <div className="stack-lg">
           <h2 className="text-section-title">Продажи</h2>
-          {orders?.averageCheckDisplay ? (
+          {orders?.averageCheckByCurrency?.length ? (
+            <p className="text-body">
+              Средний чек:{" "}
+              {orders.averageCheckByCurrency.map((x) => x.display).join(" · ")}
+            </p>
+          ) : orders?.averageCheckDisplay ? (
             <p className="text-body">Средний чек: {orders.averageCheckDisplay}</p>
           ) : null}
           <div className="analytics-charts">
@@ -414,7 +420,7 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
               <h3 className="text-card-title">Топ товаров</h3>
               <ul className="analytics-table-list">
                 {orders.topProducts.map((p) => (
-                  <li key={p.name}>
+                  <li key={p.name + ":" + p.currency}>
                     <strong>{p.name}</strong>
                     <span>
                       {p.sold} шт · {p.revenue} {p.currency}

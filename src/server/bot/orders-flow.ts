@@ -606,7 +606,7 @@ export async function ordersFlow(
       });
       await menu(
         "Заказ принят № " +
-          order.id.slice(0, 8) +
+          (order.order_number ?? "") +
           ".\nСумма: " +
           moneyLabel(order.total, order.currency) +
           ".\nМы свяжемся с вами для подтверждения.",

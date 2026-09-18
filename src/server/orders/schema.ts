@@ -122,8 +122,13 @@ export interface OrderTables {
     request_hash: string;
     conversation_id: string | null;
     inventory_restored_at: Date | null;
+    order_number: number | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
+  };
+  business_order_seq: {
+    business_id: string;
+    next_number: Generated<number>;
   };
   order_item: {
     id: string;

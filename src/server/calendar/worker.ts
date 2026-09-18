@@ -59,13 +59,13 @@ async function loadEntity(
   if (kind === "order") {
     const row = await tx
       .selectFrom("order")
-      .select(["id", "status"])
+      .select(["id", "status", "order_number"])
       .where("business_id", "=", businessId)
       .where("id", "=", entityId)
       .executeTakeFirst();
     if (!row) return null;
     return {
-      title: "Заказ " + row.id.slice(0, 8),
+      title: row.order_number != null ? "Заказ №" + row.order_number : "Заказ",
       startsAt: null,
       alive: !["cancelled", "completed"].includes(String(row.status)),
     };
@@ -169,21 +169,23 @@ async function queueClientChannel(
   return "queued";
 }
 
-async function queueStaffTelegram(
+async function queueStaffChannel(
   tx: Transaction<Database>,
   reminder: {
     id: string;
     business_id: string;
     recipient_user_id: string | null;
   },
+  platform: "telegram" | "vk",
   title: string,
 ): Promise<"queued" | "failed"> {
   if (!reminder.recipient_user_id) return "failed";
   const binding = await tx
     .selectFrom("notification_binding")
-    .select(["connection_id", "chat_id"])
+    .select(["connection_id", "chat_id", "platform"])
     .where("business_id", "=", reminder.business_id)
     .where("user_id", "=", reminder.recipient_user_id)
+    .where("platform", "=", platform)
     .executeTakeFirst();
   if (!binding?.chat_id) return "failed";
   const connection = await tx
@@ -191,28 +193,50 @@ async function queueStaffTelegram(
     .select("id")
     .where("id", "=", binding.connection_id)
     .where("business_id", "=", reminder.business_id)
-    .where("platform", "=", "telegram")
+    .where("platform", "=", platform)
     .where("status", "=", "connected")
     .executeTakeFirst();
   if (!connection) return "failed";
-  const runtime = await tx
-    .selectFrom("telegram_runtime")
-    .select("status")
-    .where("connection_id", "=", connection.id)
-    .executeTakeFirst();
+  const runtime =
+    platform === "telegram"
+      ? await tx
+          .selectFrom("telegram_runtime")
+          .select("status")
+          .where("connection_id", "=", connection.id)
+          .executeTakeFirst()
+      : await tx
+          .selectFrom("vk_runtime")
+          .select("status")
+          .where("connection_id", "=", connection.id)
+          .executeTakeFirst();
   if (runtime?.status !== "ready") return "failed";
-  await tx
-    .insertInto("telegram_outbox")
-    .values({
-      connection_id: binding.connection_id,
-      chat_id: binding.chat_id,
-      message: title,
-      entity_reminder_id: reminder.id,
-      delivered_at: null,
-      last_error: null,
-    })
-    .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
-    .execute();
+  if (platform === "telegram") {
+    await tx
+      .insertInto("telegram_outbox")
+      .values({
+        connection_id: binding.connection_id,
+        chat_id: binding.chat_id,
+        message: title,
+        entity_reminder_id: reminder.id,
+        delivered_at: null,
+        last_error: null,
+      })
+      .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
+      .execute();
+  } else {
+    await tx
+      .insertInto("vk_outbox")
+      .values({
+        connection_id: binding.connection_id,
+        peer_id: binding.chat_id,
+        message: title,
+        entity_reminder_id: reminder.id,
+        delivered_at: null,
+        last_error: null,
+      })
+      .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
+      .execute();
+  }
   return "queued";
 }
 
@@ -304,18 +328,12 @@ export async function processEntityReminder(db: Kysely<Database>) {
             ? "NO_READY_CLIENT_TELEGRAM"
             : "NO_READY_CLIENT_VK";
     } else if (reminder.recipient_user_id) {
-      if (platform === "vk") {
-        // Staff VK bindings are not supported yet (notification_binding is Telegram-only).
-        await markReminder(
-          tx,
-          reminder.id,
-          "failed",
-          "VK_STAFF_BINDING_UNSUPPORTED",
-        );
-        return true;
-      }
-      outcome = await queueStaffTelegram(tx, reminder, title);
-      if (outcome === "failed") error = "NO_READY_STAFF_TELEGRAM_BINDING";
+      outcome = await queueStaffChannel(tx, reminder, platform, title);
+      if (outcome === "failed")
+        error =
+          platform === "telegram"
+            ? "NO_READY_STAFF_TELEGRAM_BINDING"
+            : "NO_READY_STAFF_VK_BINDING";
     } else {
       error = "MISSING_RECIPIENT";
     }

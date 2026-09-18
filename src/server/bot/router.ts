@@ -154,13 +154,16 @@ export async function routeBot(
       menu,
     );
   };
-  if (platform === "telegram" && text.startsWith("/start notify_")) {
+  const notifyCode =
+    text.match(/^\/start\s+notify_([\w-]{32})$/)?.[1] ??
+    text.match(/^notify_([\w-]{32})$/)?.[1];
+  if (notifyCode) {
     const ok = await bindNotification(
       tx,
       businessId,
       connectionId,
       userId,
-      text.slice(14),
+      notifyCode,
     );
     await queue(
       ok

@@ -217,14 +217,34 @@ export class AnalyticsService {
     );
 
     const byDay = new Map<string, number>();
-    const revDay = new Map<string, number>();
+    const revDayByCurrency = new Map<string, Map<string, number>>();
     for (const row of active) {
       const key = dayKey(new Date(row.created_at), tz);
       byDay.set(key, (byDay.get(key) ?? 0) + 1);
-      revDay.set(key, (revDay.get(key) ?? 0) + Number(row.total || 0));
+      const currency = row.currency || "RUB";
+      const dayMap = revDayByCurrency.get(currency) ?? new Map<string, number>();
+      dayMap.set(key, (dayMap.get(key) ?? 0) + Number(row.total || 0));
+      revDayByCurrency.set(currency, dayMap);
     }
     const ordersFilled = fillSeries(from, until, tz, byDay);
-    const revFilled = fillSeries(from, until, tz, revDay);
+    const currencies = [...revDayByCurrency.keys()].sort();
+    const revenueSeries = currencies.map((currency) => {
+      const filled = fillSeries(
+        from,
+        until,
+        tz,
+        revDayByCurrency.get(currency) ?? new Map(),
+      );
+      return {
+        key: `revenue_${currency}`,
+        label: `Выручка (${currency})`,
+        values: filled.values,
+        categories: filled.categories,
+      };
+    });
+    const revenueCategories =
+      revenueSeries.find((s) => s.categories.length)?.categories ??
+      ordersFilled.categories;
 
     const statusCounts: Record<string, number> = {};
     for (const row of rows)
@@ -240,20 +260,30 @@ export class AnalyticsService {
       .where("o.status", "!=", "cancelled")
       .execute();
 
-    const topMap = new Map<string, { sold: number; revenue: number; currency: string }>();
+    const topMap = new Map<
+      string,
+      { name: string; sold: number; revenue: number; currency: string }
+    >();
     for (const item of items) {
-      const cur = topMap.get(item.name) ?? {
+      const currency = item.currency || "RUB";
+      const key = item.name + "\0" + currency;
+      const cur = topMap.get(key) ?? {
+        name: item.name,
         sold: 0,
         revenue: 0,
-        currency: item.currency || "RUB",
+        currency,
       };
       cur.sold += item.quantity;
       cur.revenue += Number(item.line_total || 0);
-      topMap.set(item.name, cur);
+      topMap.set(key, cur);
     }
-    const topProducts = [...topMap.entries()]
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.revenue - a.revenue)
+    // Sort within each currency by revenue, then interleave by currency for display.
+    const topProducts = [...topMap.values()]
+      .sort((a, b) =>
+        a.currency === b.currency
+          ? b.revenue - a.revenue
+          : a.currency.localeCompare(b.currency),
+      )
       .slice(0, 10);
 
     const platforms: Record<string, number> = {};
@@ -261,12 +291,21 @@ export class AnalyticsService {
       platforms[row.source || "other"] =
         (platforms[row.source || "other"] ?? 0) + 1;
 
-    const avgCheck =
-      active.length === 0
-        ? 0
-        : active.reduce((s, r) => s + Number(r.total || 0), 0) / active.length;
-
-    const primaryCurrency = revenueByCurrency[0]?.currency ?? "RUB";
+    const avgByCurrency = new Map<string, { sum: number; count: number }>();
+    for (const row of active) {
+      const currency = row.currency || "RUB";
+      const cur = avgByCurrency.get(currency) ?? { sum: 0, count: 0 };
+      cur.sum += Number(row.total || 0);
+      cur.count += 1;
+      avgByCurrency.set(currency, cur);
+    }
+    const averageCheckByCurrency = [...avgByCurrency.entries()]
+      .map(([currency, v]) => ({
+        currency,
+        amount: v.count === 0 ? 0 : v.sum / v.count,
+        display: formatMoney(v.count === 0 ? 0 : v.sum / v.count, currency),
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return {
       count: compareMetric(rows.length, prev.length),
@@ -280,8 +319,17 @@ export class AnalyticsService {
       ),
       revenueByCurrency,
       prevRevenueByCurrency,
-      averageCheck: avgCheck,
-      averageCheckDisplay: formatMoney(avgCheck, primaryCurrency),
+      averageCheckByCurrency,
+      averageCheck:
+        averageCheckByCurrency.length === 1
+          ? averageCheckByCurrency[0]!.amount
+          : null,
+      averageCheckDisplay:
+        averageCheckByCurrency.length === 1
+          ? averageCheckByCurrency[0]!.display
+          : averageCheckByCurrency.length === 0
+            ? null
+            : averageCheckByCurrency.map((x) => x.display).join(" · "),
       statusCounts,
       platforms,
       topProducts,
@@ -301,7 +349,7 @@ export class AnalyticsService {
               unit: "count" as const,
             },
       revenueChart:
-        revFilled.categories.length === 0
+        revenueCategories.length === 0 || !revenueSeries.length
           ? emptyChart(
               "revenue_trend",
               "Динамика выручки",
@@ -310,17 +358,26 @@ export class AnalyticsService {
           : {
               id: "revenue_trend",
               kind: "bar" as const,
-              title: `Динамика выручки (${primaryCurrency})`,
-              categories: revFilled.categories,
-              series: [
-                {
-                  key: "revenue",
-                  label: "Выручка",
-                  values: revFilled.values,
-                },
-              ],
+              title:
+                revenueSeries.length === 1
+                  ? `Динамика выручки (${revenueSeries[0]!.label.replace("Выручка (", "").replace(")", "")})`
+                  : "Динамика выручки по валютам",
+              categories: revenueCategories,
+              series: revenueSeries.map(({ key, label, values }) => ({
+                key,
+                label,
+                values,
+              })),
               unit: "money" as const,
-              currency: primaryCurrency,
+              // Multi-currency charts omit a single currency label.
+              currency:
+                revenueSeries.length === 1
+                  ? revenueSeries[0]!.key.replace("revenue_", "")
+                  : undefined,
+              explanation:
+                revenueSeries.length > 1
+                  ? "Каждая серия — отдельная валюта. Суммы разных валют не складываются."
+                  : undefined,
             },
       statusChart: (() => {
         const entries = Object.entries(statusCounts);

@@ -20,6 +20,7 @@ import {
 } from "@/lib/productSolutions";
 import {
   solutionRoute,
+  solutionModuleAsset,
   solutionVisualCode,
 } from "@/config/solutionPresentation";
 import { getBusinessSolutions } from "@/services/solutions.service";
@@ -160,7 +161,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
             >
               <div className="catalog-card__art">
                 <Image
-                  src={`/assets/sreda/v2/module-${solutionVisualCode(solution.code)}.webp`}
+                  src={solutionModuleAsset(solution.code)}
                   alt=""
                   width={200}
                   height={200}

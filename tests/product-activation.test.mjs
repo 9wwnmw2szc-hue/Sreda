@@ -114,7 +114,9 @@ test("navigation and destinations expose activated products", () => {
   for (const solution of mockSolutions) {
     assert.equal(solutionRoute(solution.code), SOLUTION_DESTINATIONS[solution.code]);
   }
-  assert.equal(solutionVisualCode("orders"), "sales");
+  assert.equal(solutionVisualCode("orders"), "orders");
+  assert.equal(solutionVisualCode("admin_messages"), "admin-messages");
+  assert.notEqual(solutionVisualCode("orders"), solutionVisualCode("admin_messages"));
   const hrefs = NAV_ITEMS.map((item) => item.href);
   for (const href of [
     "/dashboard",

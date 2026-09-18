@@ -98,7 +98,9 @@ export class AnalyticsAiService {
         topProducts: overview.sections.orders.topProducts.slice(0, 5).map((p) => ({
           name: sanitizeCellForPrompt(p.name),
           revenue: p.revenue,
+          currency: p.currency,
         })),
+        averageCheckByCurrency: overview.sections.orders.averageCheckByCurrency,
         topServices: overview.sections.bookings.topServices
           .slice(0, 5)
           .map((s) => ({

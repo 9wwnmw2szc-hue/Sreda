@@ -1,3 +1,9 @@
+/** The approved visual code matches the solution code 1:1 (no shared sales alias). */
+export function solutionVisualCode(code: string) {
+  if (code === "admin_messages") return "admin-messages";
+  return code;
+}
+
 export const SOLUTION_DESTINATIONS = {
   leads: "/solutions/leads/setup",
   admin_messages: "/messages",
@@ -12,8 +18,6 @@ export function solutionRoute(code: string) {
   return SOLUTION_DESTINATIONS[code as PresentedSolutionCode] ?? "/solutions";
 }
 
-/** The approved pink cube was originally exported under the legacy sales name. */
-export function solutionVisualCode(code: string) {
-  if (code === "admin_messages" || code === "orders") return "sales";
-  return code;
+export function solutionModuleAsset(code: string) {
+  return `/assets/sreda/v2/module-${solutionVisualCode(code)}.webp`;
 }

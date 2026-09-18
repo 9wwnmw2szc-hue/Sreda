@@ -49,6 +49,7 @@ export interface ClientTables {
   };
   notification_recipient: {
     telegram_queued: Generated<boolean>;
+    vk_queued: Generated<boolean>;
     business_id: string;
     notification_id: string;
     user_id: string;
