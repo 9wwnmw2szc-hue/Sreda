@@ -13,6 +13,8 @@ export function BusinessSwitcher({
   currentBusiness,
   onSelect,
 }: Props) {
+  const label = currentBusiness?.name?.trim() || "Загрузка бизнеса…";
+
   return (
     <label className="business-switcher">
       <span className="business-switcher__icon" aria-hidden>
@@ -20,12 +22,16 @@ export function BusinessSwitcher({
       </span>
       <span className="business-switcher__meta">
         <small aria-hidden>Мой бизнес</small>
+        <span className="business-switcher__name" title={label}>
+          {label}
+        </span>
         <select
+          className="business-switcher__select"
           value={currentBusiness?.id ?? ""}
           onChange={(event) => onSelect(event.target.value)}
           disabled={!businesses.length}
           aria-label="Выбрать бизнес"
-          title={currentBusiness?.name ?? "Выбрать бизнес"}
+          title={label}
         >
           {!businesses.length && <option value="">Загрузка бизнеса…</option>}
           {businesses.map((business) => (
