@@ -355,7 +355,7 @@ export function AutoSchedulePanel({
               setDirty(true);
             }}
           />{" "}
-          Автоматически (рекомендуем)
+          Автоматически
         </label>
         <label>
           <input
