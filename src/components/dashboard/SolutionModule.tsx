@@ -53,6 +53,7 @@ export function SolutionModule({
         placement === "scene" ? "(min-width: 1500px) 210px, 170px" : "80px"
       }
       className="module-art"
+      unoptimized
     />
   );
   if (placement === "scene")

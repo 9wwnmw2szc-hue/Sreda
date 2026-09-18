@@ -270,6 +270,7 @@ function LeadsWizard({
           height={140}
           alt=""
           sizes="100px"
+          unoptimized
         />
         <div>
           <span className="eyebrow">Готовое решение</span>
@@ -697,6 +698,7 @@ function LeadsWizard({
             width={180}
             height={180}
             sizes="150px"
+            unoptimized
           />
           <h2>Заявки без лишней работы</h2>
           <p>

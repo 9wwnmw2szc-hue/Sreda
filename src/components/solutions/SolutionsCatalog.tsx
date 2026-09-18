@@ -166,6 +166,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   width={200}
                   height={200}
                   sizes="160px"
+                  unoptimized
                 />
               </div>
               <div className="catalog-card__body">

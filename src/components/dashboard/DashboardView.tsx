@@ -400,6 +400,7 @@ export function DashboardView() {
                   width={1024}
                   height={1024}
                   sizes="180px"
+                  unoptimized
                 />
                 <span
                   className={`solution-state tone-${solutionState(visibleSelection.item).tone}`}

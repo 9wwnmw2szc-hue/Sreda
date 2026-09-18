@@ -66,6 +66,7 @@ export function SolutionCards({
                 width={160}
                 height={160}
                 sizes="(max-width: 768px) 72px, 120px"
+                unoptimized
               />
             </div>
             <div className="soty-solution-card__body">

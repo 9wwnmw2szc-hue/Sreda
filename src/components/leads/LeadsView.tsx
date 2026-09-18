@@ -246,12 +246,13 @@ function LeadList({ businessId }: { businessId: string }) {
           />
         </label>
         <label>
-          До даты, не включая
+          До даты
           <input
             type="date"
             value={until}
             onChange={(e) => setUntil(e.target.value)}
           />
+          <span className="field-hint">Не включая выбранный день</span>
         </label>
         <label htmlFor="lead-filter">
           Статус

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight, Inbox } from "lucide-react";
+import { ChevronRight, Inbox, RefreshCw } from "lucide-react";
 import { formatRelativeDateTime, initialsFromName } from "@/lib/format";
 import type { Lead } from "@/types";
 export function RecentLeads({
@@ -30,8 +30,14 @@ export function RecentLeads({
         </h2>
         <div className="panel-heading__actions">
           {onRefresh ? (
-            <button type="button" className="text-link" onClick={onRefresh}>
-              Обновить
+            <button
+              type="button"
+              className="icon-button panel-heading__refresh"
+              onClick={onRefresh}
+              aria-label="Обновить заявки"
+              title="Обновить"
+            >
+              <RefreshCw size={16} strokeWidth={1.8} />
             </button>
           ) : null}
           <Link href="/leads" className="text-link">
