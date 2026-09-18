@@ -5,6 +5,7 @@ import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
 import type { OrderTables } from "../orders/schema.ts";
 import type { CalendarTables } from "../calendar/schema.ts";
+import type { AnalyticsTables } from "../analytics/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
@@ -25,7 +26,8 @@ export interface Database
     PostTables,
     AttachmentTables,
     OrderTables,
-    CalendarTables {
+    CalendarTables,
+    AnalyticsTables {
   account_pin: {
     user_id: string;
     pin_hash: string;
@@ -274,7 +276,12 @@ export interface Database
       | "settings_changed"
       | "calendar_event_created"
       | "calendar_event_updated"
-      | "calendar_event_cancelled";
+      | "calendar_event_cancelled"
+      | "analytics_file_uploaded"
+      | "analytics_file_deleted"
+      | "analytics_export_created"
+      | "analytics_ai_created"
+      | "analytics_import_confirmed";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

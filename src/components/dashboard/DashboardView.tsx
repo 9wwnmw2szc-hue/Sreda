@@ -11,6 +11,7 @@ import { ConnectionsCard } from "./ConnectionsCard";
 import { RecentLeads } from "./RecentLeads";
 import { ScheduledPosts } from "./ScheduledPosts";
 import { QuickActions } from "./QuickActions";
+import { DashboardAnalyticsSummary } from "@/components/analytics/DashboardAnalyticsSummary";
 import { SearchField } from "./SearchField";
 import { BusinessSwitcher } from "./BusinessSwitcher";
 import { LoadingPanel } from "./LoadingPanel";
@@ -357,6 +358,9 @@ export function DashboardView() {
             className="dashboard-operations"
             aria-label="События бизнеса"
           >
+            {!data.isLoading && data.businessId ? (
+              <DashboardAnalyticsSummary businessId={data.businessId} />
+            ) : null}
             <div className="operations-grid">
               {data.isLoading ? (
                 <>
