@@ -3083,11 +3083,12 @@ ul {
   .leads-toolbar {
     display:grid;
     grid-template-columns:minmax(0,1fr);
-    gap:14px;
+    gap:12px;
     align-items:stretch;
+    padding: 16px !important;
   }
-  .leads-toolbar label { flex:none; width:100%; }
-  .leads-toolbar .button { width:100%; align-self:stretch; }
+  .leads-toolbar label { flex:none; width:100%; gap: 4px; }
+  .leads-toolbar .button { width:100%; align-self:stretch; margin-top: 2px; }
   .leads-record { align-items:stretch; flex-direction:column; gap:12px; }
   .leads-record__meta { justify-content:flex-start; }
 }
@@ -4406,16 +4407,42 @@ ul {
   color: var(--text-primary);
 }
 
-.soty-solution-card__status::before {
-  content: "";
+.soty-solution-card__dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.soty-solution-card__status.is-ok .soty-solution-card__dot {
   background: var(--success);
 }
 
-.soty-solution-card__status.is-off::before {
+.soty-solution-card__status.is-warn .soty-solution-card__dot {
+  background: var(--warning);
+}
+
+.soty-solution-card__status.is-error .soty-solution-card__dot {
+  background: var(--danger);
+}
+
+.soty-solution-card__status.is-idle .soty-solution-card__dot {
   background: var(--text-muted);
+}
+
+.soty-dashboard__actions {
+  display: flex;
+  justify-content: stretch;
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.soty-dashboard__actions .button {
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
 }
 
 .soty-panels {
@@ -4639,13 +4666,13 @@ ul {
 
 [data-theme="dark"] .button--outline {
   background: var(--bg-elevated);
-  border-color: var(--border-default);
+  border-color: color-mix(in srgb, var(--border-default) 55%, var(--text-muted));
   color: var(--text-primary);
 }
 
 [data-theme="dark"] .button--outline:hover {
   background: var(--bg-surface);
-  border-color: color-mix(in srgb, var(--border-default) 60%, var(--text-muted));
+  border-color: color-mix(in srgb, var(--text-muted) 50%, var(--border-default));
 }
 
 [data-theme="dark"] .is-selected {
