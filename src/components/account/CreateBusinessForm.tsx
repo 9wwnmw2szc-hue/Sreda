@@ -30,7 +30,7 @@ export function CreateBusinessForm({ userId, hasBusinesses }: { userId: string; 
         method: "POST", body, headers: { "Idempotency-Key": key.current },
       });
       try { localStorage.setItem("sreda.currentBusinessId:" + userId, business.id); } catch { /* optional preference */ }
-      window.location.replace("/dashboard");
+      window.location.replace("/onboarding");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось создать бизнес.");
       setBusy(false);

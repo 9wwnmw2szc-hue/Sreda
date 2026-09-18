@@ -8,6 +8,10 @@ import {
   EmptyStateCta,
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
+import { AutoSchedulePanel } from "@/components/booking/AutoSchedulePanel";
+import { FIELD_HINTS } from "@/lib/setupUx";
+import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
+import type { Terminology } from "@/lib/industryPresets";
 type Service = {
   description: string;
   currency: string;
@@ -87,12 +91,14 @@ const labels: Record<string, string> = {
 };
 export function BookingsView() {
   const { currentBusiness } = useBusinessContext();
+  const terms = useBusinessTerminology(currentBusiness?.id);
   return currentBusiness ? (
     <Calendar
       key={currentBusiness.id}
       businessId={currentBusiness.id}
       timezone={currentBusiness.timezone ?? "UTC"}
       canConfigure={currentBusiness.role !== "operator"}
+      terms={terms}
     />
   ) : (
     <p>Выберите бизнес.</p>
@@ -102,10 +108,12 @@ function Calendar({
   businessId,
   timezone,
   canConfigure,
+  terms,
 }: {
   businessId: string;
   timezone: string;
   canConfigure: boolean;
+  terms: Terminology;
 }) {
   const base = `/api/v1/businesses/${businessId}`;
   const [catalog, setCatalog] = useState<Catalog | null>(null),
@@ -298,7 +306,7 @@ function Calendar({
       {catalog && !catalog.services.length ? (
         <EmptyStateCta
           title="Сначала создайте услугу"
-          description="Добавьте услугу, затем специалиста или режим без выбора специалиста и настройте расписание."
+          description={`Добавьте услугу, затем ${terms.specialist.toLowerCase()} или режим без выбора и настройте расписание.`}
           href="#booking-config"
           action="К настройке записи"
         />
@@ -515,7 +523,7 @@ function Calendar({
                 </select>
               </label>
               <label>
-                Специалист
+                {terms.specialist}
                 <select
                   required
                   disabled={!!reschedule}
@@ -583,9 +591,11 @@ function Calendar({
           {canConfigure && (
             <Configuration
               base={base}
+              timezone={timezone}
               catalog={catalog}
               onChange={refresh}
               openDetails={focusConfig}
+              terms={terms}
             />
           )}
         </>
@@ -635,14 +645,18 @@ function Calendar({
 }
 function Configuration({
   base,
+  timezone,
   catalog,
   onChange,
   openDetails = false,
+  terms,
 }: {
   base: string;
+  timezone: string;
   catalog: Catalog;
   onChange: () => Promise<void>;
   openDetails?: boolean;
+  terms: Terminology;
 }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -784,7 +798,13 @@ function Configuration({
             ] as const
           ).map((k, i) => (
             <label key={k}>
-              {["Длительность, мин", "Буфер до, мин", "Буфер после, мин"][i]}
+              {
+                [
+                  "Длительность, мин",
+                  "Подготовка до записи, мин",
+                  "Перерыв между клиентами, мин",
+                ][i]
+              }
               <input
                 type="number"
                 min={k === "duration_minutes" ? 5 : 0}
@@ -794,6 +814,9 @@ function Configuration({
                   setService({ ...service, [k]: Number(e.target.value) })
                 }
               />
+              {k === "buffer_after_minutes" ? (
+                <p className="field-hint">{FIELD_HINTS.bufferAfter}</p>
+              ) : null}
             </label>
           ))}
           <label>
@@ -844,7 +867,7 @@ function Configuration({
         </form>
       </details>
       <details>
-        <summary>Специалисты</summary>
+        <summary>{terms.specialists}</summary>
         <select
           value={specialist.id}
           onChange={(e) =>
@@ -858,7 +881,7 @@ function Configuration({
             )
           }
         >
-          <option value="">Новый специалист</option>
+          <option value="">Новый {terms.specialist.toLowerCase()}</option>
           {catalog.specialists.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -886,7 +909,7 @@ function Configuration({
             />
           </label>
           <label>
-            Описание специалиста
+            Описание
             <textarea
               value={specialist.description}
               onChange={(e) =>
@@ -902,15 +925,31 @@ function Configuration({
                 setSpecialist({ ...specialist, active: e.target.checked })
               }
             />
-            Специалист активен
+            {terms.specialist} активен
           </label>
-          <button disabled={busy}>Сохранить специалиста</button>
+          <button disabled={busy}>Сохранить</button>
         </form>
       </details>
+      <AutoSchedulePanel
+        businessId={base.replace("/api/v1/businesses/", "")}
+        timezone={timezone}
+        specialists={catalog.specialists.map((s) => ({
+          id: s.id,
+          name: s.name,
+        }))}
+        services={catalog.services.map((s) => ({
+          id: s.id,
+          name: s.name,
+          duration_minutes: s.duration_minutes,
+        }))}
+        schedules={catalog.schedules}
+        settings={catalog.settings}
+        onSaved={onChange}
+      />
       <details>
-        <summary>Услуги специалиста и расписание</summary>
+        <summary>Услуги и исключения ({terms.specialist.toLowerCase()})</summary>
         <label>
-          Специалист
+          {terms.specialist}
           <select
             value={resource}
             onChange={(e) => {
@@ -957,7 +996,7 @@ function Configuration({
             })
           }
         >
-          Сохранить услуги специалиста
+          Сохранить услуги
         </button>
         <label>
           День недели
@@ -1094,7 +1133,7 @@ function Configuration({
               })
             }
           />{" "}
-          Клиент выбирает специалиста
+          Клиент выбирает: {terms.specialist.toLowerCase()}
         </label>
         <label>
           Режим расписания

@@ -5,6 +5,7 @@ import type { BookingTables } from "../booking/schema.ts";
 import type { ClientTables } from "../clients/schema.ts";
 import type { OrderTables } from "../orders/schema.ts";
 import type { CalendarTables } from "../calendar/schema.ts";
+import type { AnalyticsTables } from "../analytics/schema.ts";
 import type { Generated } from "kysely";
 
 export type Role = "owner" | "admin" | "operator";
@@ -16,6 +17,8 @@ export type LeadStatus =
   | "rejected"
   | "closed";
 export type BusinessType = "store" | "service" | "hybrid";
+export type SetupMode = "guided" | "advanced";
+export type BusinessModel = "services" | "commerce" | "hybrid";
 export interface Database
   extends NotificationTables,
     ClientTables,
@@ -23,7 +26,8 @@ export interface Database
     PostTables,
     AttachmentTables,
     OrderTables,
-    CalendarTables {
+    CalendarTables,
+    AnalyticsTables {
   account_pin: {
     user_id: string;
     pin_hash: string;
@@ -187,6 +191,13 @@ export interface Database
     description: Generated<string>;
     contact_info: Generated<string>;
     business_type: Generated<BusinessType>;
+    industry: Generated<string | null>;
+    industry_subtype: Generated<string | null>;
+    business_model: Generated<BusinessModel | null>;
+    setup_mode: Generated<SetupMode>;
+    capabilities: Generated<unknown>;
+    setup_progress: Generated<unknown>;
+    onboarding_completed_at: Generated<Date | null>;
     ai_about: Generated<string>;
     ai_tone: Generated<string>;
     ai_important_facts: Generated<string>;
@@ -195,6 +206,8 @@ export interface Database
     ai_geography: Generated<string>;
     ai_returns_info: Generated<string>;
     ai_extra_instructions: Generated<string>;
+    ai_interview: Generated<unknown>;
+    ai_summary_confirmed_at: Generated<Date | null>;
     created_at: Generated<Date>;
     archived_at: Date | null;
   };
@@ -263,7 +276,12 @@ export interface Database
       | "settings_changed"
       | "calendar_event_created"
       | "calendar_event_updated"
-      | "calendar_event_cancelled";
+      | "calendar_event_cancelled"
+      | "analytics_file_uploaded"
+      | "analytics_file_deleted"
+      | "analytics_export_created"
+      | "analytics_ai_created"
+      | "analytics_import_confirmed";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

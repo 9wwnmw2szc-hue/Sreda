@@ -39,6 +39,28 @@ function optionalId(value: unknown) {
   return id(value);
 }
 
+async function assertActiveMember(
+  tx: Transaction<Database>,
+  businessId: string,
+  userId: string | null,
+) {
+  if (!userId) return null;
+  const member = await tx
+    .selectFrom("business_member")
+    .select(["user_id", "role", "status"])
+    .where("business_id", "=", businessId)
+    .where("user_id", "=", userId)
+    .where("status", "=", "active")
+    .executeTakeFirst();
+  if (!member)
+    throw new AppError(
+      400,
+      "INVALID_ASSIGNEE",
+      "Назначьте активного участника этого бизнеса.",
+    );
+  return userId;
+}
+
 function title(value: unknown) {
   if (typeof value !== "string" || !value.trim() || value.length > 200)
     throw fail("Укажите название до 200 символов.");
@@ -306,7 +328,11 @@ export class CalendarService {
         if (!specialist)
           throw new AppError(404, "NOT_FOUND", "Специалист не найден.");
       }
-      const assignedTo = optionalId(body.assigned_to);
+      const assignedTo = await assertActiveMember(
+        tx,
+        b.id,
+        optionalId(body.assigned_to),
+      );
       const related = {
         related_client_id: optionalId(body.related_client_id),
         related_lead_id: optionalId(body.related_lead_id),
@@ -438,10 +464,13 @@ export class CalendarService {
         if (!specialist)
           throw new AppError(404, "NOT_FOUND", "Специалист не найден.");
       }
-      const assignedTo =
+      const assignedTo = await assertActiveMember(
+        tx,
+        b.id,
         body.assigned_to !== undefined
           ? optionalId(body.assigned_to)
-          : current.assigned_to;
+          : current.assigned_to,
+      );
       const status =
         body.status === "done" || body.status === "open"
           ? body.status
@@ -584,6 +613,11 @@ export class CalendarService {
         throw fail("Проверьте тип сущности.");
       const entityId = id(body.entity_id);
       const startsAt = when(body.starts_at, "время события");
+      const recipientUserId = await assertActiveMember(
+        tx,
+        b.id,
+        optionalId(body.recipient_user_id),
+      );
       await scheduleReminders(tx, {
         businessId: b.id,
         entityKind: entityKind as
@@ -604,7 +638,7 @@ export class CalendarService {
           body.channel === "in_app"
             ? body.channel
             : "in_app",
-        recipientUserId: optionalId(body.recipient_user_id),
+        recipientUserId,
         messageTemplate:
           typeof body.message_template === "string"
             ? body.message_template

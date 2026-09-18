@@ -1,10 +1,3 @@
-import { queueNotification } from "../src/server/notifications/worker.ts";
-import {
-  queueScheduledPost,
-  materializeRecurringPost,
-} from "../src/server/posts/worker.ts";
-import { queueBookingReminder } from "../src/server/booking/worker.ts";
-import { processEntityReminder } from "../src/server/calendar/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { VKService } from "../src/server/vk/service.ts";
@@ -37,33 +30,17 @@ let nextCleanup = 0;
 try {
   while (!stopping) {
     try {
-      await queueNotification(db, config.origin);
-      await materializeRecurringPost(db);
-      await queueScheduledPost(db);
+      // Shared scheduled jobs (notifications/posts/booking+entity reminders) are owned
+      // exclusively by telegram-worker to avoid dual-loop contention. This worker only
+      // delivers VK outbox rows and maintains the vk heartbeat.
+      const worked = await service.deliverOne();
       await db
         .insertInto("worker_heartbeat")
-        .values({ name: "autopost", seen_at: new Date() })
+        .values({ name: "vk", seen_at: new Date() })
         .onConflict((oc) =>
           oc.column("name").doUpdateSet({ seen_at: new Date() }),
         )
         .execute();
-      const queued =
-        (await queueBookingReminder(db)) || (await processEntityReminder(db));
-      await db
-        .insertInto("worker_heartbeat")
-        .values({ name: "booking_reminders", seen_at: new Date() })
-        .onConflict((oc) =>
-          oc.column("name").doUpdateSet({ seen_at: new Date() }),
-        )
-        .execute();
-      await db
-        .insertInto("worker_heartbeat")
-        .values({ name: "entity_reminders", seen_at: new Date() })
-        .onConflict((oc) =>
-          oc.column("name").doUpdateSet({ seen_at: new Date() }),
-        )
-        .execute();
-      const worked = (await service.deliverOne()) || queued;
       if (Date.now() > nextCleanup) {
         await db
           .deleteFrom("vk_outbox")

@@ -87,6 +87,135 @@ async function loadEntity(
   return null;
 }
 
+async function markReminder(
+  tx: Transaction<Database>,
+  id: string,
+  status: "queued" | "sent" | "failed" | "cancelled",
+  lastError: string | null = null,
+) {
+  await tx
+    .updateTable("entity_reminder")
+    .set({ status, last_error: lastError })
+    .where("id", "=", id)
+    .where("status", "=", "pending")
+    .execute();
+}
+
+async function queueClientChannel(
+  tx: Transaction<Database>,
+  reminder: {
+    id: string;
+    business_id: string;
+    entity_id: string;
+  },
+  platform: "telegram" | "vk",
+  title: string,
+): Promise<"queued" | "failed"> {
+  const booking = await tx
+    .selectFrom("booking")
+    .select("client_id")
+    .where("id", "=", reminder.entity_id)
+    .where("business_id", "=", reminder.business_id)
+    .executeTakeFirst();
+  if (!booking) return "failed";
+  const identity = await tx
+    .selectFrom("client_identity")
+    .select("value")
+    .where("business_id", "=", reminder.business_id)
+    .where("client_id", "=", booking.client_id)
+    .where("kind", "=", platform)
+    .executeTakeFirst();
+  if (!identity) return "failed";
+  const connection = await tx
+    .selectFrom("business_connection")
+    .select("id")
+    .where("business_id", "=", reminder.business_id)
+    .where("platform", "=", platform)
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+  if (!connection) return "failed";
+  const runtime =
+    platform === "telegram"
+      ? await tx
+          .selectFrom("telegram_runtime")
+          .select("status")
+          .where("connection_id", "=", connection.id)
+          .executeTakeFirst()
+      : await tx
+          .selectFrom("vk_runtime")
+          .select("status")
+          .where("connection_id", "=", connection.id)
+          .executeTakeFirst();
+  if (runtime?.status !== "ready") return "failed";
+  const row = {
+    connection_id: connection.id,
+    message: title,
+    entity_reminder_id: reminder.id,
+    delivered_at: null,
+    last_error: null,
+  };
+  if (platform === "telegram")
+    await tx
+      .insertInto("telegram_outbox")
+      .values({ ...row, chat_id: identity.value })
+      .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
+      .execute();
+  else
+    await tx
+      .insertInto("vk_outbox")
+      .values({ ...row, peer_id: identity.value })
+      .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
+      .execute();
+  return "queued";
+}
+
+async function queueStaffTelegram(
+  tx: Transaction<Database>,
+  reminder: {
+    id: string;
+    business_id: string;
+    recipient_user_id: string | null;
+  },
+  title: string,
+): Promise<"queued" | "failed"> {
+  if (!reminder.recipient_user_id) return "failed";
+  const binding = await tx
+    .selectFrom("notification_binding")
+    .select(["connection_id", "chat_id"])
+    .where("business_id", "=", reminder.business_id)
+    .where("user_id", "=", reminder.recipient_user_id)
+    .executeTakeFirst();
+  if (!binding?.chat_id) return "failed";
+  const connection = await tx
+    .selectFrom("business_connection")
+    .select("id")
+    .where("id", "=", binding.connection_id)
+    .where("business_id", "=", reminder.business_id)
+    .where("platform", "=", "telegram")
+    .where("status", "=", "connected")
+    .executeTakeFirst();
+  if (!connection) return "failed";
+  const runtime = await tx
+    .selectFrom("telegram_runtime")
+    .select("status")
+    .where("connection_id", "=", connection.id)
+    .executeTakeFirst();
+  if (runtime?.status !== "ready") return "failed";
+  await tx
+    .insertInto("telegram_outbox")
+    .values({
+      connection_id: binding.connection_id,
+      chat_id: binding.chat_id,
+      message: title,
+      entity_reminder_id: reminder.id,
+      delivered_at: null,
+      last_error: null,
+    })
+    .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
+    .execute();
+  return "queued";
+}
+
 export async function processEntityReminder(db: Kysely<Database>) {
   const candidate = await db
     .selectFrom("entity_reminder as r")
@@ -120,19 +249,11 @@ export async function processEntityReminder(db: Kysely<Database>) {
       reminder.entity_id,
     );
     if (!entity?.alive) {
-      await tx
-        .updateTable("entity_reminder")
-        .set({ status: "cancelled" })
-        .where("id", "=", reminder.id)
-        .execute();
+      await markReminder(tx, reminder.id, "cancelled");
       return true;
     }
     if (entity.startsAt && +entity.startsAt <= Date.now()) {
-      await tx
-        .updateTable("entity_reminder")
-        .set({ status: "cancelled" })
-        .where("id", "=", reminder.id)
-        .execute();
+      await markReminder(tx, reminder.id, "cancelled");
       return true;
     }
     const title = reminderTitle(
@@ -142,7 +263,17 @@ export async function processEntityReminder(db: Kysely<Database>) {
     );
     const path = targetPath(reminder.entity_kind, reminder.entity_id);
     const type = notificationType(reminder.entity_kind);
-    if (reminder.audience === "staff" && reminder.channel === "in_app") {
+
+    if (reminder.channel === "in_app") {
+      if (reminder.audience !== "staff") {
+        await markReminder(
+          tx,
+          reminder.id,
+          "failed",
+          "IN_APP_CLIENT_UNSUPPORTED",
+        );
+        return true;
+      }
       await notify(
         tx,
         reminder.business_id,
@@ -152,102 +283,66 @@ export async function processEntityReminder(db: Kysely<Database>) {
         path,
         reminder.recipient_user_id ? [reminder.recipient_user_id] : undefined,
       );
+      await markReminder(tx, reminder.id, "sent");
+      return true;
     }
-    if (reminder.channel === "telegram" || reminder.channel === "vk") {
-      const platform = reminder.channel;
-      if (
-        reminder.audience === "client" &&
-        reminder.entity_kind === "booking"
-      ) {
-        const booking = await tx
-          .selectFrom("booking")
-          .select("client_id")
-          .where("id", "=", reminder.entity_id)
-          .executeTakeFirst();
-        if (booking) {
-          const identity = await tx
-            .selectFrom("client_identity")
-            .select("value")
-            .where("business_id", "=", reminder.business_id)
-            .where("client_id", "=", booking.client_id)
-            .where("kind", "=", platform)
-            .executeTakeFirst();
-          const connection = await tx
-            .selectFrom("business_connection")
-            .select("id")
-            .where("business_id", "=", reminder.business_id)
-            .where("platform", "=", platform)
-            .where("status", "=", "connected")
-            .executeTakeFirst();
-          const runtime =
-            platform === "telegram"
-              ? connection &&
-                (await tx
-                  .selectFrom("telegram_runtime")
-                  .select("status")
-                  .where("connection_id", "=", connection.id)
-                  .executeTakeFirst())
-              : connection &&
-                (await tx
-                  .selectFrom("vk_runtime")
-                  .select("status")
-                  .where("connection_id", "=", connection.id)
-                  .executeTakeFirst());
-          if (identity && connection && runtime?.status === "ready") {
-            const row = {
-              connection_id: connection.id,
-              message: title,
-              entity_reminder_id: reminder.id,
-              delivered_at: null,
-              last_error: null,
-            };
-            if (platform === "telegram")
-              await tx
-                .insertInto("telegram_outbox")
-                .values({ ...row, chat_id: identity.value })
-                .onConflict((oc) =>
-                  oc.column("entity_reminder_id").doNothing(),
-                )
-                .execute();
-            else
-              await tx
-                .insertInto("vk_outbox")
-                .values({ ...row, peer_id: identity.value })
-                .onConflict((oc) =>
-                  oc.column("entity_reminder_id").doNothing(),
-                )
-                .execute();
-          }
-        }
-      } else if (reminder.recipient_user_id) {
-        const binding = await tx
-          .selectFrom("notification_binding")
-          .select(["connection_id", "chat_id"])
-          .where("business_id", "=", reminder.business_id)
-          .where("user_id", "=", reminder.recipient_user_id)
-          .executeTakeFirst();
-        if (binding?.chat_id && platform === "telegram") {
-          await tx
-            .insertInto("telegram_outbox")
-            .values({
-              connection_id: binding.connection_id,
-              chat_id: binding.chat_id,
-              message: title,
-              entity_reminder_id: reminder.id,
-              delivered_at: null,
-              last_error: null,
-            })
-            .onConflict((oc) => oc.column("entity_reminder_id").doNothing())
-            .execute();
-        }
+
+    if (reminder.channel !== "telegram" && reminder.channel !== "vk") {
+      await markReminder(tx, reminder.id, "failed", "UNSUPPORTED_CHANNEL");
+      return true;
+    }
+
+    const platform = reminder.channel;
+    let outcome: "queued" | "failed" = "failed";
+    let error = "NO_READY_DELIVERY_PATH";
+
+    if (reminder.audience === "client" && reminder.entity_kind === "booking") {
+      outcome = await queueClientChannel(tx, reminder, platform, title);
+      if (outcome === "failed")
+        error =
+          platform === "telegram"
+            ? "NO_READY_CLIENT_TELEGRAM"
+            : "NO_READY_CLIENT_VK";
+    } else if (reminder.recipient_user_id) {
+      if (platform === "vk") {
+        // Staff VK bindings are not supported yet (notification_binding is Telegram-only).
+        await markReminder(
+          tx,
+          reminder.id,
+          "failed",
+          "VK_STAFF_BINDING_UNSUPPORTED",
+        );
+        return true;
       }
+      outcome = await queueStaffTelegram(tx, reminder, title);
+      if (outcome === "failed") error = "NO_READY_STAFF_TELEGRAM_BINDING";
+    } else {
+      error = "MISSING_RECIPIENT";
     }
-    await tx
-      .updateTable("entity_reminder")
-      .set({ status: "sent" })
-      .where("id", "=", reminder.id)
-      .where("status", "=", "pending")
-      .execute();
+
+    if (outcome === "queued") await markReminder(tx, reminder.id, "queued");
+    else await markReminder(tx, reminder.id, "failed", error);
     return true;
   });
+}
+
+export async function entityReminderValid(
+  tx: Transaction<Database>,
+  reminderId: string,
+) {
+  const reminder = await tx
+    .selectFrom("entity_reminder")
+    .select(["status", "entity_kind", "entity_id", "business_id"])
+    .where("id", "=", reminderId)
+    .executeTakeFirst();
+  if (!reminder) return false;
+  if (!["pending", "queued", "uncertain"].includes(reminder.status))
+    return false;
+  const entity = await loadEntity(
+    tx,
+    reminder.business_id,
+    reminder.entity_kind,
+    reminder.entity_id,
+  );
+  return !!entity?.alive;
 }

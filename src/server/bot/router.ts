@@ -61,6 +61,7 @@ export async function routeBot(
     active.map((x) => normalizeSolutionCode(x.solution_code)),
   );
   const ordersActive = codes.has("orders");
+  const brand = b.public_name || b.name;
   const menu = [
     ...(codes.has("leads") &&
     config?.step === 3 &&
@@ -69,9 +70,9 @@ export async function routeBot(
       : []),
     ...(ordersActive ? ["Каталог", "Корзина"] : []),
     ...(codes.has("admin_messages")
-      ? [ordersActive ? "Связаться с магазином" : "Связаться с администрацией"]
+      ? ["Связаться с администратором"]
       : []),
-    ...(codes.has("booking") ? ["Онлайн-запись", "Мои записи"] : []),
+    ...(codes.has("booking") ? ["Записаться", "Мои записи"] : []),
   ];
   const queuePart = async (message: string, buttons: string[] = []) => {
     const value = {
@@ -137,12 +138,19 @@ export async function routeBot(
   };
   const showMenu = async (message?: string) => {
     await save("menu");
+    const welcome =
+      (b.greeting && b.greeting.trim()) ||
+      `Добро пожаловать в ${brand}!`;
+    // Bot represents the owner's business — never introduce as platform «Среда».
+    const safeWelcome = /бот\s+сервис/i.test(welcome)
+      ? `Добро пожаловать в ${brand}!`
+      : welcome;
     await queue(
       message ??
-        (b.greeting || `Добро пожаловать в ${b.public_name || b.name}!`) +
+        safeWelcome +
           (menu.length
-            ? "\nВыберите действие."
-            : "\nПриём обращений пока не настроен."),
+            ? "\n\nЧем можем помочь?"
+            : "\n\nПриём обращений пока не настроен. Напишите сообщение — передам команде."),
       menu,
     );
   };
@@ -172,7 +180,9 @@ export async function routeBot(
   const startLead =
     text === (config?.title || "Оставить заявку") || text === "/lead";
   const contactAdmin =
-    text === "Связаться с администрацией" || text === "Связаться с магазином";
+    text === "Связаться с администратором" ||
+    text === "Связаться с администрацией" ||
+    text === "Связаться с магазином";
   // Explicit menu actions may switch away from an unfinished dialogue.
   if (codes.has("booking") && !startLead && !contactAdmin) {
     try {
