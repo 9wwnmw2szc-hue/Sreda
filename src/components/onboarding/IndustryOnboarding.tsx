@@ -127,8 +127,16 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
       capabilities_enabled: caps,
       setup_mode: "guided",
       setup_progress: { ...current.setup_progress, industry: true },
+      apply_lead_preset: true,
     });
     if (next) setForceEdit(false);
+  }
+
+  function confirmIndustryChange(nextIndustry: string) {
+    if (!data?.industry || data.industry === nextIndustry) return true;
+    return window.confirm(
+      "Мы обновим рекомендации, но ваши данные и уже подключённые функции сохранятся.\n\nПродолжить?",
+    );
   }
 
   if (loading || !data) {
@@ -226,7 +234,17 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
             <button
               type="button"
               className="button button--outline"
-              onClick={() => setForceEdit(true)}
+              onClick={() => {
+                if (
+                  data.industry &&
+                  !window.confirm(
+                    "Мы обновим рекомендации, но ваши данные и уже подключённые функции сохранятся.\n\nПродолжить?",
+                  )
+                ) {
+                  return;
+                }
+                setForceEdit(true);
+              }}
             >
               Изменить выбор
             </button>
@@ -260,8 +278,8 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
           <h1 className="text-page-title">Настройка бизнеса</h1>
           <h2 className="text-section-title">Чем занимается ваш бизнес?</h2>
           <p className="text-body">
-            Выберите ближайшее направление. Это стартовая точка — позже всё
-            можно изменить.
+            Выберите направление — мы предложим подходящие инструменты и поможем
+            всё настроить. Это можно изменить позже.
           </p>
           {statusBlock}
           <div className="industry-grid">
@@ -275,6 +293,7 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
                 }
                 disabled={busy}
                 onClick={() => {
+                  if (!confirmIndustryChange(card.id)) return;
                   void patch({
                     industry: card.id,
                     setup_mode: "guided",
@@ -305,6 +324,9 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
             >
               Открыть расширенную настройку
             </button>
+            <p className="text-caption" style={{ marginTop: 8 }}>
+              ⚙️ Не уверены, какой вариант подходит? Настройте всё самостоятельно.
+            </p>
           </div>
         </section>
       </div>
@@ -360,10 +382,10 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
     <div className="setup-page">
       <section className="panel stack-md">
         <p className="eyebrow">Шаг 3 из 3 · {data.preset?.label}</p>
-        <h1 className="text-page-title">Рекомендуем для вас</h1>
+        <h1 className="text-page-title">Мы подготовили Среду для вашего бизнеса</h1>
         <p className="text-body">
           Это стартовый набор. Платные решения не подключаются автоматически —
-          сохраняются только возможности бота и прогресс настройки.
+          сохраняются только возможности и прогресс настройки.
         </p>
         {statusBlock}
         <ul className="setup-progress__list">

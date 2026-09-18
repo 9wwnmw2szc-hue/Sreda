@@ -199,3 +199,37 @@ test("multi-business industry isolation", async () => {
   assert.equal(a.industry, "beauty");
   assert.equal(b.industry, "retail");
 });
+
+test("guided recommendations do not activate paid business_solution rows", async () => {
+  const f = await fixture();
+  await f.industry.save(f.uid, f.b.public_id, {
+    industry: "beauty",
+    industry_subtype: "barbershop",
+    capabilities_enabled: industryPreset("beauty").recommendedCapabilities,
+    setup_progress: { industry: true },
+  });
+  const solutions = await db
+    .selectFrom("business_solution")
+    .selectAll()
+    .where("business_id", "=", f.b.id)
+    .execute();
+  assert.equal(solutions.length, 0);
+});
+
+test("lead form preset seeds fields only when empty", async () => {
+  const { LeadFormService } = await import(
+    "../src/server/leads/forms.ts"
+  );
+  const f = await fixture();
+  await f.industry.save(f.uid, f.b.public_id, { industry: "automotive" });
+  const leads = new LeadFormService(db);
+  const preset = industryPreset("automotive").leadFormPreset;
+  assert.ok(preset?.length);
+  const first = await leads.applyIndustryPreset(f.uid, f.b.public_id, preset);
+  assert.equal(first.applied, true);
+  assert.ok(first.count >= 3);
+  const second = await leads.applyIndustryPreset(f.uid, f.b.public_id, preset);
+  assert.equal(second.applied, false);
+  const rows = await leads.list(f.uid, f.b.public_id, true);
+  assert.ok(rows.some((r) => /автомоб|проблем|имя/i.test(r.label)));
+});

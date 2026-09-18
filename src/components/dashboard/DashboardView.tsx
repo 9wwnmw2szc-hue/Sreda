@@ -57,6 +57,7 @@ export function DashboardView() {
     id: string;
     industry: string | null;
     onboardingDone: boolean;
+    progress: Record<string, boolean>;
   } | null>(null);
   useEffect(() => {
     if (!data.businessId || isDemoMode || data.isLoading) return;
@@ -86,6 +87,7 @@ export function DashboardView() {
     void apiRequest<{
       industry?: string | null;
       onboarding_completed_at?: string | null;
+      setup_progress?: Record<string, boolean>;
     }>(`/api/v1/businesses/${encodeURIComponent(businessId)}/industry`)
       .then((row) => {
         if (active)
@@ -93,6 +95,7 @@ export function DashboardView() {
             id: businessId,
             industry: row.industry ?? null,
             onboardingDone: !!row.onboarding_completed_at,
+            progress: row.setup_progress ?? {},
           });
       })
       .catch(() => {
@@ -113,6 +116,25 @@ export function DashboardView() {
     industryHint?.id === data.businessId &&
     !industryHint.industry &&
     !industryHint.onboardingDone;
+  const setupPct = (() => {
+    if (!industryHint || industryHint.id !== data.businessId) return null;
+    if (industryHint.onboardingDone) return null;
+    const p = industryHint.progress;
+    const keys = Object.keys(p);
+    if (!keys.length) return industryHint.industry ? 20 : 0;
+    const done = keys.filter((k) => p[k]).length;
+    return Math.min(100, Math.round((done / Math.max(keys.length, 4)) * 100));
+  })();
+  const nextSetupHint = (() => {
+    if (!industryHint?.industry || industryHint.onboardingDone) return null;
+    if (!industryHint.progress.schedule && ["beauty", "education", "rental", "sport_health", "automotive"].includes(industryHint.industry))
+      return "Настройте расписание, чтобы открыть онлайн-запись.";
+    if (!industryHint.progress.telegram)
+      return "Подключите Telegram, чтобы клиенты могли писать боту.";
+    if (!industryHint.progress.catalog && ["retail", "food"].includes(industryHint.industry))
+      return "Заполните каталог товаров.";
+    return "Продолжите настройку бизнеса.";
+  })();
   const show = (value: Selection) => {
     setQuery("");
     setSelectionBusiness(data.businessId);
@@ -279,6 +301,13 @@ export function DashboardView() {
                   <Link href="/onboarding">Выбрать направление</Link>
                   {" · "}
                   <Link href="/settings/advanced">Расширенная настройка</Link>
+                </p>
+              ) : null}
+              {setupPct != null && setupPct < 100 && !showIndustryNudge ? (
+                <p className="account-notice" role="status">
+                  Настройка бизнеса — {setupPct}%.
+                  {nextSetupHint ? ` ${nextSetupHint}` : ""}{" "}
+                  <Link href="/onboarding">Продолжить</Link>
                 </p>
               ) : null}
               {data.isLoading ? (

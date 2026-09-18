@@ -30,15 +30,27 @@ type InterviewResponse = {
   text?: string;
 };
 
+const TEXT_KINDS: { id: string; label: string }[] = [
+  { id: "greeting", label: "Приветствие" },
+  { id: "faq", label: "FAQ" },
+  { id: "after_lead", label: "После заявки" },
+  { id: "after_order", label: "После заказа" },
+  { id: "after_booking", label: "После записи" },
+  { id: "admin_button", label: "Кнопка администратора" },
+];
+
 export function AiInterviewPanel({ businessId }: { businessId: string }) {
   const url = `/api/v1/businesses/${businessId}/ai/interview`;
+  const profileUrl = `/api/v1/businesses/${businessId}/profile`;
   const [payload, setPayload] = useState<InterviewResponse | null>(null);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [greetingDraft, setGreetingDraft] = useState("");
   const [holdApply, setHoldApply] = useState(false);
+  const [textKind, setTextKind] = useState("greeting");
+  const [draft, setDraft] = useState("");
+  const [editMode, setEditMode] = useState(false);
 
   async function refresh() {
     const data = await apiRequest<InterviewResponse>(url);
@@ -66,11 +78,14 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
     setError("");
     setNotice("");
     try {
-      const data = await apiRequest<InterviewResponse>(url, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      await refresh();
+      const data = await apiRequest<InterviewResponse & { text?: string }>(
+        url,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+      if (body.action !== "suggest_text") await refresh();
       return data;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось отправить.");
@@ -101,22 +116,55 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
     const data = await post({ action: "confirm", apply });
     if (!data) return;
     setHoldApply(false);
-    if (apply) {
-      setNotice("Резюме применено к AI-профилю.");
-      setBusy(true);
-      try {
-        const draft = await apiRequest<InterviewResponse>(url, {
-          method: "POST",
-          body: JSON.stringify({ action: "suggest_text", kind: "greeting" }),
-        });
-        if (draft.text) setGreetingDraft(draft.text);
-      } catch {
-        /* optional */
-      } finally {
-        setBusy(false);
-      }
-    } else {
-      setNotice("Подтверждено без перезаписи профиля.");
+    setNotice(
+      apply
+        ? "Резюме применено к AI-профилю."
+        : "Подтверждено без перезаписи профиля.",
+    );
+  }
+
+  async function suggestText(kind = textKind) {
+    const data = await post({ action: "suggest_text", kind });
+    if (data?.text) {
+      setDraft(data.text);
+      setEditMode(false);
+      setNotice("Черновик готов — выберите, что с ним сделать.");
+    }
+  }
+
+  async function applyDraft() {
+    if (!draft.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const profile = await apiRequest<Record<string, string>>(profileUrl);
+      const patch: Record<string, string> = { ...profile };
+      if (textKind === "greeting") patch.greeting = draft.slice(0, 2000);
+      else if (textKind === "faq")
+        patch.ai_important_facts = [
+          profile.ai_important_facts,
+          "FAQ:\n" + draft,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+          .slice(0, 4000);
+      else
+        patch.ai_extra_instructions = [
+          profile.ai_extra_instructions,
+          `${textKind}:\n${draft}`,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+          .slice(0, 4000);
+      await apiRequest(profileUrl, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setNotice("Текст сохранён в профиль. AI не перезаписывает его сам.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось сохранить текст.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -149,12 +197,11 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
         <p>Загружаем интервью…</p>
       ) : showSummary && summary ? (
         <div className="stack-md">
-          <h4>Резюме</h4>
+          <h4>Вот как Среда поняла ваш бизнес</h4>
           {holdApply ? (
             <p className="text-body-sm">
               Профиль не перезаписан автоматически. Исправьте поля AI выше и
-              сохраните профиль вручную — или нажмите «Всё верно», чтобы
-              применить резюме.
+              сохраните профиль вручную — или нажмите «Всё верно».
             </p>
           ) : null}
           <dl className="stack-sm">
@@ -208,20 +255,80 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
               </button>
             </div>
           ) : (
-            <p className="text-body-sm">Интервью подтверждено.</p>
-          )}
-          {greetingDraft ? (
-            <div className="stack-sm">
-              <h4>Черновик приветствия</h4>
-              <div className="customer-preview__bubble">
-                <p>{greetingDraft}</p>
-              </div>
-              <FieldHint>
-                Черновик не публикуется сам — скопируйте в поле «Приветствие»
-                при необходимости.
-              </FieldHint>
+            <div className="stack-md">
+              <p className="text-body-sm">Интервью подтверждено.</p>
+              <h4>Клиентские тексты</h4>
+              <label>
+                Тип текста
+                <select
+                  value={textKind}
+                  onChange={(e) => {
+                    setTextKind(e.target.value);
+                    setDraft("");
+                  }}
+                >
+                  {TEXT_KINDS.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="button button--outline"
+                disabled={busy}
+                onClick={() => void suggestText()}
+              >
+                {busy ? "Готовим…" : "Сформировать с AI"}
+              </button>
+              {draft ? (
+                <div className="stack-sm">
+                  {editMode ? (
+                    <textarea
+                      rows={5}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                    />
+                  ) : (
+                    <div className="customer-preview__bubble">
+                      <p>{draft}</p>
+                    </div>
+                  )}
+                  <div className="message-actions">
+                    <button
+                      type="button"
+                      className="button button--primary"
+                      disabled={busy}
+                      onClick={() => void applyDraft()}
+                    >
+                      Использовать
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--outline"
+                      disabled={busy}
+                      onClick={() => setEditMode(true)}
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      type="button"
+                      className="button button--outline"
+                      disabled={busy}
+                      onClick={() => void suggestText()}
+                    >
+                      Другой вариант
+                    </button>
+                  </div>
+                  <FieldHint>
+                    Ничего не публикуется и не перезаписывается без вашей кнопки
+                    «Использовать».
+                  </FieldHint>
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </div>
       ) : question ? (
         <div className="stack-md">

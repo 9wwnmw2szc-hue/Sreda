@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { apiRequest } from "@/lib/apiClient";
 import { SetupProgress } from "@/components/ui/SetupChrome";
+import { terminologyFor } from "@/lib/industryPresets";
 
 type ChecklistStep = {
   id: string;
@@ -10,6 +13,7 @@ type ChecklistStep = {
 };
 
 function stepsForIndustry(industry?: string | null): ChecklistStep[] {
+  const terms = terminologyFor(industry);
   switch (industry) {
     case "beauty":
     case "sport_health":
@@ -23,7 +27,7 @@ function stepsForIndustry(industry?: string | null): ChecklistStep[] {
         },
         {
           id: "specialists",
-          label: "Добавить специалистов",
+          label: `Добавить: ${terms.specialists.toLowerCase()}`,
           href: "/bookings?tab=config",
         },
         {
@@ -42,14 +46,26 @@ function stepsForIndustry(industry?: string | null): ChecklistStep[] {
       ];
     case "automotive":
       return [
-        { id: "services", label: "Услуги или работы", href: "/bookings?tab=config" },
-        { id: "leads", label: "Настроить заявки", href: "/solutions/leads/setup" },
+        {
+          id: "services",
+          label: "Услуги или работы",
+          href: "/bookings?tab=config",
+        },
+        {
+          id: "leads",
+          label: "Настроить заявки",
+          href: "/solutions/leads/setup",
+        },
         { id: "telegram", label: "Подключить Telegram", href: "/connections" },
       ];
     case "construction":
     case "professional_services":
       return [
-        { id: "leads", label: "Настроить заявки", href: "/solutions/leads/setup" },
+        {
+          id: "leads",
+          label: "Настроить заявки",
+          href: "/solutions/leads/setup",
+        },
         { id: "telegram", label: "Подключить Telegram", href: "/connections" },
         { id: "ai", label: "Заполнить AI-профиль", href: "/settings" },
       ];
@@ -67,33 +83,70 @@ export function SetupChecklist({
   businessId,
   progress,
   industry,
+  onProgressChange,
 }: {
   businessId: string;
   progress: Record<string, boolean>;
   industry?: string | null;
+  onProgressChange?: (progress: Record<string, boolean>) => void;
 }) {
-  void businessId;
+  const [busy, setBusy] = useState(false);
+  const [local, setLocal] = useState(progress);
   const steps = stepsForIndustry(industry).map((step) => ({
     ...step,
-    done: progress[step.id] === true || (step.id === "industry" && progress.industry === true),
+    done:
+      local[step.id] === true ||
+      (step.id === "industry" && local.industry === true),
   }));
   const done = steps.filter((s) => s.done).length;
+  const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
+
+  async function toggle(id: string, value: boolean) {
+    setBusy(true);
+    try {
+      const next = { ...local, [id]: value };
+      const allDone = stepsForIndustry(industry).every(
+        (s) => next[s.id] === true || (s.id === "industry" && next.industry),
+      );
+      const saved = await apiRequest<{
+        setup_progress: Record<string, boolean>;
+      }>(`/api/v1/businesses/${businessId}/industry`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          setup_progress: next,
+          ...(allDone ? { complete_onboarding: true } : {}),
+        }),
+      });
+      setLocal(saved.setup_progress ?? next);
+      onProgressChange?.(saved.setup_progress ?? next);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <section className="panel stack-md" aria-label="Чеклист настройки">
       <h2 className="text-section-title">Что ещё настроить</h2>
       <p className="text-body-sm">
-        Отмечайте шаги по мере готовности — список зависит от направления
-        бизнеса.
+        Настройка бизнеса — {pct}%. Отмечайте шаги по мере готовности.
       </p>
       <SetupProgress steps={steps} done={done} />
       <ul className="setup-progress__list">
         {steps.map((step) => (
           <li key={step.id} className={step.done ? "is-done" : ""}>
-            <Link href={step.href} className="text-link">
-              {step.done ? "Готово: " : "Открыть: "}
-              {step.label}
-            </Link>
+            <label className="capability-row">
+              <input
+                type="checkbox"
+                checked={step.done}
+                disabled={busy}
+                onChange={(e) => void toggle(step.id, e.target.checked)}
+              />
+              <span>
+                <Link href={step.href} className="text-link">
+                  {step.label}
+                </Link>
+              </span>
+            </label>
           </li>
         ))}
       </ul>

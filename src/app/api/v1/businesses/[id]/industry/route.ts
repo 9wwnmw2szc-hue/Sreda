@@ -3,6 +3,8 @@ import { createApplication } from "@/server/http/application";
 import { respond, requireOrigin, readJson, json } from "@/server/http/errors";
 import { limit } from "@/server/http/limits";
 import { IndustrySetupService } from "@/server/workspaces/industry";
+import { LeadFormService } from "@/server/leads/forms";
+import { industryPreset } from "@/lib/industryPresets";
 
 export async function GET(
   request: Request,
@@ -30,6 +32,17 @@ export async function PATCH(
     await limit(r.db, r.secret, "industry:" + user.id, 40, 60);
     const body = await readJson(request, 20000);
     const service = new IndustrySetupService(r.db);
-    return json(await service.save(user.id, (await params).id, body));
+    const id = (await params).id;
+    const saved = await service.save(user.id, id, body);
+    if (body.apply_lead_preset === true && saved.industry) {
+      const preset = industryPreset(saved.industry);
+      const fields = preset?.leadFormPreset;
+      if (fields?.length) {
+        const leads = new LeadFormService(r.db);
+        const result = await leads.applyIndustryPreset(user.id, id, fields);
+        return json({ ...saved, lead_form_preset: result });
+      }
+    }
+    return json(saved);
   });
 }
