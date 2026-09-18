@@ -12,6 +12,7 @@ import { PasswordChangePanel } from "./PasswordChangePanel";
 import { BusinessProfilePanel } from "./BusinessProfilePanel";
 import { IndustrySetupCard } from "./IndustrySetupCard";
 import { PinPanel } from "./PinPanel";
+import { ThemeAppearancePanel } from "@/components/theme/ThemeAppearancePanel";
 
 export function SettingsView() {
   const {
@@ -28,6 +29,7 @@ export function SettingsView() {
         <span className="eyebrow">Ваше пространство</span>
         <h1>Настройки</h1>
       </header>
+      <ThemeAppearancePanel />
       <section className="panel">
         <h2>Аккаунт</h2>
         <dl>

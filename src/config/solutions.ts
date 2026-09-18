@@ -45,11 +45,11 @@ export const SOLUTION_VISUALS: Record<SolutionAccentCode, SolutionVisual> = {
   orders: visual("orders"),
 };
 
-/** Desk scene keeps four cubes; orders is available via catalog + mobile cards. */
+/** Dashboard solution card order matching approved Soty references. */
 export const WORKSPACE_SOLUTION_ORDER: SolutionAccentCode[] = [
-  "leads",
   "orders",
+  "leads",
+  "booking",
   "admin_messages",
   "autopost",
-  "booking",
 ];

@@ -41,7 +41,7 @@ export function LoginForm({ register = false }: { register?: boolean }) {
   if (created) return <RecoveryCodesPanel initialCodes={codes} registration />;
   return <div className={`account-card${register ? "" : ` ${styles.card}`}`}>
     {register && <span className="account-symbol"><LockKeyhole size={26} /></span>}
-    <h2>{register ? "Создать аккаунт" : "Войти в Среду"}</h2>
+    <h2>{register ? "Создать аккаунт" : "Войти в Соты"}</h2>
     <p className={`account-intro${register ? "" : ` ${styles.intro}`}`}>{register ? "Придумайте логин и пароль — и можно начинать." : "Ваш бизнес — под рукой"}</p>
     <form onSubmit={(event) => { event.preventDefault(); if (!busy) void submit(); }}>
       <fieldset disabled={busy}>

@@ -197,7 +197,7 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
         <p>Загружаем интервью…</p>
       ) : showSummary && summary ? (
         <div className="stack-md">
-          <h4>Вот как Среда поняла ваш бизнес</h4>
+          <h4>Вот как Соты поняли ваш бизнес</h4>
           {holdApply ? (
             <p className="text-body-sm">
               Профиль не перезаписан автоматически. Исправьте поля AI выше и

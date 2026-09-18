@@ -110,14 +110,15 @@ test("business type recommendations match product model", () => {
   assert.match(recommendationSummary("store"), /Приём заказов/);
 });
 
-test("navigation and destinations expose activated products", () => {
+test("navigation and destinations expose activated products", async () => {
+  const { SECONDARY_NAV_ITEMS } = await import("../src/config/navigation.ts");
   for (const solution of mockSolutions) {
     assert.equal(solutionRoute(solution.code), SOLUTION_DESTINATIONS[solution.code]);
   }
   assert.equal(solutionVisualCode("orders"), "orders");
-  assert.equal(solutionVisualCode("admin_messages"), "admin-messages");
+  assert.equal(solutionVisualCode("admin_messages"), "messages");
   assert.notEqual(solutionVisualCode("orders"), solutionVisualCode("admin_messages"));
-  const hrefs = NAV_ITEMS.map((item) => item.href);
+  const hrefs = [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS].map((item) => item.href);
   for (const href of [
     "/dashboard",
     "/solutions",
@@ -138,6 +139,6 @@ test("navigation and destinations expose activated products", () => {
   assert.ok(WORKSPACE_SOLUTION_ORDER.includes("orders"));
   assert.equal(
     NAV_ITEMS.find((item) => item.href === "/orders")?.label,
-    "Приём заказов",
+    "Заказы",
   );
 });

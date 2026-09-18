@@ -22,7 +22,7 @@ export function PagePlaceholder({
       )}
     >
       <p className="mb-3 text-sm font-medium tracking-wide text-[var(--text-muted)] uppercase">
-        Среда · скоро
+        Соты · скоро
       </p>
       <h1 className="text-3xl font-semibold tracking-tight text-[var(--text-primary)] md:text-4xl">
         {title}

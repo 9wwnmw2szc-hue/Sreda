@@ -122,9 +122,9 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       </div>
       <header className="solutions-intro">
         <div>
-          <h1>Что поручим Среде?</h1>
+          <h1>Что поручим Сотам?</h1>
           <p>
-            Выберите задачу. Среда поможет с заявками, заказами, записью,
+            Выберите задачу. Соты помогут с заявками, заказами, записью,
             сообщениями и публикациями.
           </p>
         </div>
@@ -212,7 +212,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         <h2>Один бизнес. Несколько площадок.</h2>
         <p>
           Telegram и ВКонтакте работают с общими клиентами. Управление — в одном
-          рабочем пространстве Среды.
+          рабочем пространстве Соты.
         </p>
       </section>
     </div>

@@ -9,7 +9,7 @@ export function createIdentity(options: {
   secret: string;
 }) {
   return betterAuth({
-    appName: "Среда",
+    appName: "Соты",
     baseURL: options.origin,
     basePath: "/api/auth",
     secret: options.secret,

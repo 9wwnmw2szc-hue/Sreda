@@ -691,7 +691,7 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
         <div className="stack-lg">
           <h2 className="text-section-title">Отчёты</h2>
           <p className="text-body-sm">
-            Скачайте данные «Среды» за выбранный период ({period}).
+            Скачайте данные «Соты» за выбранный период ({period}).
           </p>
           <div className="analytics-export-grid">
             {(
@@ -738,7 +738,7 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
                 checked={aiSource === "sreda"}
                 onChange={() => setAiSource("sreda")}
               />
-              Данные Среды
+              Данные Соты
             </label>
             <label>
               <input
@@ -769,7 +769,7 @@ function AnalyticsInner({ businessId }: { businessId: string }) {
               </label>
             ) : (
               <p className="text-body-sm">
-                Загрузите Excel/CSV или выберите данные Среды, которые хотите
+                Загрузите Excel/CSV или выберите данные Соты, которые хотите
                 проанализировать.
               </p>
             )
