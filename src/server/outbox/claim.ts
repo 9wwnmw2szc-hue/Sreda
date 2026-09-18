@@ -17,6 +17,7 @@ export async function expireClaims(
         "communication_message_id",
         "post_delivery_id",
         "booking_reminder_id",
+        "entity_reminder_id",
       ])
       .execute();
     for (const row of stale) {
@@ -33,6 +34,13 @@ export async function expireClaims(
           .updateTable("booking_reminder")
           .set({ status: "uncertain" })
           .where("id", "=", row.booking_reminder_id)
+          .execute();
+      if (row.entity_reminder_id)
+        await tx
+          .updateTable("entity_reminder")
+          .set({ status: "uncertain", last_error: "DELIVERY_UNKNOWN" })
+          .where("id", "=", row.entity_reminder_id)
+          .where("status", "in", ["queued", "pending"])
           .execute();
       if (row.communication_message_id)
         await tx

@@ -62,8 +62,13 @@ type Product = {
   description: string;
   price: string;
   currency: string;
+  sku: string | null;
   active: boolean;
   category_id: string | null;
+  use_variants: boolean;
+  track_inventory: boolean;
+  availability: string;
+  stock_quantity: number | null;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -645,6 +650,12 @@ function CatalogPanel({
           price: product.price,
           description: product.description,
           category_id: product.category_id,
+          currency: product.currency,
+          sku: product.sku,
+          use_variants: product.use_variants,
+          track_inventory: product.track_inventory,
+          availability: product.availability,
+          stock_quantity: product.stock_quantity,
           active: !product.active,
         }),
       });

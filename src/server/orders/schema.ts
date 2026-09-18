@@ -137,6 +137,7 @@ export interface OrderTables {
     unit_price: string;
     quantity: number;
     line_total: string;
+    stock_deducted: Generated<boolean>;
   };
   order_status_history: {
     id: string;
