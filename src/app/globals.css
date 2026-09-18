@@ -3960,6 +3960,33 @@ ul {
     box-shadow 0.2s ease;
 }
 
+@media (max-width: 699px) {
+  .soty-solution-card {
+    flex-direction: row;
+    align-items: center;
+    min-height: 0;
+    padding: 14px 16px;
+    gap: 14px;
+  }
+  .soty-solution-card__art {
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
+  }
+  .soty-solution-card__art img {
+    width: 64px;
+    height: 64px;
+  }
+  .soty-solution-card__body {
+    flex: 1;
+    min-width: 0;
+  }
+  .soty-solution-card__chevron {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+  }
+}
+
 .soty-solution-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
