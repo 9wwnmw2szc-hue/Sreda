@@ -1272,12 +1272,14 @@ ul {
   align-items: stretch;
   text-align: left;
   gap: var(--space-3);
-  padding: var(--space-4) 0;
+  padding: var(--space-4) 0 var(--space-6);
 }
 .empty-state--cta .button {
-  align-self: flex-start;
+  align-self: stretch;
   min-height: 44px;
   margin-top: var(--space-2);
+  width: 100%;
+  max-width: 320px;
 }
 .solution-setup-banner {
   margin-bottom: 16px;
@@ -3158,11 +3160,11 @@ ul {
   max-width: 48ch;
 }
 .crm-segment {
-  display: inline-grid;
+  display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   width: 100%;
-  max-width: 420px;
+  max-width: none;
   padding: 4px;
   border-radius: 14px;
   background: var(--bg-page);
