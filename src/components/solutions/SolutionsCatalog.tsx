@@ -122,9 +122,9 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       </div>
       <header className="solutions-intro">
         <div>
-          <h1>Что поручим Среде?</h1>
+          <h1>Что поручим Сотам?</h1>
           <p>
-            Выберите задачу. Среда поможет с заявками, заказами, записью,
+            Выберите задачу. Соты помогут с заявками, заказами, записью,
             сообщениями и публикациями.
           </p>
         </div>

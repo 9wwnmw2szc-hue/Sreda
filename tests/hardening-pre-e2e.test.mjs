@@ -1294,7 +1294,7 @@ test("solution visual codes are distinct for orders and admin_messages", async (
     "../src/config/solutionPresentation.ts"
   );
   assert.equal(solutionVisualCode("orders"), "orders");
-  assert.equal(solutionVisualCode("admin_messages"), "admin-messages");
+  assert.equal(solutionVisualCode("admin_messages"), "messages");
   assert.notEqual(
     solutionModuleAsset("orders"),
     solutionModuleAsset("admin_messages"),
@@ -1302,6 +1302,6 @@ test("solution visual codes are distinct for orders and admin_messages", async (
   assert.match(solutionModuleAsset("orders"), /module-orders\.webp$/);
   assert.match(
     solutionModuleAsset("admin_messages"),
-    /module-admin-messages\.webp$/,
+    /module-messages\.webp$/,
   );
 });

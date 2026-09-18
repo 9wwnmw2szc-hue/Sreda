@@ -1,0 +1,2 @@
+/** Inline anti-FOUC theme bootstrap — keep in sync with ThemeProvider. */
+export const THEME_BOOTSTRAP = `(function(){try{var k='soty.theme';var p=localStorage.getItem(k)||'system';var d=p==='dark'||(p!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var t=d?'dark':'light';document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}catch(e){}})();`;

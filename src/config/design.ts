@@ -3,22 +3,25 @@ export const SOLUTION_ACCENTS = {
     cssVar: "--solution-leads",
     label: "Приём заявок",
   },
-  admin_messages: {
-    cssVar: "--solution-admin-messages",
-    label: "Связь с администратором",
-  },
-  autopost: {
-    cssVar: "--solution-autopost",
-    label: "Автопостинг",
+  orders: {
+    cssVar: "--solution-orders",
+    label: "Приём заказов",
   },
   booking: {
     cssVar: "--solution-booking",
     label: "Онлайн-запись",
   },
-  orders: {
-    cssVar: "--solution-orders",
-    label: "Приём заказов",
+  admin_messages: {
+    cssVar: "--solution-messages",
+    label: "Связь с клиентами",
+  },
+  autopost: {
+    cssVar: "--solution-autopost",
+    label: "Автопостинг",
   },
 } as const;
+
+/** Legacy CSS alias — prefer --solution-messages. */
+export const SOLUTION_MESSAGES_CSS_ALIAS = "--solution-admin-messages";
 
 export type SolutionAccentCode = keyof typeof SOLUTION_ACCENTS;

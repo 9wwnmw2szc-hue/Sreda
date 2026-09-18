@@ -138,7 +138,7 @@ export class VKService {
       const body = {
         group_id,
         url,
-        title: "Sreda",
+        title: "Soty",
         secret_key: callbackSecret(
           this.secret,
           prepared.id,

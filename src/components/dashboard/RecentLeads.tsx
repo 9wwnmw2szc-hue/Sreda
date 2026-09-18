@@ -65,7 +65,13 @@ export function RecentLeads({
       ) : (
         <div className="empty-state">
           <Inbox size={26} />
-          <p>Новые обращения появятся здесь.</p>
+          <p>Пока нет заявок</p>
+          <p className="empty-copy">
+            Когда клиенты начнут оставлять заявки, они появятся здесь.
+          </p>
+          <Link href="/solutions/leads/setup" className="button button--outline">
+            Настроить приём заявок
+          </Link>
         </div>
       )}
     </section>

@@ -1,10 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleHelp, X, ArrowUpRight } from "lucide-react";
-import { NAV_ITEMS } from "@/config/navigation";
+import { Crown, X } from "lucide-react";
+import { NAV_ITEMS, SECONDARY_NAV_ITEMS } from "@/config/navigation";
 import { Brand } from "@/components/ui/Brand";
-import { isDemoMode } from "@/lib/dataMode";
+import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
+import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
+import { APP_NAME } from "@/config/brand";
+
 export function Sidebar({
   onClose,
   mobile = false,
@@ -13,13 +16,16 @@ export function Sidebar({
   mobile?: boolean;
 }) {
   const pathname = usePathname();
+  const { business, businesses, setBusinessId } = useCurrentBusiness();
+  const items = mobile ? [...NAV_ITEMS, ...SECONDARY_NAV_ITEMS] : NAV_ITEMS;
+
   return (
     <aside
       className={`sidebar${mobile ? " sidebar--mobile" : ""}`}
       aria-label="Основная навигация"
     >
       <div className="sidebar__brand">
-        <Brand />
+        <Brand showTagline={false} />
         {mobile && (
           <button
             className="icon-button"
@@ -30,9 +36,21 @@ export function Sidebar({
           </button>
         )}
       </div>
+
+      <div className="sidebar__switcher">
+        <BusinessSwitcher
+          businesses={businesses}
+          currentBusiness={business}
+          onSelect={(id) => {
+            setBusinessId(id);
+            onClose?.();
+          }}
+        />
+      </div>
+
       <nav className="sidebar__nav">
         <ul>
-          {NAV_ITEMS.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             const active =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -44,7 +62,7 @@ export function Sidebar({
                   aria-current={active ? "page" : undefined}
                   onClick={onClose}
                 >
-                  <Icon size={20} strokeWidth={1.6} aria-hidden />
+                  <Icon size={20} strokeWidth={1.7} aria-hidden />
                   <span>{item.label}</span>
                 </Link>
               </li>
@@ -52,17 +70,20 @@ export function Sidebar({
           })}
         </ul>
       </nav>
+
       <div className="sidebar__footer">
-        <Link href="/settings" className="sidebar__help" onClick={onClose}>
-          <CircleHelp size={20} />
-          <span>Помощь и поддержка</span>
-          <ArrowUpRight size={16} />
+        <Link href="/billing" className="sidebar__plan" onClick={onClose}>
+          <span className="sidebar__plan-icon" aria-hidden>
+            <Crown size={18} />
+          </span>
+          <span>
+            <strong>Тариф</strong>
+            <small>Условия и возможности роста</small>
+          </span>
         </Link>
-        <p>
-          <span className="demo-mark" />
-          {isDemoMode ? "Демонстрация интерфейса" : "Ваше рабочее пространство"}
-        </p>
-        <small>Среда © 2026</small>
+        <small className="sidebar__copy">
+          {APP_NAME} © {new Date().getFullYear()}
+        </small>
       </div>
     </aside>
   );

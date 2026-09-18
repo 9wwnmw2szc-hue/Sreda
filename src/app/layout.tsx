@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
+import { APP_DESCRIPTION, APP_NAME, BRAND_ASSETS } from "@/config/brand";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { THEME_BOOTSTRAP } from "@/components/theme/bootstrap";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -11,18 +14,23 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: {
-    default: "Среда",
-    template: "%s · Среда",
+    default: APP_NAME,
+    template: `%s · ${APP_NAME}`,
   },
-  description:
-    "Среда — простые готовые инструменты для малого бизнеса в Telegram и ВКонтакте.",
+  description: APP_DESCRIPTION,
+  icons: {
+    icon: BRAND_ASSETS.favicon,
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" className={`${manrope.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[var(--background)] font-sans text-[var(--text-primary)]">
-        {children}
+    <html lang="ru" className={`${manrope.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
+      <body className="min-h-full bg-[var(--bg-page)] font-sans text-[var(--text-primary)]">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

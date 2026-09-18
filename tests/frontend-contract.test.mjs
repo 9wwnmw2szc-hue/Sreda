@@ -20,7 +20,7 @@ test("every catalog solution opens its operational workspace", () => {
     assert.equal(solutionRoute(solution.code), SOLUTION_DESTINATIONS[solution.code]);
     assert.notEqual(solutionRoute(solution.code), "/solutions");
   }
-  assert.equal(solutionVisualCode("admin_messages"), "admin-messages");
+  assert.equal(solutionVisualCode("admin_messages"), "messages");
   assert.equal(solutionVisualCode("orders"), "orders");
   assert.equal(solutionRoute("future_solution"), "/solutions");
 });

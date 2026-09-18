@@ -15,6 +15,9 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { APP_NAME, APP_TAGLINE, SUPPORT_TELEGRAM_URL } from "@/config/brand";
+
+export { APP_NAME, APP_TAGLINE, SUPPORT_TELEGRAM_URL };
 
 export interface NavItem {
   href: string;
@@ -23,23 +26,31 @@ export interface NavItem {
   badge?: number;
 }
 
+/** Desktop sidebar primary navigation — order matches Soty design. */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/analytics", label: "Аналитика", icon: BarChart3 },
-  { href: "/solutions", label: "Мои решения", icon: Sparkles },
+  { href: "/solutions", label: "Решения", icon: Sparkles },
+  { href: "/orders", label: "Заказы", icon: ShoppingBag },
   { href: "/leads", label: "Заявки", icon: Inbox },
-  { href: "/orders", label: "Приём заказов", icon: ShoppingBag },
+  { href: "/bookings", label: "Запись", icon: CalendarDays },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/posts", label: "Посты", icon: FileText },
   { href: "/clients", label: "Клиенты", icon: Users },
   { href: "/connections", label: "Подключения", icon: Link2 },
-  { href: "/billing", label: "Тариф и оплата", icon: CreditCard },
-  { href: "/bookings", label: "Онлайн-запись", icon: CalendarDays },
-  { href: "/calendar", label: "Календарь", icon: Calendar },
-  { href: "/messages", label: "Сообщения", icon: MessageCircle },
-  { href: "/notifications", label: "Уведомления", icon: Bell },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
-export const APP_NAME = "Среда";
-export const APP_TAGLINE = "Бизнесу проще";
-export const SUPPORT_TELEGRAM_URL = "https://t.me/sreda_support";
+/** Secondary items available via «Ещё» / settings areas. */
+export const SECONDARY_NAV_ITEMS: NavItem[] = [
+  { href: "/analytics", label: "Аналитика", icon: BarChart3 },
+  { href: "/calendar", label: "Календарь", icon: Calendar },
+  { href: "/notifications", label: "Уведомления", icon: Bell },
+  { href: "/billing", label: "Тариф", icon: CreditCard },
+];
+
+export const MOBILE_BOTTOM_NAV: NavItem[] = [
+  { href: "/dashboard", label: "Главная", icon: Home },
+  { href: "/orders", label: "Заказы", icon: ShoppingBag },
+  { href: "/leads", label: "Заявки", icon: Inbox },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle },
+];
