@@ -28,12 +28,18 @@ export function RecentLeads({
             </span>
           )}
         </h2>
-        <Link href="/leads" className="text-link">
-          Все заявки
-          <ChevronRight size={16} />
-        </Link>
+        <div className="panel-heading__actions">
+          {onRefresh ? (
+            <button type="button" className="text-link" onClick={onRefresh}>
+              Обновить
+            </button>
+          ) : null}
+          <Link href="/leads" className="text-link">
+            Все заявки
+            <ChevronRight size={16} />
+          </Link>
+        </div>
       </div>
-      {onRefresh && <button type="button" className="text-link" onClick={onRefresh}>Обновить заявки</button>}
       {leads.length ? (
         <ul className="lead-list">
           {leads.slice(0, 3).map((lead, index) => (

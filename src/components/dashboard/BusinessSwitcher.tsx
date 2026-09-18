@@ -19,12 +19,13 @@ export function BusinessSwitcher({
         <Building2 size={18} strokeWidth={1.7} />
       </span>
       <span className="business-switcher__meta">
-        <small>Мой бизнес</small>
-        <span className="sr-only">Выбрать бизнес</span>
+        <small aria-hidden>Мой бизнес</small>
         <select
           value={currentBusiness?.id ?? ""}
           onChange={(event) => onSelect(event.target.value)}
           disabled={!businesses.length}
+          aria-label="Выбрать бизнес"
+          title={currentBusiness?.name ?? "Выбрать бизнес"}
         >
           {!businesses.length && <option value="">Загрузка бизнеса…</option>}
           {businesses.map((business) => (
