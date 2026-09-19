@@ -17,6 +17,7 @@ const shots = [
   { name: "solutions-mobile-dark", route: "/solutions", w: 390, h: 844, theme: "dark" },
   { name: "settings-mobile-dark", route: "/settings", w: 390, h: 844, theme: "dark" },
   { name: "messages-mobile-dark", route: "/messages", w: 390, h: 844, theme: "dark" },
+  { name: "notifications-mobile-dark", route: "/notifications", w: 390, h: 844, theme: "dark" },
   { name: "calendar-mobile-dark", route: "/calendar", w: 390, h: 844, theme: "dark" },
   { name: "analytics-mobile-dark", route: "/analytics", w: 390, h: 844, theme: "dark" },
   { name: "drawer-mobile-dark", route: "/dashboard", w: 390, h: 844, theme: "dark", drawer: true },
