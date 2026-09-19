@@ -68,19 +68,19 @@ function SummaryBody({ businessId }: { businessId: string }) {
   const kpis = useMemo(() => (data.kpis ?? []).slice(0, 4), [data.kpis]);
   if (!kpis.length) {
     return (
-      <section className="soty-kpi-grid" aria-label="Показатели">
+      <div className="soty-kpi-grid" aria-label="Показатели">
         <div className="soty-kpi-card soty-kpi-card--empty">
           <p>Показатели появятся после первых заказов, заявок и записей.</p>
-          <Link href="/analytics" className="text-link">
+          <Link href="/analytics" className="button button--outline button--sm">
             Открыть аналитику
             <ChevronRight size={16} />
           </Link>
         </div>
-      </section>
+      </div>
     );
   }
   return (
-    <section className="soty-kpi-grid" aria-label="Показатели">
+    <div className="soty-kpi-grid" aria-label="Показатели">
       {kpis.map((kpi) => {
         const Icon = pickIcon(kpi.id);
         const pct = kpi.delta?.percent;
@@ -109,15 +109,13 @@ function SummaryBody({ businessId }: { businessId: string }) {
           </Link>
         );
       })}
-    </section>
+    </div>
   );
 }
 
 export function DashboardKpis({ businessId }: { businessId: string }) {
   return (
-    <Suspense
-      fallback={<section className="soty-kpi-grid" aria-hidden />}
-    >
+    <Suspense fallback={<div className="soty-kpi-grid" aria-hidden />}>
       <SummaryBody businessId={businessId} />
     </Suspense>
   );

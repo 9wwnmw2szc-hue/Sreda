@@ -7,7 +7,10 @@ import { ArrowUpRight, RefreshCw, Search } from "lucide-react";
 import { DashboardKpis } from "./DashboardKpis";
 import { SolutionCards } from "./SolutionCards";
 import { TodaySchedule } from "./TodaySchedule";
-import { RecentLeads } from "./RecentLeads";
+import { QuickActions } from "./QuickActions";
+import { DashboardAiHint } from "./DashboardAiHint";
+import { CommandSearch } from "./CommandSearch";
+import { ActivityFeed } from "./ActivityFeed";
 import { BusinessSwitcher } from "./BusinessSwitcher";
 import { LoadingPanel } from "./LoadingPanel";
 import { DetailDialog } from "./DetailDialog";
@@ -305,9 +308,13 @@ export function DashboardView() {
       ) : (
         <>
           <header className="soty-hero">
-            <div>
+            <div className="soty-hero__copy">
+              <p className="soty-hero__eyebrow">{APP_NAME}</p>
               <h1>Ваш бизнес — в порядке</h1>
-              <p>Все инструменты в одном месте</p>
+              <p>Все инструменты в одном месте. Выбрал → подключил → настроил → работает.</p>
+            </div>
+            <div className="soty-hero__tools desktop-only">
+              <CommandSearch />
             </div>
           </header>
 
@@ -336,29 +343,55 @@ export function DashboardView() {
             <LoadingPanel label="Готовим рабочее пространство" />
           ) : (
             <>
-              {data.businessId ? (
-                <DashboardKpis businessId={data.businessId} />
-              ) : null}
-              <SolutionCards items={data.workspaceItems} />
+              <QuickActions />
+              <DashboardAiHint hint={nextSetupHint} />
+              <section className="soty-pulse" aria-labelledby="soty-pulse-title">
+                <div className="soty-section-head">
+                  <h2 id="soty-pulse-title">Пульс бизнеса</h2>
+                  <p>Ключевые показатели за период</p>
+                </div>
+                {data.businessId ? (
+                  <DashboardKpis businessId={data.businessId} />
+                ) : null}
+              </section>
+              <section className="soty-solutions" aria-labelledby="soty-solutions-title">
+                <div className="soty-section-head soty-section-head--row">
+                  <div>
+                    <h2 id="soty-solutions-title">Решения</h2>
+                    <p>Инструменты, которые ведут клиентов</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button button--ghost button--sm"
+                    onClick={catalog}
+                  >
+                    Все решения
+                  </button>
+                </div>
+                <SolutionCards items={data.workspaceItems} />
+              </section>
               <div className="soty-panels">
-                <RecentLeads
+                <ActivityFeed
                   leads={data.leads}
-                  onSelect={(item) => show({ type: "lead", item })}
-                  onRefresh={() => data.retry()}
+                  onSelectLead={(item) => show({ type: "lead", item })}
                 />
                 {data.businessId ? (
                   <TodaySchedule businessId={data.businessId} />
                 ) : null}
               </div>
-              <div className="soty-dashboard__actions">
-                <button
-                  type="button"
-                  className="button button--outline button--full"
-                  onClick={catalog}
-                >
-                  Все решения
-                </button>
-              </div>
+              <aside className="soty-hive" aria-label="Живые соты">
+                <div className="soty-hive__glow" aria-hidden />
+                <div className="soty-hive__copy">
+                  <strong>Живые соты</strong>
+                  <p>
+                    Структура, рост и связь инструментов — ваш бизнес работает
+                    как единая система.
+                  </p>
+                  <p className="soty-hive__motto">
+                    Выбрал → подключил → настроил → работает
+                  </p>
+                </div>
+              </aside>
             </>
           )}
         </>
