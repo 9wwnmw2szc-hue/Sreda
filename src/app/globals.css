@@ -4470,19 +4470,19 @@ ul {
 }
 
 [data-theme="dark"] .soty-solution-card--orders {
-  background: color-mix(in srgb, var(--solution-orders) 22%, var(--bg-surface));
+  background: color-mix(in srgb, var(--solution-orders) 14%, var(--bg-surface));
 }
 [data-theme="dark"] .soty-solution-card--leads {
-  background: color-mix(in srgb, var(--solution-leads) 18%, var(--bg-surface));
+  background: color-mix(in srgb, var(--solution-leads) 10%, var(--bg-surface));
 }
 [data-theme="dark"] .soty-solution-card--booking {
-  background: color-mix(in srgb, var(--solution-booking) 20%, var(--bg-surface));
+  background: color-mix(in srgb, var(--solution-booking) 12%, var(--bg-surface));
 }
 [data-theme="dark"] .soty-solution-card--messages {
-  background: color-mix(in srgb, var(--solution-messages) 20%, var(--bg-surface));
+  background: color-mix(in srgb, var(--solution-messages) 12%, var(--bg-surface));
 }
 [data-theme="dark"] .soty-solution-card--autopost {
-  background: color-mix(in srgb, var(--solution-autopost) 20%, var(--bg-surface));
+  background: color-mix(in srgb, var(--solution-autopost) 12%, var(--bg-surface));
 }
 
 @media (min-width: 1280px) {
@@ -4950,6 +4950,7 @@ input[type="time"] {
   background: color-mix(in srgb, var(--bg-surface) 70%, #ffffff 30%);
   border: 1px solid color-mix(in srgb, var(--border-default) 50%, transparent);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  flex: 0 0 auto;
   flex-shrink: 0;
 }
 
@@ -4961,13 +4962,26 @@ input[type="time"] {
 }
 
 [data-theme="dark"] .soty-solution-card__art {
-  background: color-mix(in srgb, #ffffff 14%, var(--bg-elevated) 86%);
-  border-color: color-mix(in srgb, #ffffff 12%, var(--border-default));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, #ffffff 18%, var(--bg-elevated) 82%);
+  border-color: color-mix(in srgb, #ffffff 14%, var(--border-default));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="dark"] .soty-solution-card__art img {
-  filter: saturate(1.08) contrast(1.06) brightness(1.04);
+  filter: saturate(1.1) contrast(1.08) brightness(1.06);
+}
+
+@media (max-width: 699px) {
+  .soty-solution-card__art {
+    width: 58px !important;
+    height: 58px !important;
+    flex: 0 0 58px !important;
+    border-radius: 16px;
+  }
+  .soty-solution-card__art img {
+    width: 42px !important;
+    height: 42px !important;
+  }
 }
 
 .sidebar__link.is-active {
