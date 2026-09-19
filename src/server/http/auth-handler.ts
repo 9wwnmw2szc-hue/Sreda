@@ -59,7 +59,10 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
     }
     const response = json({ ok: true });
     for (const cookie of result.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
-    if (path === "/sign-out") response.headers.set("Clear-Site-Data", '"cache"');
+    if (path === "/sign-out") {
+      response.headers.set("Clear-Site-Data", '"cache"');
+      response.headers.set("Cache-Control", "no-store");
+    }
     return response;
   });
 }

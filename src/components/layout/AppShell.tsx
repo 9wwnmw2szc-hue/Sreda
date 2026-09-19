@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useBusinessContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Brand } from "@/components/ui/Brand";
+import { SignOutButton } from "@/components/account/SignOutButton";
 import { MOBILE_BOTTOM_NAV } from "@/config/navigation";
 import type { User } from "@/types";
 
@@ -31,8 +32,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { user, currentBusiness } = useBusinessContext();
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const menu = useRef<HTMLDialogElement>(null);
   const createRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -57,13 +60,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   }, [open]);
 
   useEffect(() => {
-    if (!createOpen) return;
+    if (!createOpen && !profileOpen) return;
     const onDoc = (e: MouseEvent) => {
-      if (!createRef.current?.contains(e.target as Node)) setCreateOpen(false);
+      if (
+        createOpen &&
+        createRef.current &&
+        !createRef.current.contains(e.target as Node)
+      ) {
+        setCreateOpen(false);
+      }
+      if (
+        profileOpen &&
+        profileRef.current &&
+        !profileRef.current.contains(e.target as Node)
+      ) {
+        setProfileOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [createOpen]);
+  }, [createOpen, profileOpen]);
 
   const role = currentBusiness?.role;
   const roleLabel =
@@ -103,16 +119,45 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
               <BarChart3 size={20} strokeWidth={1.7} />
             </Link>
             <NotificationBell />
-            <Link href="/settings" className="desktop-profile">
-              <span className="profile-avatar" aria-hidden>
-                {user.name.slice(0, 1)}
-              </span>
-              <span className="desktop-profile__meta">
-                <strong>{user.name}</strong>
-                <small>{roleLabel}</small>
-              </span>
-              <ChevronDown size={16} aria-hidden />
-            </Link>
+            <div className="profile-menu" ref={profileRef}>
+              <button
+                type="button"
+                className="desktop-profile"
+                aria-expanded={profileOpen}
+                aria-haspopup="menu"
+                aria-label="Меню профиля"
+                onClick={() => setProfileOpen((v) => !v)}
+              >
+                <span className="profile-avatar" aria-hidden>
+                  {user.name.slice(0, 1)}
+                </span>
+                <span className="desktop-profile__meta">
+                  <strong>{user.name}</strong>
+                  <small>{roleLabel}</small>
+                </span>
+                <ChevronDown size={16} aria-hidden />
+              </button>
+              {profileOpen && (
+                <ul className="profile-menu__panel" role="menu">
+                  <li role="none">
+                    <Link
+                      href="/settings"
+                      role="menuitem"
+                      className="profile-menu__item"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      Настройки
+                    </Link>
+                  </li>
+                  <li role="none" className="profile-menu__sign-out">
+                    <SignOutButton
+                      variant="menu"
+                      onSignedOut={() => setProfileOpen(false)}
+                    />
+                  </li>
+                </ul>
+              )}
+            </div>
             <div className="create-menu" ref={createRef}>
               <button
                 type="button"
