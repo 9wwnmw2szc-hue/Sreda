@@ -162,17 +162,19 @@ function Inbox({
     }
   }
   return (
-    <div>
-      <h1>Сообщения</h1>
-      <p>Бесплатный inbox · до 300 сообщений в месяц на бизнес.</p>
+    <div className="messages-page page-container">
+      <header className="page-header">
+        <h1 className="text-page-title">Сообщения</h1>
+        <p className="text-body-sm">Бесплатный inbox · до 300 сообщений в месяц на бизнес.</p>
+      </header>
       <SolutionSetupBanner code="admin_messages" />
       {error && (
-        <p role="alert" className="account-error">
+        <p role="alert" className="account-error account-toast">
           {error}
         </p>
       )}
-      <div className="crm-columns">
-        <section className="panel crm-panel">
+      <div className="crm-columns messages-split">
+        <section className="panel crm-panel messages-list">
           <nav aria-label="Страницы диалогов">
             <button disabled={!page} onClick={() => setPage(page - 1)}>
               Предыдущая
@@ -185,9 +187,10 @@ function Inbox({
               Следующая
             </button>
           </nav>
-          <label>
-            Статус
+          <label className="field">
+            <span className="field__label">Статус</span>
             <select
+              className="field__control"
               value={filter}
               onChange={(e) => {
                 setFilter(e.target.value);
@@ -252,12 +255,12 @@ function Inbox({
             </ul>
           )}
         </section>
-        <section className="panel crm-panel">
+        <section className="panel crm-panel messages-thread">
           {!selected ? (
-            <p>Выберите диалог.</p>
+            <p className="text-body-sm">Выберите диалог.</p>
           ) : (
             <>
-              <h2>
+              <h2 className="text-section-title">
                 {current?.clientName ||
                   current?.externalUsername ||
                   current?.externalUserId ||
@@ -270,14 +273,14 @@ function Inbox({
               ) : null}
               <div className="message-actions">
                 <button
-                  className="button button--primary"
+                  className="button button--primary button--sm"
                   disabled={busy}
                   onClick={() => void status("assigned")}
                 >
                   Взять в работу
                 </button>
                 <button
-                  className="button button--outline"
+                  className="button button--outline button--sm"
                   disabled={busy}
                   onClick={() => void status("closed")}
                 >
@@ -333,14 +336,16 @@ function Inbox({
                 ))}
               </div>
               <form
+                className="message-composer"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void send();
                 }}
               >
-                <label>
-                  Ответ клиенту
+                <label className="field field-full">
+                  <span className="field__label">Ответ клиенту</span>
                   <textarea
+                    className="field__control message-composer__input"
                     required={!files.length}
                     maxLength={4000}
                     value={text}
@@ -351,24 +356,26 @@ function Inbox({
                     }}
                   />
                 </label>
-                <AttachmentPicker
-                  businessId={businessId}
-                  files={files}
-                  onChange={(v) => {
-                    setFiles(v);
-                    requestKey.current = "";
-                  }}
-                  disabled={busy}
-                  onBusy={setUploading}
-                />
-                <button
-                  className="button button--primary"
-                  disabled={
-                    busy || uploading || (!text.trim() && !files.length)
-                  }
-                >
-                  Отправить
-                </button>
+                <div className="message-composer__actions">
+                  <AttachmentPicker
+                    businessId={businessId}
+                    files={files}
+                    onChange={(v) => {
+                      setFiles(v);
+                      requestKey.current = "";
+                    }}
+                    disabled={busy}
+                    onBusy={setUploading}
+                  />
+                  <button
+                    className="button button--primary"
+                    disabled={
+                      busy || uploading || (!text.trim() && !files.length)
+                    }
+                  >
+                    Отправить
+                  </button>
+                </div>
               </form>
             </>
           )}

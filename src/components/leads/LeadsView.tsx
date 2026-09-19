@@ -220,43 +220,28 @@ function LeadList({ businessId }: { businessId: string }) {
   }
   return (
     <>
-      <section className="panel leads-toolbar">
-        <label>
-          Поиск
+      <section className="panel filter-grid leads-toolbar" aria-label="Фильтры заявок">
+        <label className="field filter-grid__search">
+          <span className="field__label">Поиск</span>
           <input
+            className="field__control"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Имя или телефон"
           />
         </label>
-        <label>
-          Источник
-          <select value={source} onChange={(e) => setSource(e.target.value)}>
+        <label className="field">
+          <span className="field__label">Источник</span>
+          <select className="field__control" value={source} onChange={(e) => setSource(e.target.value)}>
             <option value="">Все</option>
             <option value="telegram">Telegram</option>
             <option value="vk">VK</option>
           </select>
         </label>
-        <label>
-          С даты
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label>
-          До даты
-          <input
-            type="date"
-            value={until}
-            onChange={(e) => setUntil(e.target.value)}
-          />
-          <span className="field-hint">Не включая выбранный день</span>
-        </label>
-        <label htmlFor="lead-filter">
-          Статус
+        <label className="field" htmlFor="lead-filter">
+          <span className="field__label">Статус</span>
           <select
+            className="field__control"
             id="lead-filter"
             value={filter}
             disabled={busy || moreBusy}
@@ -276,13 +261,34 @@ function LeadList({ businessId }: { businessId: string }) {
             <option value="closed">Закрытые</option>
           </select>
         </label>
-        <button
-          className="button button--outline"
-          disabled={busy || moreBusy}
-          onClick={refresh}
-        >
-          Обновить
-        </button>
+        <label className="field">
+          <span className="field__label">С даты</span>
+          <input
+            className="field__control"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">До даты</span>
+          <input
+            className="field__control"
+            type="date"
+            value={until}
+            onChange={(e) => setUntil(e.target.value)}
+          />
+          <span className="field-hint">Не включая выбранный день</span>
+        </label>
+        <div className="filter-grid__action">
+          <button
+            className="button button--outline"
+            disabled={busy || moreBusy}
+            onClick={refresh}
+          >
+            Обновить
+          </button>
+        </div>
       </section>
       {isDemoMode && (
         <p className="account-footnote">
@@ -348,7 +354,7 @@ function LeadList({ businessId }: { businessId: string }) {
               ))}
             </ul>
           ) : (
-            <div className="empty-state">
+            <div className="empty-state empty-state--compact">
               {filter === "all" ? (
                 <EmptyStateCta
                   title="Заявок пока нет"
