@@ -26,7 +26,7 @@ export function DashboardAiHint({
       </div>
       <div className="soty-ai__body">
         <h2 id="soty-ai-title">
-          {fromContext ? "Подсказка по настройке" : "Идея для продвижения"}
+          {fromContext ? "💡 Подсказка по настройке" : "✨ Идея для продвижения"}
         </h2>
         <p>{text}</p>
         <div className="soty-ai__actions">

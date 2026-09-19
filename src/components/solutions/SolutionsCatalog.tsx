@@ -139,7 +139,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       </p>
       {hint && (
         <p className="account-notice" role="status">
-          {hint} Это подсказка — любые решения можно подключить вручную.
+          💡 {hint} Это подсказка — любые решения можно подключить вручную.
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
