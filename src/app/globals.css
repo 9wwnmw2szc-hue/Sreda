@@ -4212,6 +4212,17 @@ ul {
   flex: auto;
   max-width: none;
 }
+.sidebar__switcher .business-switcher__name {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  font-size: 13px;
+}
 
 .sidebar__plan {
   display: flex;
