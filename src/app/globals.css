@@ -6365,16 +6365,19 @@ a.soty-activity__row {
   }
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 900px) {
   .filter-grid {
     grid-template-columns:
       minmax(0, 2fr)
       minmax(0, 1fr)
-      minmax(0, 1.1fr)
-      auto;
+      minmax(0, 1.1fr);
   }
   .filter-grid__search {
     grid-column: auto;
+  }
+  .filter-grid__action {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
   .filter-grid__action .button {
     width: auto;
@@ -6382,7 +6385,7 @@ a.soty-activity__row {
   }
 }
 
-@media (min-width: 1360px) {
+@media (min-width: 1280px) {
   .filter-grid {
     grid-template-columns:
       minmax(0, 2.2fr)
@@ -6391,6 +6394,9 @@ a.soty-activity__row {
       minmax(0, 0.9fr)
       minmax(0, 0.9fr)
       auto;
+  }
+  .filter-grid__action {
+    grid-column: auto;
   }
 }
 
