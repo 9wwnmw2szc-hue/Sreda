@@ -1,22 +1,33 @@
 import { chromium } from "playwright";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 
 const base =
   process.env.AUDIT_BASE_URL ?? "https://web-production-1aace.up.railway.app";
 const out =
   process.env.AUDIT_OUTPUT ??
-  "/opt/cursor/artifacts/screenshots/visual-polish-258e";
-const username = process.env.AUDIT_USER ?? "smoke685410";
-const password = process.env.AUDIT_PASS ?? "SmokeTest2026!Aa";
+  "/opt/cursor/artifacts/screenshots/visual-audit";
+const username = process.env.AUDIT_USER;
+const password = process.env.AUDIT_PASS;
+
+if (!username || !password) {
+  console.error("Missing AUDIT_USER / AUDIT_PASS");
+  process.exit(1);
+}
 
 await mkdir(out, { recursive: true });
 
 const shots = [
   { name: "dashboard-mobile-dark", route: "/dashboard", w: 390, h: 844, theme: "dark" },
+  { name: "dashboard-mobile-light", route: "/dashboard", w: 390, h: 844, theme: "light" },
+  { name: "dashboard-desktop-dark", route: "/dashboard", w: 1440, h: 900, theme: "dark" },
+  { name: "dashboard-desktop-light", route: "/dashboard", w: 1440, h: 900, theme: "light" },
   { name: "orders-mobile-dark", route: "/orders", w: 390, h: 844, theme: "dark" },
   { name: "leads-mobile-dark", route: "/leads", w: 390, h: 844, theme: "dark" },
   { name: "messages-mobile-dark", route: "/messages", w: 390, h: 844, theme: "dark" },
   { name: "notifications-mobile-dark", route: "/notifications", w: 390, h: 844, theme: "dark" },
+  { name: "bookings-mobile-dark", route: "/bookings", w: 390, h: 844, theme: "dark" },
+  { name: "solutions-mobile-dark", route: "/solutions", w: 390, h: 844, theme: "dark" },
+  { name: "analytics-mobile-dark", route: "/analytics", w: 390, h: 844, theme: "dark" },
   {
     name: "drawer-mobile-dark",
     route: "/dashboard",
@@ -25,8 +36,6 @@ const shots = [
     theme: "dark",
     drawer: true,
   },
-  { name: "dashboard-desktop-dark", route: "/dashboard", w: 1440, h: 900, theme: "dark" },
-  { name: "dashboard-desktop-light", route: "/dashboard", w: 1440, h: 900, theme: "light" },
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -41,7 +50,7 @@ try {
     headers: { origin: base, "content-type": "application/json" },
   });
   if (!signIn.ok()) {
-    throw new Error(`sign-in failed: ${signIn.status()} ${await signIn.text()}`);
+    throw new Error(`sign-in failed: ${signIn.status()}`);
   }
   const storage = await login.storageState();
   await login.close();
@@ -62,29 +71,35 @@ try {
       waitUntil: "networkidle",
       timeout: 60000,
     });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     await page.evaluate((theme) => {
       document.documentElement.setAttribute("data-theme", theme);
       localStorage.setItem("soty.theme", theme);
     }, shot.theme);
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(200);
     if (shot.drawer) {
       const more = page.locator("nav.mobile-bottom-nav button[aria-expanded]");
       if (await more.count()) {
         await more.first().click();
-        await page.waitForTimeout(400);
+        await page.waitForTimeout(350);
       }
     }
-    const path = `${out}/${shot.name}.png`;
+    const file = `${shot.name}.png`;
+    const path = `${out}/${file}`;
     await page.screenshot({ path, fullPage: false });
+    const overflowX = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    );
     report.push({
-      ...shot,
+      route: shot.route,
+      viewport: { width: shot.w, height: shot.h },
+      theme: shot.theme,
       status: res?.status() ?? 0,
-      path,
       url: page.url(),
-      themeAttr: await page.evaluate(() =>
-        document.documentElement.getAttribute("data-theme"),
-      ),
+      overflowX,
+      screenshot: file,
     });
     await context.close();
   }
@@ -92,13 +107,22 @@ try {
   await browser.close();
 }
 
-await import("node:fs/promises").then(({ writeFile }) =>
-  writeFile(`${out}/report.json`, JSON.stringify(report, null, 2)),
+await writeFile(`${out}/report.json`, JSON.stringify(report, null, 2));
+console.log(JSON.stringify({ ok: true, count: report.length, out }, null, 2));
+
+const bad = report.filter(
+  (r) => r.status >= 400 || /\/login/.test(r.url) || r.overflowX,
 );
-console.log(JSON.stringify(report, null, 2));
-const bad = report.filter((r) => r.status >= 400 || /\/login/.test(r.url));
 if (bad.length) {
-  console.error("CAPTURE_ISSUES", bad.map((b) => b.name));
+  console.error(
+    "CAPTURE_ISSUES",
+    bad.map((b) => ({
+      screenshot: b.screenshot,
+      status: b.status,
+      login: /\/login/.test(b.url),
+      overflowX: b.overflowX,
+    })),
+  );
   process.exit(1);
 }
-console.log("CAPTURE_OK", out);
+console.log("CAPTURE_OK");

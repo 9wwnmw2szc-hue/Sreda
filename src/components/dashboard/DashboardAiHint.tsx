@@ -14,9 +14,10 @@ export function DashboardAiHint({
   secondaryHref?: string;
   secondaryLabel?: string;
 }) {
+  const fromContext = Boolean(hint?.trim());
   const text =
     hint?.trim() ||
-    "Подготовьте короткий пост о сегодняшней акции — клиенты чаще отвечают на живые новости.";
+    "Короткий пост о новинке или акции помогает клиентам быстрее откликнуться.";
 
   return (
     <section className="soty-ai" aria-labelledby="soty-ai-title">
@@ -24,7 +25,9 @@ export function DashboardAiHint({
         <Sparkles size={22} strokeWidth={1.7} />
       </div>
       <div className="soty-ai__body">
-        <h2 id="soty-ai-title">AI-помощник</h2>
+        <h2 id="soty-ai-title">
+          {fromContext ? "Подсказка по настройке" : "Идея для продвижения"}
+        </h2>
         <p>{text}</p>
         <div className="soty-ai__actions">
           <Link href={primaryHref} className="button button--primary button--sm">
