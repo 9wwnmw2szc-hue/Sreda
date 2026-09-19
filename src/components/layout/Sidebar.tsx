@@ -7,6 +7,7 @@ import { Brand } from "@/components/ui/Brand";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
 import { APP_NAME } from "@/config/brand";
+import { SignOutButton } from "@/components/account/SignOutButton";
 
 export function Sidebar({
   onClose,
@@ -81,6 +82,9 @@ export function Sidebar({
             <small>Условия и возможности роста</small>
           </span>
         </Link>
+        <div className="sidebar__sign-out">
+          <SignOutButton variant="sidebar" onSignedOut={onClose} />
+        </div>
         <small className="sidebar__copy">
           {APP_NAME} © {new Date().getFullYear()}
         </small>

@@ -48,7 +48,7 @@ export function SettingsView() {
             </div>
           )}
         </dl>
-        {!isDemoMode && <SignOutButton />}
+        {!isDemoMode && <SignOutButton variant="ghost" />}
       </section>
       {!isDemoMode && <PasswordChangePanel />}
       {!isDemoMode && <PinPanel />}

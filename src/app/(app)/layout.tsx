@@ -6,6 +6,15 @@ import { isDemoMode } from "@/lib/dataMode";
 import { mockUser } from "@/mocks/user";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  return {
+    other: {
+      "Cache-Control": "private, no-store",
+    },
+  };
+}
+
 export default async function AppLayout({
   children,
 }: {

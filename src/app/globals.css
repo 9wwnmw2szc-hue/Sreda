@@ -6950,3 +6950,179 @@ a.soty-activity__row {
   min-height: 44px;
   padding-block: 4px;
 }
+
+/* ===== Sign out / profile menu ===== */
+.sign-out {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sign-out-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.sign-out-button--sidebar {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sign-out-button--sidebar:hover,
+.sign-out-button--sidebar:focus-visible {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  outline: none;
+}
+
+.sign-out-button--menu {
+  width: 100%;
+  color: var(--danger);
+}
+
+.sign-out-button--menu:hover,
+.sign-out-button--menu:focus-visible {
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-elevated));
+  color: var(--danger);
+}
+
+.button.sign-out-button.button--ghost {
+  color: var(--text-secondary);
+  justify-content: flex-start;
+  padding-inline: 0;
+}
+
+.button.sign-out-button.button--ghost:hover {
+  color: var(--danger);
+  background: transparent;
+}
+
+.sidebar__sign-out {
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+.sidebar--mobile .sidebar__footer {
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.sidebar--mobile .sidebar__sign-out {
+  margin-top: 16px;
+}
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-menu .desktop-profile {
+  cursor: pointer;
+  background: var(--bg-elevated);
+  font: inherit;
+}
+
+.profile-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 14px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-menu__item {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: var(--font-size-label);
+  font-weight: 550;
+}
+
+.profile-menu__item:hover,
+.profile-menu__item:focus-visible {
+  background: var(--bg-page);
+  outline: none;
+}
+
+.profile-menu__sign-out {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.profile-menu__sign-out .sign-out {
+  width: 100%;
+}
+
+.sign-out-dialog {
+  border: 0;
+  padding: 0;
+  border-radius: 18px;
+  background: transparent;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.sign-out-dialog::backdrop {
+  background: rgba(18, 24, 38, 0.45);
+}
+
+.sign-out-dialog__inner {
+  display: grid;
+  gap: var(--space-3);
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+}
+
+.sign-out-dialog__inner h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.sign-out-dialog__inner p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body);
+}
+
+.sign-out-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.sign-out-dialog__confirm {
+  min-width: 108px;
+}
+
+.settings-panel .sign-out {
+  margin-top: 8px;
+}
