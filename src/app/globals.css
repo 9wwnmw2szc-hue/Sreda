@@ -5946,3 +5946,41 @@ body {
     box-shadow: none;
   }
 }
+
+/* Activity rows as links */
+a.soty-activity__row {
+  text-decoration: none;
+  color: inherit;
+}
+
+.soty-hive__pattern {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  width: min(42%, 240px);
+  height: auto;
+  color: var(--brand-primary);
+  pointer-events: none;
+}
+
+@media (max-width: 1099px) {
+  .soty-ai {
+    padding: 14px;
+  }
+  .soty-ai__body > p {
+    font-size: 13px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .soty-quick__btn {
+    min-height: 52px;
+  }
+  .soty-kpi-card {
+    padding: 12px 14px;
+  }
+  .soty-kpi-card__value {
+    font-size: 1.2rem;
+  }
+}

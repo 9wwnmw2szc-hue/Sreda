@@ -371,16 +371,34 @@ export function DashboardView() {
                 <SolutionCards items={data.workspaceItems} />
               </section>
               <div className="soty-panels">
-                <ActivityFeed
-                  leads={data.leads}
-                  onSelectLead={(item) => show({ type: "lead", item })}
-                />
+                {data.businessId ? (
+                  <ActivityFeed businessId={data.businessId} />
+                ) : null}
                 {data.businessId ? (
                   <TodaySchedule businessId={data.businessId} />
                 ) : null}
               </div>
-              <aside className="soty-hive" aria-label="Живые соты">
+              <aside className="soty-hive desktop-only" aria-label="Живые соты">
                 <div className="soty-hive__glow" aria-hidden />
+                <svg
+                  className="soty-hive__pattern"
+                  viewBox="0 0 240 120"
+                  aria-hidden
+                >
+                  <g
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    opacity="0.35"
+                  >
+                    <path d="M40 20 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                    <path d="M76 40 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                    <path d="M112 20 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                    <path d="M148 40 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                    <path d="M184 20 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                    <path d="M112 60 l18 10 v20 l-18 10 l-18-10 v-20 z" />
+                  </g>
+                </svg>
                 <div className="soty-hive__copy">
                   <strong>Живые соты</strong>
                   <p>

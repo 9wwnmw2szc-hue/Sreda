@@ -17,14 +17,15 @@ type Action = {
   desktopOnly?: boolean;
 };
 
+/** Labels match navigation (no create-flow query params exist yet). */
 const ACTIONS: Action[] = [
-  { href: "/orders", label: "Новый заказ", tone: "orders", Icon: ShoppingBag },
-  { href: "/leads", label: "Новая заявка", tone: "leads", Icon: Inbox },
+  { href: "/orders", label: "Заказы", tone: "orders", Icon: ShoppingBag },
+  { href: "/leads", label: "Заявки", tone: "leads", Icon: Inbox },
   { href: "/bookings", label: "Запись", tone: "booking", Icon: CalendarDays },
-  { href: "/posts", label: "Пост", tone: "autopost", Icon: PencilLine },
+  { href: "/posts", label: "Посты", tone: "autopost", Icon: PencilLine },
   {
     href: "/messages",
-    label: "Сообщение",
+    label: "Сообщения",
     tone: "messages",
     Icon: MessageCircle,
     desktopOnly: true,
@@ -36,7 +37,7 @@ export function QuickActions() {
     <section className="soty-quick" aria-labelledby="soty-quick-title">
       <div className="soty-section-head">
         <h2 id="soty-quick-title">Быстрые действия</h2>
-        <p>Частые задачи — в один тап</p>
+        <p>Переход к основным разделам</p>
       </div>
       <ul className="soty-quick__grid">
         {ACTIONS.map(({ href, label, tone, Icon, desktopOnly }) => (
