@@ -24,14 +24,14 @@ export function SettingsView() {
     error,
   } = useBusinessContext();
   return (
-    <div className="settings-page">
-      <header>
+    <div className="settings-page page-container">
+      <header className="page-header">
         <span className="eyebrow">Ваше пространство</span>
-        <h1>Настройки</h1>
+        <h1 className="text-page-title">Настройки</h1>
       </header>
       <ThemeAppearancePanel />
-      <section className="panel">
-        <h2>Аккаунт</h2>
+      <section className="panel settings-panel">
+        <h2 className="text-section-title">Аккаунт</h2>
         <dl>
           <div>
             <dt>Имя</dt>

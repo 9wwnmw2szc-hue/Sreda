@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Paperclip, X } from "lucide-react";
 import { apiRequest } from "@/lib/apiClient";
 export type FileItem = { id: string; filename: string; type: string };
 export function AttachmentPicker({
@@ -17,6 +18,7 @@ export function AttachmentPicker({
   disabled?: boolean;
   onBusy?: (busy: boolean) => void;
 }) {
+  const inputId = useId();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   async function upload(file: File) {
@@ -54,42 +56,52 @@ export function AttachmentPicker({
     }
   }
   return (
-    <div>
-      <label>
-        Вложения
-        <input
-          type="file"
-          accept={
-            mediaOnly
-              ? "image/jpeg,image/png,image/webp,video/mp4,video/webm"
-              : "image/jpeg,image/png,image/webp,video/mp4,video/webm,audio/ogg,audio/mpeg,application/pdf,text/plain"
-          }
-          disabled={disabled || busy || files.length >= 10}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void upload(file);
-          }}
-        />
+    <div className="attachment-picker">
+      <input
+        id={inputId}
+        className="attachment-picker__input"
+        type="file"
+        accept={
+          mediaOnly
+            ? "image/jpeg,image/png,image/webp,video/mp4,video/webm"
+            : "image/jpeg,image/png,image/webp,video/mp4,video/webm,audio/ogg,audio/mpeg,application/pdf,text/plain"
+        }
+        disabled={disabled || busy || files.length >= 10}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void upload(file);
+        }}
+      />
+      <label htmlFor={inputId} className="button button--outline button--sm attachment-picker__trigger">
+        <Paperclip size={16} strokeWidth={1.8} aria-hidden />
+        {busy ? "Загрузка…" : "Прикрепить файл"}
       </label>
-      {busy && <p role="status">Загрузка файла…</p>}
-      {error && <p role="alert">{error}</p>}
-      <ul>
-        {files.map((f) => (
-          <li key={f.id}>
-            <a href={`/api/v1/businesses/${businessId}/attachments/${f.id}`}>
-              {f.filename}
-            </a>{" "}
-            <button
-              type="button"
-              disabled={disabled || busy}
-              onClick={() => onChange(files.filter((x) => x.id !== f.id))}
-            >
-              Убрать
-            </button>
-          </li>
-        ))}
-      </ul>
+      {error && (
+        <p role="alert" className="account-error">
+          {error}
+        </p>
+      )}
+      {files.length > 0 && (
+        <ul className="attachment-picker__chips">
+          {files.map((f) => (
+            <li key={f.id} className="attachment-chip">
+              <a href={`/api/v1/businesses/${businessId}/attachments/${f.id}`}>
+                {f.filename}
+              </a>
+              <button
+                type="button"
+                className="attachment-chip__remove"
+                aria-label={`Убрать ${f.filename}`}
+                disabled={disabled || busy}
+                onClick={() => onChange(files.filter((x) => x.id !== f.id))}
+              >
+                <X size={14} strokeWidth={2} aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

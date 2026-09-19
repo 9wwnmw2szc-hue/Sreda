@@ -394,7 +394,7 @@ export function AutoSchedulePanel({
 
       {mode === "automatic" ? (
         <>
-          <div className="auto-schedule__days">
+          <div className="auto-schedule__days schedule-grid">
             {WEEKDAY_ORDER.map((d) => {
               const day = week[d]!;
               return (
