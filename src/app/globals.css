@@ -2434,17 +2434,17 @@ ul {
 [data-theme="dark"] .catalog-card__art {
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.08) 100%
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.12) 100%
   );
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.24);
   box-shadow:
     0 10px 22px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 [data-theme="dark"] .catalog-card__art img {
   opacity: 1 !important;
-  filter: saturate(1.2) contrast(1.1) brightness(1.1) !important;
+  filter: saturate(1.22) contrast(1.12) brightness(1.14) !important;
 }
 .catalog-card__body {
   display: flex;
@@ -5205,19 +5205,19 @@ input[type="time"] {
 [data-theme="dark"] .soty-solution-card__art {
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.07) 100%
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.1) 100%
   );
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
   box-shadow:
     0 8px 20px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
 }
 
 [data-theme="dark"] .soty-solution-card__art img {
   opacity: 1 !important;
-  filter: saturate(1.2) contrast(1.1) brightness(1.1) !important;
+  filter: saturate(1.22) contrast(1.12) brightness(1.14) !important;
 }
 
 @media (max-width: 699px) {
@@ -6053,13 +6053,13 @@ body {
 [data-theme="dark"] .soty-solution-card__art {
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.16) 0%,
-    rgba(255, 255, 255, 0.08) 100%
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.12) 100%
   );
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.24);
   box-shadow:
     0 10px 22px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 /* Shell / drawer / bottom nav polish */
