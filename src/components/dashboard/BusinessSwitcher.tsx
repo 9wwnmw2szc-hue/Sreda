@@ -18,7 +18,7 @@ export function BusinessSwitcher({
   return (
     <label className="business-switcher">
       <span className="business-switcher__icon" aria-hidden>
-        <Building2 size={18} strokeWidth={1.7} />
+        <Building2 size={16} strokeWidth={1.7} />
       </span>
       <span className="business-switcher__meta">
         <small aria-hidden>Мой бизнес</small>
@@ -41,7 +41,11 @@ export function BusinessSwitcher({
           ))}
         </select>
       </span>
-      <ChevronDown size={16} aria-hidden />
+      <ChevronDown
+        className="business-switcher__chevron"
+        size={16}
+        aria-hidden
+      />
     </label>
   );
 }
