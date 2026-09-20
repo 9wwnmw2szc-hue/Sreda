@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
@@ -15,8 +16,10 @@ import { PinPanel } from "./PinPanel";
 import { ChannelAdminPanel } from "./ChannelAdminPanel";
 import { ThemeAppearancePanel } from "@/components/theme/ThemeAppearancePanel";
 import { AccountDeletionPanel } from "./AccountDeletionPanel";
+import { BusinessDeletionPanel } from "./BusinessDeletionPanel";
 
 export function SettingsView() {
+  const router = useRouter();
   const {
     user,
     currentBusiness,
@@ -25,6 +28,17 @@ export function SettingsView() {
     refreshBusinesses,
     error,
   } = useBusinessContext();
+
+  async function handleBusinessDeleted() {
+    const remaining = businesses.filter((b) => b.id !== currentBusiness?.id);
+    await refreshBusinesses(remaining[0]?.id);
+    if (remaining.length === 0) {
+      router.replace("/business/new");
+      return;
+    }
+    if (remaining[0]) setCurrentBusinessId(remaining[0].id);
+  }
+
   return (
     <div className="settings-page page-container">
       <header className="page-header">
@@ -32,8 +46,9 @@ export function SettingsView() {
         <h1 className="text-page-title">Настройки</h1>
       </header>
       <ThemeAppearancePanel />
+
       <section className="panel settings-panel">
-        <h2 className="text-section-title">Аккаунт</h2>
+        <h2 className="text-section-title">Данные аккаунта</h2>
         <dl>
           <div>
             <dt>Имя</dt>
@@ -50,11 +65,30 @@ export function SettingsView() {
             </div>
           )}
         </dl>
-        {!isDemoMode && <SignOutButton variant="ghost" />}
       </section>
-      {!isDemoMode && <PasswordChangePanel />}
-      {!isDemoMode && <PinPanel />}
-      {!isDemoMode && <RecoveryCodesPanel />}
+
+      {!isDemoMode && (
+        <section className="settings-security-group" aria-label="Безопасность">
+          <h2 className="settings-group-title text-section-title">
+            Безопасность
+          </h2>
+          <PasswordChangePanel />
+          <PinPanel />
+          <RecoveryCodesPanel />
+        </section>
+      )}
+
+      {!isDemoMode && (
+        <section className="panel settings-panel settings-sign-out-panel">
+          <h2 className="text-section-title">Сессия</h2>
+          <p className="account-footnote">
+            Завершает текущую сессию на этом устройстве. Бизнесы и данные
+            аккаунта не удаляются.
+          </p>
+          <SignOutButton variant="ghost" />
+        </section>
+      )}
+
       <section className="panel">
         <h2>Вход по коду</h2>
         <p>
@@ -79,6 +113,7 @@ export function SettingsView() {
           Подключение ботов и доставка кодов появятся на этапе интеграций.
         </p>
       </section>
+
       <section className="panel">
         <h2>Бизнесы</h2>
         {error && (
@@ -125,6 +160,7 @@ export function SettingsView() {
           </div>
         </dl>
       </section>
+
       {!isDemoMode && currentBusiness && (
         <IndustrySetupCard
           key={`industry:${currentBusiness.id}`}
@@ -159,6 +195,18 @@ export function SettingsView() {
           business={currentBusiness}
         />
       )}
+
+      {!isDemoMode &&
+        currentBusiness &&
+        currentBusiness.role === "owner" && (
+          <BusinessDeletionPanel
+            key={`biz-delete:${currentBusiness.id}`}
+            businessId={currentBusiness.id}
+            businessName={currentBusiness.name}
+            onDeleted={handleBusinessDeleted}
+          />
+        )}
+
       {!isDemoMode && <AccountDeletionPanel />}
     </div>
   );

@@ -248,6 +248,16 @@ export interface Database
     consumed_at: Date | null;
     created_at: Generated<Date>;
   };
+  business_deletion_request: {
+    id: string;
+    business_id: string;
+    user_id: string;
+    token_hash: string;
+    impact_snapshot: Generated<unknown>;
+    expires_at: Date;
+    consumed_at: Date | null;
+    created_at: Generated<Date>;
+  };
   business: {
     id: string;
     public_id: string;

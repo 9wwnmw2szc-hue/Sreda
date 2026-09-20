@@ -7,7 +7,7 @@ import { ordersFlow } from "./orders-flow.ts";
 import type { Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { validateSetup } from "../solutions/service.ts";
-import { normalizeSolutionCode } from "../solutions/catalog.ts";
+import { getAvailableCustomerActions } from "../solutions/customer-actions.ts";
 import { createLead } from "../leads/service.ts";
 import { CommunicationService } from "../communications/service.ts";
 import { normalizeIdentity } from "../clients/service.ts";
@@ -44,38 +44,18 @@ export async function routeBot(
     .where("id", "=", businessId)
     .forUpdate()
     .executeTakeFirstOrThrow();
-  const active = await tx
-    .selectFrom("business_solution")
-    .select("solution_code")
-    .where("business_id", "=", businessId)
-    .where("status", "in", ["active", "trial"])
-    .where((eb) =>
-      eb.or([eb("expires_at", "is", null), eb("expires_at", ">", new Date())]),
-    )
-    .execute();
+  if (b.archived_at) {
+    return;
+  }
+  const available = await getAvailableCustomerActions(tx, businessId, platform);
   const setup = await tx
     .selectFrom("lead_setup")
     .select("draft")
     .where("business_id", "=", businessId)
     .executeTakeFirst();
   const config = setup ? validateSetup(JSON.parse(setup.draft)) : undefined;
-  const codes = new Set(
-    active.map((x) => normalizeSolutionCode(x.solution_code)),
-  );
-  const ordersActive = codes.has("orders");
   const brand = b.public_name || b.name;
-  const menu = [
-    ...(codes.has("leads") &&
-    config?.step === 3 &&
-    config?.channels.includes(platform)
-      ? [config.title || "Оставить заявку"]
-      : []),
-    ...(ordersActive ? ["Каталог", "Корзина"] : []),
-    ...(codes.has("admin_messages")
-      ? ["Связаться с администратором"]
-      : []),
-    ...(codes.has("booking") ? ["Записаться", "Мои записи"] : []),
-  ];
+  const menu = [...available.labels];
   const queuePart = async (message: string, buttons: string[] = []) => {
     const value = {
       connection_id: connectionId,
@@ -139,6 +119,10 @@ export async function routeBot(
       .execute();
   };
   const showMenu = async (message?: string) => {
+    // Always re-resolve so disabled solutions disappear immediately.
+    const fresh = await getAvailableCustomerActions(tx, businessId, platform);
+    menu.length = 0;
+    menu.push(...fresh.labels);
     await save("menu");
     const welcome =
       (b.greeting && b.greeting.trim()) ||
@@ -154,6 +138,11 @@ export async function routeBot(
             ? "\n\nЧем можем помочь?"
             : "\n\nПриём обращений пока не настроен. Напишите сообщение — передам команде."),
       menu,
+    );
+  };
+  const denyDisabled = async (label: string) => {
+    await showMenu(
+      `${label} сейчас недоступно для этого бизнеса. Выберите другое действие.`,
     );
   };
   const notifyCode =
@@ -191,14 +180,48 @@ export async function routeBot(
     await showMenu("Действие отменено. Выберите действие.");
     return;
   }
-  const startLead =
-    text === (config?.title || "Оставить заявку") || text === "/lead";
-  const contactAdmin =
-    text === "Связаться с администратором" ||
-    text === "Связаться с администрацией" ||
-    text === "Связаться с магазином";
+  const intended = available.match(text);
+  const startLead = intended === "leads" || text === "/lead";
+  const contactAdmin = intended === "admin_messages";
+
+  // Stale callbacks / labels for disabled solutions must not run.
+  if (
+    (text === "/lead" ||
+      text === (config?.title || "Оставить заявку") ||
+      text === available.leadTitle) &&
+    !available.has("leads")
+  ) {
+    await denyDisabled("Приём заявок");
+    return;
+  }
+  if (
+    (text === "Связаться с администратором" ||
+      text === "Связаться с администрацией" ||
+      text === "Связаться с магазином") &&
+    !available.has("admin_messages")
+  ) {
+    await denyDisabled("Связь с администратором");
+    return;
+  }
+  if (
+    (text === "Каталог" || text === "Корзина") &&
+    !available.has("orders")
+  ) {
+    await denyDisabled("Заказы");
+    return;
+  }
+  if (
+    (text === "Записаться" ||
+      text === "Мои записи" ||
+      text === "Онлайн-запись") &&
+    !available.has("booking")
+  ) {
+    await denyDisabled("Онлайн-запись");
+    return;
+  }
+
   // Explicit menu actions may switch away from an unfinished dialogue.
-  if (codes.has("booking") && !startLead && !contactAdmin) {
+  if (available.has("booking") && !startLead && !contactAdmin) {
     try {
       if (await bookingFlow(tx, input, queue)) return;
     } catch (error) {
@@ -212,11 +235,11 @@ export async function routeBot(
       return;
     }
   }
-  if (ordersActive && !startLead && !contactAdmin) {
+  if (available.has("orders") && !startLead && !contactAdmin) {
     try {
       if (
         await ordersFlow(tx, input, queue, {
-          contactShop: codes.has("admin_messages"),
+          contactShop: available.has("admin_messages"),
         })
       )
         return;
@@ -231,7 +254,7 @@ export async function routeBot(
       return;
     }
   }
-  if (contactAdmin && codes.has("admin_messages")) {
+  if (contactAdmin && available.has("admin_messages")) {
     await save("messages");
     await queue("Напишите ваш вопрос.", ["Главное меню"]);
     return;
@@ -239,7 +262,7 @@ export async function routeBot(
   if (
     !startLead &&
     current?.mode === "messages" &&
-    codes.has("admin_messages")
+    available.has("admin_messages")
   ) {
     const result = await new CommunicationService(
       tx,
@@ -259,6 +282,14 @@ export async function routeBot(
       ]);
     return;
   }
+  if (
+    !startLead &&
+    current?.mode === "messages" &&
+    !available.has("admin_messages")
+  ) {
+    await denyDisabled("Связь с администратором");
+    return;
+  }
   const ask = (snapshot: LeadSetupDraft, field: string) => {
     const option = snapshot.fieldOptions?.[field as LeadFieldId];
     return (
@@ -266,12 +297,7 @@ export async function routeBot(
       (field === "name" || option?.required ? "" : "\nМожно пропустить: /skip.")
     );
   };
-  if (
-    startLead &&
-    config?.step === 3 &&
-    config.channels.includes(platform) &&
-    codes.has("leads")
-  ) {
+  if (startLead && available.has("leads") && config) {
     const fields = ["name", ...config.fields.filter((x) => x !== "name")];
     await save("leads", fields, {}, 0, config);
     await queue(
@@ -291,7 +317,7 @@ export async function routeBot(
     await showMenu();
     return;
   }
-  if (!codes.has("leads")) {
+  if (!available.has("leads")) {
     await showMenu("Приём заявок временно недоступен.");
     return;
   }
@@ -330,10 +356,11 @@ export async function routeBot(
       answers,
     });
     await save("menu");
+    const fresh = await getAvailableCustomerActions(tx, businessId, platform);
     await queue(
       snapshot.finalMessage ||
         "Спасибо! Ваша заявка принята. Мы скоро свяжемся с вами.",
-      menu,
+      fresh.labels,
     );
     return;
   }

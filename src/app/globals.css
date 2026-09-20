@@ -4749,10 +4749,11 @@ ul {
   }
 
   .soty-solution-card__chevron {
-    position: absolute;
-    top: 12px;
-    right: 10px;
+    position: static;
+    align-self: flex-start;
+    margin-top: 2px;
     color: var(--text-muted);
+    flex: 0 0 auto;
   }
 }
 
@@ -6475,7 +6476,7 @@ a.soty-activity__row {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
-  margin-top: var(--space-1);
+  margin-top: var(--space-4);
 }
 
 .filter-grid {
@@ -7282,8 +7283,50 @@ a.soty-activity__row {
   margin-top: 8px;
 }
 
+.settings-security-group {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.settings-group-title {
+  margin: 0;
+  padding-inline: 2px;
+}
+
+.settings-sign-out-panel {
+  display: grid;
+  gap: var(--space-3);
+  height: auto;
+  min-height: 0;
+  align-content: start;
+}
+
+.settings-sign-out-panel .sign-out {
+  margin-top: 0;
+}
+
+.business-danger-zone {
+  margin-top: var(--space-2);
+  border-color: color-mix(in srgb, #b42318 28%, var(--border-default));
+}
+
+.business-danger-zone .button--danger {
+  margin-top: var(--space-3);
+}
+
+.business-deletion-impact-list {
+  margin: 0;
+  padding-left: 1.15em;
+  display: grid;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-body-sm);
+  line-height: var(--line-height-body);
+}
+
 .account-danger-zone {
-  margin-top: 28px;
+  margin-top: var(--space-2);
   border-color: color-mix(in srgb, #b42318 28%, var(--border-default));
 }
 
@@ -7349,3 +7392,89 @@ a.soty-activity__row {
     width: 100%;
   }
 }
+
+/* ===== Content / action separation (no text-over-buttons) ===== */
+.panel,
+.settings-panel,
+.catalog-card,
+.soty-solution-card,
+.solution-card,
+.connection-list li,
+.form-stack {
+  min-width: 0;
+}
+
+.catalog-card__body,
+.soty-solution-card__body,
+.solution-card__text,
+.panel > p,
+.settings-panel > p,
+.account-footnote {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.catalog-card .button,
+.catalog-card .catalog-soon,
+.soty-solution-card__status,
+.actions-row,
+.sign-out-dialog__actions,
+.form-stack .button,
+.panel > .button,
+.settings-panel > .button {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.catalog-card__body > p + .button,
+.catalog-card__body > p + .catalog-soon,
+.catalog-card__price + .button,
+.catalog-card__status + .button,
+.panel > p + .button,
+.settings-panel > p + .button,
+.account-footnote + .button,
+.account-footnote + .sign-out,
+.text-body-sm + .actions-row,
+.form-stack > p + .actions-row {
+  margin-top: var(--space-4);
+}
+
+.soty-solution-card {
+  height: auto;
+  align-content: start;
+}
+
+.soty-solution-card__body {
+  gap: var(--space-2);
+}
+
+.soty-solution-card__status {
+  margin-top: var(--space-3);
+}
+
+.catalog-card {
+  height: auto;
+  align-items: start;
+}
+
+.catalog-card .button {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 699px) {
+  .catalog-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .catalog-card__art {
+    width: 88px;
+    height: 88px;
+    justify-self: start;
+  }
+  .catalog-card__art .soty-solution-icon,
+  .catalog-card__art img {
+    width: 72px;
+    height: 72px;
+  }
+}
+
