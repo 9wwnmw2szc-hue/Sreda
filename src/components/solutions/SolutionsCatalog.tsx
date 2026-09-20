@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
@@ -20,9 +19,9 @@ import {
 } from "@/lib/productSolutions";
 import {
   solutionRoute,
-  solutionModuleAsset,
   solutionVisualCode,
 } from "@/config/solutionPresentation";
+import { SolutionIcon } from "@/components/solutions/SolutionIcon";
 import { getBusinessSolutions } from "@/services/solutions.service";
 import type { BusinessSolution, Solution, SolutionStatus } from "@/types";
 
@@ -160,14 +159,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
               className={`catalog-card catalog-card--${solutionVisualCode(solution.code)}`}
             >
               <div className="catalog-card__art">
-                <Image
-                  src={solutionModuleAsset(solution.code)}
-                  alt=""
-                  width={200}
-                  height={200}
-                  sizes="160px"
-                  unoptimized
-                />
+                <SolutionIcon solution={solution.code} variant="hero" />
               </div>
               <div className="catalog-card__body">
                 <h2>{solution.name}</h2>

@@ -1304,4 +1304,6 @@ test("solution visual codes are distinct for orders and admin_messages", async (
     solutionModuleAsset("admin_messages"),
     /module-messages\.webp$/,
   );
+  assert.equal(solutionVisualCode("sales"), "orders");
+  assert.equal(solutionModuleAsset("sales"), solutionModuleAsset("orders"));
 });
