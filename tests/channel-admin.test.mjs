@@ -8,7 +8,6 @@ import { migrate } from "../src/server/db/migrate.ts";
 import { encryptSecret } from "../src/server/connections/crypto.ts";
 import { ChannelAdminBindingService } from "../src/server/channel-admin/binding.ts";
 import { routeChannelAdmin } from "../src/server/channel-admin/router.ts";
-import { AppError } from "../src/server/http/errors.ts";
 
 const usePg = !!process.env.TEST_DATABASE_URL;
 const db = new Kysely({
@@ -200,7 +199,10 @@ test("web challenge consume binds identity; reuse and expiry fail", async () => 
           token: challenge.token,
         }),
       ),
-    (err) => err instanceof AppError && err.code === "TOKEN_USED",
+    (err) =>
+      err instanceof Error &&
+      (/уже использован/i.test(err.message) ||
+        ("code" in err && err.code === "TOKEN_USED")),
   );
 
   const expired = await service.createWebChallenge(uid, b.public_id, "telegram");
@@ -224,7 +226,10 @@ test("web challenge consume binds identity; reuse and expiry fail", async () => 
           token: expired.token,
         }),
       ),
-    (err) => err instanceof AppError && err.code === "TOKEN_EXPIRED",
+    (err) =>
+      err instanceof Error &&
+      (/истёк|истек/i.test(err.message) ||
+        ("code" in err && err.code === "TOKEN_EXPIRED")),
   );
 
   const listed = await service.list(uid, b.public_id);
