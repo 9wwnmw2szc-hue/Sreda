@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 import { AdminApiError, adminGet } from "@/components/admin/admin-api";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import {
@@ -43,35 +42,38 @@ function IntegrationsInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", "20");
-    if (q.trim()) params.set("q", q.trim());
-    if (platform) params.set("platform", platform);
-    if (status) params.set("status", status);
-    try {
-      const res = await adminGet<ListResponse>(
-        `/api/admin/integrations?${params.toString()}`,
-      );
-      setData(res);
-    } catch (e) {
-      setData(null);
-      setError(
-        e instanceof AdminApiError
-          ? e.message
-          : "Не удалось загрузить интеграции",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, q, platform, status]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      if (q.trim()) params.set("q", q.trim());
+      if (platform) params.set("platform", platform);
+      if (status) params.set("status", status);
+      try {
+        const res = await adminGet<ListResponse>(
+          `/api/admin/integrations?${params.toString()}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError
+            ? e.message
+            : "Не удалось загрузить интеграции",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, q, platform, status]);
 
   const columns: AdminColumn<IntRow>[] = [
     {
@@ -124,6 +126,7 @@ function IntegrationsInner() {
           value={q}
           aria-label="Поиск интеграций"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setQ(e.target.value);
           }}
@@ -132,6 +135,7 @@ function IntegrationsInner() {
           value={platform}
           aria-label="Платформа"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setPlatform(e.target.value);
           }}
@@ -144,6 +148,7 @@ function IntegrationsInner() {
           value={status}
           aria-label="Статус"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setStatus(e.target.value);
           }}
@@ -168,7 +173,10 @@ function IntegrationsInner() {
                 page: data.page,
                 pageSize: data.pageSize,
                 total: data.total,
-                onPage: setPage,
+                onPage: (p) => {
+                  setLoading(true);
+                  setPage(p);
+                },
               }
             : undefined
         }

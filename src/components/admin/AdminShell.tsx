@@ -49,10 +49,6 @@ export function AdminShell({
     return () => window.removeEventListener("pageshow", restore);
   }, []);
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
-
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
@@ -90,6 +86,7 @@ export function AdminShell({
                   href={item.href}
                   className={`admin-sidebar__link${active ? " is-active" : ""}`}
                   aria-current={active ? "page" : undefined}
+                  onClick={() => setSidebarOpen(false)}
                 >
                   {item.label}
                 </Link>

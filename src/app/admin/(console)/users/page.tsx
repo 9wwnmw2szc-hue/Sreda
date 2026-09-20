@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminApiError, adminGet } from "@/components/admin/admin-api";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import { StatusBadge } from "@/components/admin/StatusBadge";
@@ -35,33 +35,38 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", "20");
-    if (q.trim()) params.set("q", q.trim());
-    if (status) params.set("status", status);
-    if (adminOnly) params.set("admin", "1");
-    try {
-      const res = await adminGet<UsersResponse>(
-        `/api/admin/users?${params.toString()}`,
-      );
-      setData(res);
-    } catch (e) {
-      setData(null);
-      setError(
-        e instanceof AdminApiError ? e.message : "Не удалось загрузить пользователей",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, q, status, adminOnly]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      if (q.trim()) params.set("q", q.trim());
+      if (status) params.set("status", status);
+      if (adminOnly) params.set("admin", "1");
+      try {
+        const res = await adminGet<UsersResponse>(
+          `/api/admin/users?${params.toString()}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError
+            ? e.message
+            : "Не удалось загрузить пользователей",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, q, status, adminOnly]);
 
   const columns: AdminColumn<UserRow>[] = [
     {
@@ -126,6 +131,7 @@ export default function AdminUsersPage() {
           placeholder="Имя, логин, email, id…"
           value={q}
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setQ(e.target.value);
           }}
@@ -135,6 +141,7 @@ export default function AdminUsersPage() {
           value={status}
           aria-label="Фильтр статуса"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setStatus(e.target.value);
           }}
@@ -155,6 +162,7 @@ export default function AdminUsersPage() {
             type="checkbox"
             checked={adminOnly}
             onChange={(e) => {
+              setLoading(true);
               setPage(1);
               setAdminOnly(e.target.checked);
             }}
@@ -175,7 +183,10 @@ export default function AdminUsersPage() {
                 page: data.page,
                 pageSize: data.pageSize,
                 total: data.total,
-                onPage: setPage,
+                onPage: (p) => {
+                  setLoading(true);
+                  setPage(p);
+                },
               }
             : undefined
         }

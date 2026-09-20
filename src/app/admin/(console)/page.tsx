@@ -60,17 +60,15 @@ function DashboardInner() {
 
   useEffect(() => {
     if (!hasPermission(me, "admin.system.read")) {
-      setLoading(false);
-      setError("");
       return;
     }
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      setError("");
       try {
         const res = await adminGet<DashboardData>("/api/admin/dashboard");
-        if (!cancelled) setData(res);
+        if (cancelled) return;
+        setData(res);
+        setError("");
       } catch (e) {
         if (!cancelled) {
           setError(

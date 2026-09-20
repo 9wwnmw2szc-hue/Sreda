@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminApiError, adminGet } from "@/components/admin/admin-api";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import {
@@ -43,34 +43,37 @@ export default function AdminBusinessesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", "20");
-    if (q.trim()) params.set("q", q.trim());
-    if (status) params.set("status", status);
-    if (telegram) params.set("telegram", telegram);
-    if (vk) params.set("vk", vk);
-    try {
-      const res = await adminGet<ListResponse>(
-        `/api/admin/businesses?${params.toString()}`,
-      );
-      setData(res);
-    } catch (e) {
-      setData(null);
-      setError(
-        e instanceof AdminApiError ? e.message : "Не удалось загрузить бизнесы",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, q, status, telegram, vk]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      if (q.trim()) params.set("q", q.trim());
+      if (status) params.set("status", status);
+      if (telegram) params.set("telegram", telegram);
+      if (vk) params.set("vk", vk);
+      try {
+        const res = await adminGet<ListResponse>(
+          `/api/admin/businesses?${params.toString()}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError ? e.message : "Не удалось загрузить бизнесы",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, q, status, telegram, vk]);
 
   const columns: AdminColumn<BusinessRow>[] = [
     {
@@ -161,6 +164,7 @@ export default function AdminBusinessesPage() {
           value={q}
           aria-label="Поиск бизнесов"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setQ(e.target.value);
           }}
@@ -169,6 +173,7 @@ export default function AdminBusinessesPage() {
           value={status}
           aria-label="Статус"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setStatus(e.target.value);
           }}
@@ -182,6 +187,7 @@ export default function AdminBusinessesPage() {
           value={telegram}
           aria-label="Telegram"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setTelegram(e.target.value);
           }}
@@ -195,6 +201,7 @@ export default function AdminBusinessesPage() {
           value={vk}
           aria-label="VK"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setVk(e.target.value);
           }}
@@ -218,7 +225,10 @@ export default function AdminBusinessesPage() {
                 page: data.page,
                 pageSize: data.pageSize,
                 total: data.total,
-                onPage: setPage,
+                onPage: (p) => {
+                  setLoading(true);
+                  setPage(p);
+                },
               }
             : undefined
         }

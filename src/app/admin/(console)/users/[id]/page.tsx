@@ -65,11 +65,10 @@ export default function AdminUserDetailPage() {
   const [assignRole, setAssignRole] = useState<string>("SUPPORT");
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
       const res = await adminGet<UserDetail>(`/api/admin/users/${id}`);
       setData(res);
+      setError("");
     } catch (e) {
       setData(null);
       setError(
@@ -81,8 +80,29 @@ export default function AdminUserDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await adminGet<UserDetail>(`/api/admin/users/${id}`);
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError
+            ? e.message
+            : "Не удалось загрузить пользователя",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   async function runAction(reason: string) {
     if (!dialog) return;

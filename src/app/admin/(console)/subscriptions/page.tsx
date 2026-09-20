@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminApiError, adminGet } from "@/components/admin/admin-api";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import { StatusBadge, solutionStatusBadge } from "@/components/admin/StatusBadge";
@@ -34,34 +34,37 @@ export default function AdminSubscriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", "20");
-    if (q.trim()) params.set("q", q.trim());
-    if (status) params.set("status", status);
-    try {
-      const res = await adminGet<ListResponse>(
-        `/api/admin/subscriptions?${params.toString()}`,
-      );
-      setData(res);
-    } catch (e) {
-      setData(null);
-      setError(
-        e instanceof AdminApiError
-          ? e.message
-          : "Не удалось загрузить подписки",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, q, status]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      if (q.trim()) params.set("q", q.trim());
+      if (status) params.set("status", status);
+      try {
+        const res = await adminGet<ListResponse>(
+          `/api/admin/subscriptions?${params.toString()}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError
+            ? e.message
+            : "Не удалось загрузить подписки",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, q, status]);
 
   const columns: AdminColumn<SubRow>[] = [
     {
@@ -114,6 +117,7 @@ export default function AdminSubscriptionsPage() {
           value={q}
           aria-label="Поиск подписок"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setQ(e.target.value);
           }}
@@ -122,6 +126,7 @@ export default function AdminSubscriptionsPage() {
           value={status}
           aria-label="Статус"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setStatus(e.target.value);
           }}
@@ -146,7 +151,10 @@ export default function AdminSubscriptionsPage() {
                 page: data.page,
                 pageSize: data.pageSize,
                 total: data.total,
-                onPage: setPage,
+                onPage: (p) => {
+                  setLoading(true);
+                  setPage(p);
+                },
               }
             : undefined
         }

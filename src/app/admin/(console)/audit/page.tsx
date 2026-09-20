@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminApiError, adminGet } from "@/components/admin/admin-api";
 import { AdminDataTable, type AdminColumn } from "@/components/admin/AdminDataTable";
 import { formatDateTime } from "@/components/admin/format";
@@ -35,32 +35,35 @@ export default function AdminAuditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("pageSize", "20");
-    if (admin.trim()) params.set("admin", admin.trim());
-    if (action.trim()) params.set("action", action.trim());
-    try {
-      const res = await adminGet<ListResponse>(
-        `/api/admin/audit?${params.toString()}`,
-      );
-      setData(res);
-    } catch (e) {
-      setData(null);
-      setError(
-        e instanceof AdminApiError ? e.message : "Не удалось загрузить аудит",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [page, admin, action]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      if (admin.trim()) params.set("admin", admin.trim());
+      if (action.trim()) params.set("action", action.trim());
+      try {
+        const res = await adminGet<ListResponse>(
+          `/api/admin/audit?${params.toString()}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError ? e.message : "Не удалось загрузить аудит",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, admin, action]);
 
   const columns: AdminColumn<AuditRow>[] = [
     {
@@ -110,6 +113,7 @@ export default function AdminAuditPage() {
           value={admin}
           aria-label="Фильтр админа"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setAdmin(e.target.value);
           }}
@@ -120,6 +124,7 @@ export default function AdminAuditPage() {
           value={action}
           aria-label="Фильтр действия"
           onChange={(e) => {
+            setLoading(true);
             setPage(1);
             setAction(e.target.value);
           }}
@@ -138,7 +143,10 @@ export default function AdminAuditPage() {
                 page: data.page,
                 pageSize: data.pageSize,
                 total: data.total,
-                onPage: setPage,
+                onPage: (p) => {
+                  setLoading(true);
+                  setPage(p);
+                },
               }
             : undefined
         }

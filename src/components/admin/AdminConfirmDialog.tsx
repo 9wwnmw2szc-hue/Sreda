@@ -37,10 +37,6 @@ export function AdminConfirmDialog({
   const [reason, setReason] = useState("");
 
   useEffect(() => {
-    if (!open) setReason("");
-  }, [open]);
-
-  useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open) {
@@ -60,6 +56,12 @@ export function AdminConfirmDialog({
   const reasonOk =
     !requireReason || (reason.trim().length >= 3 && reason.trim().length <= 500);
 
+  function handleCancel() {
+    if (busy) return;
+    setReason("");
+    onCancel();
+  }
+
   return (
     <dialog
       ref={dialogRef}
@@ -68,17 +70,21 @@ export function AdminConfirmDialog({
       aria-describedby={description ? descId : undefined}
       onCancel={(e) => {
         e.preventDefault();
-        if (!busy) onCancel();
+        handleCancel();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget && !busy) onCancel();
+        if (e.target === e.currentTarget) handleCancel();
       }}
     >
       <form
         className="admin-dialog__inner"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!busy && reasonOk) onConfirm(reason.trim());
+          if (!busy && reasonOk) {
+            const value = reason.trim();
+            setReason("");
+            onConfirm(value);
+          }
         }}
       >
         <h2 id={titleId}>{title}</h2>
@@ -90,6 +96,7 @@ export function AdminConfirmDialog({
               <span aria-hidden> *</span>
             </span>
             <textarea
+              key={open ? "open" : "closed"}
               id={reasonId}
               rows={3}
               maxLength={500}
@@ -113,7 +120,7 @@ export function AdminConfirmDialog({
             type="button"
             className="button button--outline"
             disabled={busy}
-            onClick={onCancel}
+            onClick={handleCancel}
           >
             {cancelLabel}
           </button>

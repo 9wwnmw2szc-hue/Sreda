@@ -154,11 +154,10 @@ export default function AdminBusinessDetailPage() {
   });
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
       const res = await adminGet<BusinessDetail>(`/api/admin/businesses/${id}`);
       setData(res);
+      setError("");
     } catch (e) {
       setData(null);
       setError(
@@ -170,8 +169,31 @@ export default function AdminBusinessDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await adminGet<BusinessDetail>(
+          `/api/admin/businesses/${id}`,
+        );
+        if (cancelled) return;
+        setData(res);
+        setError("");
+      } catch (e) {
+        if (cancelled) return;
+        setData(null);
+        setError(
+          e instanceof AdminApiError
+            ? e.message
+            : "Не удалось загрузить бизнес",
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   async function runAction(reason: string) {
     if (!dialog) return;

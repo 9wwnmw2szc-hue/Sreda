@@ -32,15 +32,15 @@ export function AdminSearch() {
 
   useEffect(() => {
     const trimmed = q.trim();
-    if (trimmed.length < 2) {
-      setResults(null);
-      setError("");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError("");
     const handle = window.setTimeout(() => {
+      if (trimmed.length < 2) {
+        setResults(null);
+        setError("");
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError("");
       void (async () => {
         try {
           const data = await adminGet<SearchResult>(
@@ -78,7 +78,14 @@ export function AdminSearch() {
     (results?.users.length ?? 0) > 0 || (results?.businesses.length ?? 0) > 0;
 
   return (
-    <div className="admin-search" ref={wrapRef}>
+    <div
+      className="admin-search"
+      ref={wrapRef}
+      role="combobox"
+      aria-expanded={open && q.trim().length >= 2}
+      aria-controls={listId}
+      aria-haspopup="listbox"
+    >
       <label className="admin-search__label" htmlFor={inputId}>
         <Search size={16} strokeWidth={1.8} aria-hidden />
         <span className="sr-only">Глобальный поиск</span>
@@ -91,7 +98,6 @@ export function AdminSearch() {
         value={q}
         autoComplete="off"
         aria-controls={listId}
-        aria-expanded={open}
         aria-autocomplete="list"
         onChange={(e) => {
           setQ(e.target.value);
