@@ -53,11 +53,7 @@ export function SolutionCards({
             : productSolutionHref(item.status, item.code) ||
               solutionRoute(item.code);
         const tone =
-          item.code === "admin_messages"
-            ? "messages"
-            : item.code === "sales"
-              ? "orders"
-              : item.code;
+          item.code === "admin_messages" ? "messages" : item.code;
         return (
           <Link
             key={item.code}
