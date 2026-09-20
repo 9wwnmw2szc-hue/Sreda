@@ -3,23 +3,26 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { apiRequest, ClientError } from "@/lib/apiClient";
 import {
-  ACCOUNT_DELETION_PHRASE,
-  type BusinessDecision,
-  type DeletionImpact,
-} from "@/lib/accountDeletion";
-import { clearClientAuthState } from "./SignOutButton";
+  BUSINESS_DELETION_PHRASE,
+  type BusinessDeletionImpact,
+} from "@/lib/businessDeletion";
 
 type Step = "closed" | "warn" | "impact" | "confirm";
 
-export function AccountDeletionPanel() {
+export function BusinessDeletionPanel({
+  businessId,
+  businessName,
+  onDeleted,
+}: {
+  businessId: string;
+  businessName: string;
+  onDeleted?: () => void | Promise<void>;
+}) {
   const [step, setStep] = useState<Step>("closed");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [impact, setImpact] = useState<DeletionImpact | null>(null);
+  const [impact, setImpact] = useState<BusinessDeletionImpact | null>(null);
   const [token, setToken] = useState("");
-  const [decisions, setDecisions] = useState<Record<string, BusinessDecision>>(
-    {},
-  );
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -57,22 +60,13 @@ export function AccountDeletionPanel() {
     try {
       const res = await apiRequest<{
         token: string;
-        impact: DeletionImpact;
-      }>("/api/v1/account/deletion", {
+        impact: BusinessDeletionImpact;
+      }>(`/api/v1/businesses/${businessId}/deletion`, {
         method: "POST",
         body: JSON.stringify({ action: "request" }),
       });
       setToken(res.token);
       setImpact(res.impact);
-      const initial: Record<string, BusinessDecision> = {};
-      for (const b of res.impact.ownedBusinesses) {
-        initial[b.id] = {
-          businessId: b.id,
-          action: b.otherMembers.length ? "transfer" : "archive",
-          transferToUserId: b.otherMembers[0]?.id,
-        };
-      }
-      setDecisions(initial);
       setStep("impact");
     } catch (e) {
       setError(
@@ -90,35 +84,37 @@ export function AccountDeletionPanel() {
     setBusy(true);
     setError("");
     try {
-      await apiRequest("/api/v1/account/deletion", {
+      await apiRequest(`/api/v1/businesses/${businessId}/deletion`, {
         method: "POST",
         body: JSON.stringify({
           action: "confirm",
           token,
           password,
           confirmation,
-          decisions: Object.values(decisions),
         }),
       });
-      clearClientAuthState();
-      window.location.replace("/login?deleted=1");
+      close();
+      await onDeleted?.();
     } catch (e) {
       setError(
         e instanceof ClientError || e instanceof Error
           ? e.message
-          : "Не удалось удалить аккаунт",
+          : "Не удалось удалить бизнес",
       );
       setBusy(false);
     }
   }
 
+  const nameOk =
+    confirmation === BUSINESS_DELETION_PHRASE ||
+    confirmation === businessName.trim();
+
   return (
-    <section className="panel settings-panel account-danger-zone">
-      <h2 className="text-section-title">Опасная зона аккаунта</h2>
+    <section className="panel settings-panel business-danger-zone">
+      <h2 className="text-section-title">Опасная зона бизнеса</h2>
       <p className="account-footnote">
-        Удаление аккаунта приведёт к потере доступа к «Соты». Это отдельное
-        действие от удаления бизнеса. Перед удалением мы покажем, какие бизнесы
-        и данные будут затронуты.
+        Бизнес и связанные с ним данные будут удалены. Это действие может быть
+        необратимым. Аккаунт «Соты» при этом сохранится.
       </p>
       <button
         type="button"
@@ -131,7 +127,7 @@ export function AccountDeletionPanel() {
           setStep("warn");
         }}
       >
-        Удалить аккаунт
+        Удалить бизнес
       </button>
       {error && step === "closed" ? (
         <p className="account-error" role="alert">
@@ -156,11 +152,12 @@ export function AccountDeletionPanel() {
           <div className="sign-out-dialog__inner">
             {step === "warn" ? (
               <>
-                <h2 id={titleId}>Удалить аккаунт?</h2>
+                <h2 id={titleId}>Удалить бизнес?</h2>
                 <p id={descId}>
-                  Вы потеряете доступ к аккаунту «Соты» и связанным с ним данным.
-                  Это действие может затронуть ваши бизнесы, подключения Telegram
-                  и VK, настройки и другие данные.
+                  Будет удалён бизнес «{businessName}». Сотрудники, клиенты,
+                  заявки, заказы, записи, сообщения, публикации и подключённые
+                  Telegram/VK этого бизнеса станут недоступны. Ваш личный
+                  аккаунт «Соты» не удаляется.
                 </p>
                 {error ? (
                   <p className="account-error" role="alert">
@@ -183,7 +180,7 @@ export function AccountDeletionPanel() {
                     disabled={busy}
                     onClick={() => void loadImpactAndRequest()}
                   >
-                    {busy ? "Проверяем…" : "Продолжить удаление"}
+                    {busy ? "Проверяем…" : "Продолжить"}
                   </button>
                 </div>
               </>
@@ -193,89 +190,25 @@ export function AccountDeletionPanel() {
               <>
                 <h2 id={titleId}>Что будет затронуто</h2>
                 <div id={descId} className="account-deletion-impact">
-                  {impact.ownedBusinesses.length === 0 &&
-                  impact.memberBusinesses.length === 0 ? (
-                    <p>У вас нет активных бизнесов. Аккаунт можно удалить.</p>
-                  ) : null}
-                  {impact.ownedBusinesses.map((b) => (
-                    <div key={b.id} className="account-deletion-biz">
-                      <strong>Владелец: {b.name}</strong>
-                      <p className="account-footnote">
-                        Вы единственный владелец. Выберите действие.
-                        {b.memberCount > 1
-                          ? " После удаления бизнеса сотрудники потеряют доступ."
-                          : ""}
-                      </p>
-                      <label className="account-deletion-choice">
-                        <input
-                          type="radio"
-                          name={`dec-${b.id}`}
-                          checked={decisions[b.id]?.action === "archive"}
-                          onChange={() =>
-                            setDecisions((prev) => ({
-                              ...prev,
-                              [b.id]: {
-                                businessId: b.id,
-                                action: "archive",
-                              },
-                            }))
-                          }
-                        />
-                        Удалить бизнес вместе с аккаунтом
-                      </label>
-                      {b.otherMembers.length > 0 ? (
-                        <label className="account-deletion-choice">
-                          <input
-                            type="radio"
-                            name={`dec-${b.id}`}
-                            checked={decisions[b.id]?.action === "transfer"}
-                            onChange={() =>
-                              setDecisions((prev) => ({
-                                ...prev,
-                                [b.id]: {
-                                  businessId: b.id,
-                                  action: "transfer",
-                                  transferToUserId:
-                                    prev[b.id]?.transferToUserId ??
-                                    b.otherMembers[0]?.id,
-                                },
-                              }))
-                            }
-                          />
-                          Передать владение
-                        </label>
-                      ) : null}
-                      {decisions[b.id]?.action === "transfer" &&
-                      b.otherMembers.length > 0 ? (
-                        <select
-                          className="input"
-                          value={decisions[b.id]?.transferToUserId ?? ""}
-                          onChange={(e) =>
-                            setDecisions((prev) => ({
-                              ...prev,
-                              [b.id]: {
-                                businessId: b.id,
-                                action: "transfer",
-                                transferToUserId: e.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          {b.otherMembers.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} (@{m.username}) — {m.role}
-                            </option>
-                          ))}
-                        </select>
-                      ) : null}
-                    </div>
-                  ))}
-                  {impact.memberBusinesses.map((b) => (
-                    <p key={b.id} className="account-footnote">
-                      Участие в «{b.name}» ({b.role}) будет отозвано. Бизнес
-                      останется у других участников.
-                    </p>
-                  ))}
+                  <p>
+                    Бизнес «{impact.name}» и связанные данные будут архивированы
+                    и доступ к ним будет закрыт.
+                  </p>
+                  <ul className="business-deletion-impact-list">
+                    <li>Сотрудники: {impact.members}</li>
+                    <li>Клиенты: {impact.customers}</li>
+                    <li>Заявки: {impact.leads}</li>
+                    <li>Заказы: {impact.orders}</li>
+                    <li>Записи: {impact.bookings}</li>
+                    <li>Сообщения: {impact.conversations}</li>
+                    <li>Публикации: {impact.posts}</li>
+                    <li>Товары: {impact.products}</li>
+                    <li>Подключения Telegram/VK: {impact.connections}</li>
+                    <li>Файлы: {impact.files}</li>
+                    <li>
+                      Привязки админ-каналов: {impact.channelAdminBindings}
+                    </li>
+                  </ul>
                 </div>
                 {error ? (
                   <p className="account-error" role="alert">
@@ -309,11 +242,10 @@ export function AccountDeletionPanel() {
 
             {step === "confirm" ? (
               <>
-                <h2 id={titleId}>Удалить аккаунт безвозвратно?</h2>
+                <h2 id={titleId}>Удалить бизнес навсегда</h2>
                 <p id={descId}>
-                  После завершения удаления восстановить аккаунт обычным способом
-                  будет невозможно. Введите пароль и слово{" "}
-                  <strong>{ACCOUNT_DELETION_PHRASE}</strong>.
+                  Введите пароль и название бизнеса «{businessName}» либо слово{" "}
+                  <strong>{BUSINESS_DELETION_PHRASE}</strong>.
                 </p>
                 <label className="account-deletion-field">
                   Пароль
@@ -332,7 +264,7 @@ export function AccountDeletionPanel() {
                     type="text"
                     className="input"
                     autoComplete="off"
-                    placeholder={ACCOUNT_DELETION_PHRASE}
+                    placeholder={BUSINESS_DELETION_PHRASE}
                     value={confirmation}
                     onChange={(e) => setConfirmation(e.target.value)}
                     disabled={busy}
@@ -356,14 +288,10 @@ export function AccountDeletionPanel() {
                   <button
                     type="button"
                     className="button button--danger"
-                    disabled={
-                      busy ||
-                      password.length < 10 ||
-                      confirmation !== ACCOUNT_DELETION_PHRASE
-                    }
+                    disabled={busy || password.length < 10 || !nameOk}
                     onClick={() => void confirmDelete()}
                   >
-                    {busy ? "Удаляем…" : "Удалить аккаунт"}
+                    {busy ? "Удаляем…" : "Удалить бизнес навсегда"}
                   </button>
                 </div>
               </>

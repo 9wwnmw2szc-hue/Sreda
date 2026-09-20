@@ -95,6 +95,16 @@ async function fixture() {
     )
     .execute();
   await db
+    .insertInto("booking_service")
+    .values({
+      id: randomUUID(),
+      business_id: b.id,
+      name: "Консультация",
+      duration_minutes: 60,
+      active: true,
+    })
+    .execute();
+  await db
     .insertInto("lead_setup")
     .values({
       business_id: b.id,

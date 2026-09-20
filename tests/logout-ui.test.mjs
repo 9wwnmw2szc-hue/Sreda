@@ -40,10 +40,36 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(sidebar, /SignOutButton/);
 
   assert.match(settings, /SignOutButton/);
-  assert.match(settings, /Выйти из аккаунта|SignOutButton/);
+  assert.match(settings, /Данные аккаунта/);
+  assert.match(settings, /Безопасность/);
+  assert.match(settings, /settings-sign-out-panel/);
+  assert.match(settings, /BusinessDeletionPanel/);
   assert.match(settings, /AccountDeletionPanel/);
-  assert.match(await read("./src/components/account/AccountDeletionPanel.tsx"), /Удалить аккаунт/);
-  assert.match(await read("./src/components/account/AccountDeletionPanel.tsx"), /Опасная зона/);
+  // Logout panel appears after security and before danger zones in JSX.
+  const securityIdx = settings.indexOf("Безопасность");
+  const signOutIdx = settings.indexOf("settings-sign-out-panel");
+  const bizDangerIdx = settings.indexOf("<BusinessDeletionPanel");
+  const accountDangerIdx = settings.indexOf("<AccountDeletionPanel");
+  assert.ok(securityIdx > 0 && signOutIdx > securityIdx);
+  assert.ok(bizDangerIdx > signOutIdx);
+  assert.ok(accountDangerIdx > bizDangerIdx);
+
+  assert.match(
+    await read("./src/components/account/AccountDeletionPanel.tsx"),
+    /Удалить аккаунт/,
+  );
+  assert.match(
+    await read("./src/components/account/AccountDeletionPanel.tsx"),
+    /Опасная зона аккаунта/,
+  );
+  assert.match(
+    await read("./src/components/account/BusinessDeletionPanel.tsx"),
+    /Удалить бизнес/,
+  );
+  assert.match(
+    await read("./src/components/account/BusinessDeletionPanel.tsx"),
+    /Опасная зона бизнеса/,
+  );
 
   assert.match(button, /Выйти из аккаунта\?/);
   assert.match(button, /Текущая сессия будет завершена на этом устройстве/);
@@ -53,6 +79,17 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(button, /aria-label="Выйти из аккаунта"/);
   assert.match(button, /onCancel/);
   assert.match(button, /focusable/);
+});
+
+test("settings CSS keeps logout content-driven without space-between pin", async () => {
+  const css = await read("./src/app/globals.css");
+  assert.match(css, /\.settings-sign-out-panel/);
+  assert.match(css, /\.business-danger-zone/);
+  assert.match(css, /min-height:\s*0/);
+  assert.doesNotMatch(
+    css.slice(css.indexOf(".settings-sign-out-panel")),
+    /\.settings-sign-out-panel[^{]*\{[^}]*justify-content:\s*space-between/,
+  );
 });
 
 test("sign-out clears site data and keeps theme preference logic", async () => {
