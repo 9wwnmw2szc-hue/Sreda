@@ -967,6 +967,12 @@ ul {
 .platform-icon--vk {
   background: linear-gradient(140deg, #479aff, #1765ed);
 }
+.platform-icon--whatsapp {
+  background: linear-gradient(140deg, #2bd46a, #128c4a);
+}
+.platform-icon--instagram {
+  background: linear-gradient(140deg, #f58529, #dd2a7b 55%, #8134af);
+}
 .platform-icon--max {
   background: #795bdb;
 }

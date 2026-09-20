@@ -155,6 +155,61 @@ export interface Database
     last_error: string | null;
     created_at: Generated<Date>;
   };
+  meta_runtime: {
+    connection_id: string;
+    generation: string;
+    status: "pending" | "ready" | "error";
+    waba_id: string | null;
+    phone_number_id: string | null;
+    display_phone_number: string | null;
+    page_id: string | null;
+    ig_user_id: string | null;
+    ig_username: string | null;
+    webhook_subscribed: Generated<boolean>;
+    last_error: string | null;
+    updated_at: Generated<Date>;
+  };
+  meta_update: {
+    connection_id: string;
+    event_id: string;
+    created_at: Generated<Date>;
+  };
+  meta_outbox: {
+    id: Generated<string>;
+    connection_id: string;
+    recipient_id: string;
+    message: Generated<string>;
+    buttons: Generated<unknown>;
+    attachment_ids: Generated<unknown>;
+    api_payload: Generated<unknown>;
+    attempts: Generated<number>;
+    available_at: Generated<Date>;
+    delivered_at: Date | null;
+    last_error: string | null;
+    created_at: Generated<Date>;
+    delivery_state: Generated<
+      "pending" | "sending" | "sent" | "failed" | "uncertain"
+    >;
+    claimed_at: Generated<Date | null>;
+    external_message_id: Generated<string | null>;
+    communication_message_id: Generated<string | null>;
+    notification_id: Generated<string | null>;
+    notification_user_id: Generated<string | null>;
+    template_name: Generated<string | null>;
+    template_language: Generated<string | null>;
+  };
+  meta_oauth_state: {
+    id: string;
+    business_id: string;
+    user_id: string;
+    platform: "whatsapp" | "instagram";
+    state_hash: string;
+    status: "pending" | "consumed" | "expired" | "failed";
+    payload: Generated<unknown>;
+    expires_at: Date;
+    consumed_at: Date | null;
+    created_at: Generated<Date>;
+  };
 
   user: {
     id: string;
@@ -366,7 +421,7 @@ export interface Database
   business_connection: {
     id: string;
     business_id: string;
-    platform: "telegram" | "vk";
+    platform: "telegram" | "vk" | "whatsapp" | "instagram";
     external_account_id: string | null;
     display_name: string | null;
     status: "pending" | "connected" | "error" | "disconnected";
@@ -424,12 +479,13 @@ export interface Database
     client_id: Generated<string | null>;
     id: string;
     business_id: string;
-    platform: "telegram" | "vk";
+    platform: "telegram" | "vk" | "whatsapp" | "instagram";
     external_user_id: string;
     external_username: string | null;
     status: "open" | "assigned" | "closed" | "blocked";
     assigned_member_user_id: string | null;
     last_message_at: Generated<Date>;
+    last_inbound_at: Generated<Date | null>;
     created_at: Generated<Date>;
     closed_at: Date | null;
   };
@@ -463,7 +519,7 @@ export interface Database
   communication_block: {
     id: string;
     business_id: string;
-    platform: "telegram" | "vk";
+    platform: "telegram" | "vk" | "whatsapp" | "instagram";
     external_user_id: string;
     reason: string;
     expires_at: Date | null;

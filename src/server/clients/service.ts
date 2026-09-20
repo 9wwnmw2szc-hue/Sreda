@@ -5,7 +5,7 @@ import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
 type Identity = {
-  kind: "telegram" | "vk" | "phone" | "email";
+  kind: "telegram" | "vk" | "whatsapp" | "instagram" | "phone" | "email";
   value: string;
   username?: string | null;
 };
@@ -23,6 +23,10 @@ export function normalizeIdentity(identity: Identity): Identity {
     value = value.toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) || value.length > 254)
       throw new AppError(400, "INVALID_EMAIL", "Проверьте email.");
+  } else if (identity.kind === "whatsapp" || identity.kind === "instagram") {
+    // WhatsApp: E.164 digits without +. Instagram: numeric IGSID / Page-scoped id.
+    if (!/^[1-9]\d{0,31}$/.test(value))
+      throw new AppError(400, "INVALID_IDENTITY", "Некорректный идентификатор.");
   } else if (!/^[1-9]\d{0,19}$/.test(value))
     throw new AppError(400, "INVALID_IDENTITY", "Некорректный идентификатор.");
   return { ...identity, value };

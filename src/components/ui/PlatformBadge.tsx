@@ -21,6 +21,10 @@ export function PlatformBadge({
           <Send size={19} fill="currentColor" strokeWidth={1.2} />
         ) : platform === "vk" ? (
           <b>vk</b>
+        ) : platform === "whatsapp" ? (
+          <b>WA</b>
+        ) : platform === "instagram" ? (
+          <b>IG</b>
         ) : (
           <b>M</b>
         )}

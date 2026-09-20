@@ -161,6 +161,8 @@ export function createApplication(options: {
               (new URL(request.url).searchParams.get("status") as never) ||
                 undefined,
               Number(new URL(request.url).searchParams.get("page") ?? 0),
+              (new URL(request.url).searchParams.get("platform") as never) ||
+                undefined,
             ),
           );
         if (
