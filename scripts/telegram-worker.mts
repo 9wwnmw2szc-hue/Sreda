@@ -8,6 +8,8 @@ import { processEntityReminder } from "../src/server/calendar/worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { TelegramService } from "../src/server/telegram/service.ts";
+import { MetaChannelService } from "../src/server/meta/service.ts";
+import { CommunicationService } from "../src/server/communications/service.ts";
 import { runtimeConfig } from "../src/server/identity/config.ts";
 import type { Database } from "../src/server/db/schema.ts";
 const config = runtimeConfig();
@@ -19,6 +21,16 @@ const db = new Kysely<Database>({
   }),
 });
 const service = new TelegramService(db, config.secret, config.origin, true);
+const metaEnabled =
+  process.env.META_WEBHOOKS_ENABLED === "true" ||
+  process.env.WHATSAPP_WEBHOOKS_ENABLED === "true" ||
+  process.env.INSTAGRAM_WEBHOOKS_ENABLED === "true";
+const meta = new MetaChannelService(
+  db,
+  config.secret,
+  metaEnabled,
+  new CommunicationService(db),
+);
 let stopping = false;
 process.on("SIGTERM", () => {
   stopping = true;
@@ -57,7 +69,8 @@ try {
           oc.column("name").doUpdateSet({ seen_at: new Date() }),
         )
         .execute();
-      const worked = (await service.deliverOne()) || queued;
+      const metaWorked = metaEnabled ? await meta.deliverOne() : false;
+      const worked = (await service.deliverOne()) || queued || metaWorked;
       if (Date.now() > nextCleanup) {
         // Dedup IDs carry no message text. Incomplete dialogues expire after one day.
         await db
@@ -69,6 +82,11 @@ try {
           .where("delivered_at", "<", new Date(Date.now() - 86400000))
           .where("post_delivery_id", "is", null)
           .execute();
+        if (metaEnabled)
+          await db
+            .deleteFrom("meta_outbox")
+            .where("delivered_at", "<", new Date(Date.now() - 86400000))
+            .execute();
         nextCleanup = Date.now() + 3600000;
       }
       if (!worked) await new Promise((r) => setTimeout(r, 1000));
@@ -79,5 +97,9 @@ try {
   }
 } finally {
   await sql`delete from worker_heartbeat where name='telegram'`.execute(db);
+  if (metaEnabled)
+    await sql`delete from worker_heartbeat where name='meta_delivery'`.execute(
+      db,
+    );
   await db.destroy();
 }

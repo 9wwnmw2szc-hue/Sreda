@@ -23,7 +23,7 @@ export const LEAD_FIELDS = [
   },
 ] as const;
 export type LeadFieldId = (typeof LEAD_FIELDS)[number]["id"];
-export type SetupChannel = "telegram" | "vk";
+export type SetupChannel = "telegram" | "vk" | "whatsapp" | "instagram";
 export interface LeadSetupDraft {
   title?: string;
   greeting?: string;
@@ -59,9 +59,9 @@ export function parseLeadSetupDraft(raw: string | null): LeadSetupDraft {
       !Array.isArray(draft.fields)
     )
       return fallback;
-    const channels = (["telegram", "vk"] as const).filter((channel) =>
-      (draft.channels as unknown[]).includes(channel),
-    );
+    const channels = (
+      ["telegram", "vk", "whatsapp", "instagram"] as const
+    ).filter((channel) => (draft.channels as unknown[]).includes(channel));
     const fields = LEAD_FIELDS.filter(
       (field) =>
         field.required || (draft.fields as unknown[]).includes(field.id),

@@ -1,4 +1,4 @@
-export type Platform = "telegram" | "vk" | "max";
+export type Platform = "telegram" | "vk" | "whatsapp" | "instagram" | "max";
 
 export type ConnectionStatus =
   | "connected"

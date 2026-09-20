@@ -52,4 +52,21 @@ export async function cancelConnectionDeliveries(
         );
     }
   }
+  const metaPending = await tx
+    .selectFrom("meta_outbox")
+    .select(["communication_message_id", "delivery_state"])
+    .where("connection_id", "=", connectionId)
+    .where("delivered_at", "is", null)
+    .execute();
+  for (const row of metaPending) {
+    const state = ["sending", "uncertain"].includes(row.delivery_state)
+      ? "uncertain"
+      : "failed";
+    if (row.communication_message_id)
+      await tx
+        .updateTable("communication_message")
+        .set({ delivery_status: state })
+        .where("id", "=", row.communication_message_id)
+        .execute();
+  }
 }

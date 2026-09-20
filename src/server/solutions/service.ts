@@ -24,7 +24,9 @@ export function validateSetup(raw: unknown): LeadSetupDraft {
     d.step > 3 ||
     !Array.isArray(d.channels) ||
     !Array.isArray(d.fields) ||
-    d.channels.some((v) => !["telegram", "vk"].includes(v)) ||
+    d.channels.some(
+      (v) => !["telegram", "vk", "whatsapp", "instagram"].includes(v),
+    ) ||
     new Set(d.channels).size !== d.channels.length ||
     d.fields.some((v) => !LEAD_FIELDS.some((f) => f.id === v)) ||
     new Set(d.fields).size !== d.fields.length ||

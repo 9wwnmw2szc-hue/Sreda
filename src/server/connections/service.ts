@@ -5,6 +5,8 @@ import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { encryptSecret } from "./crypto.ts";
+import { metaConfigured } from "../meta/config.ts";
+import { isMetaPlatform } from "../channels/types.ts";
 
 export class ConnectionService {
   constructor(
@@ -53,19 +55,40 @@ export class ConnectionService {
   }
   async list(userId: string, publicId: string) {
     const businessId = await this.business(userId, publicId, false);
-    return this.db
-      .selectFrom("business_connection")
+    const rows = await this.db
+      .selectFrom("business_connection as c")
+      .leftJoin("meta_runtime as r", "r.connection_id", "c.id")
       .select([
-        "id",
-        "platform",
-        "display_name as displayName",
-        "status",
-        "created_at as createdAt",
-        "updated_at as updatedAt",
+        "c.id",
+        "c.platform",
+        "c.display_name as displayName",
+        "c.status",
+        "c.created_at as createdAt",
+        "c.updated_at as updatedAt",
+        "r.display_phone_number as displayPhoneNumber",
+        "r.ig_username as igUsername",
+        "r.status as runtimeStatus",
+        "r.webhook_subscribed as webhookSubscribed",
       ])
-      .where("business_id", "=", businessId)
-      .orderBy("platform")
+      .where("c.business_id", "=", businessId)
+      .orderBy("c.platform")
       .execute();
+    return rows.map((row) => ({
+      id: row.id,
+      platform: row.platform,
+      displayName: row.displayName,
+      status: row.status,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      ...(isMetaPlatform(row.platform)
+        ? {
+            displayPhoneNumber: row.displayPhoneNumber,
+            igUsername: row.igUsername,
+            runtimeStatus: row.runtimeStatus,
+            webhookSubscribed: row.webhookSubscribed,
+          }
+        : {}),
+    }));
   }
   async connect(userId: string, publicId: string, raw: unknown) {
     const businessId = await this.business(userId, publicId);
@@ -78,6 +101,21 @@ export class ConnectionService {
     const body = raw as Record<string, unknown>;
     const platform = body.platform;
     const token = body.token;
+    if (isMetaPlatform(platform)) {
+      if (!metaConfigured())
+        throw new AppError(
+          503,
+          "META_NOT_CONFIGURED",
+          "Подключение Meta ещё не настроено на сервере. Используйте OAuth после настройки META_* переменных.",
+        );
+      throw new AppError(
+        400,
+        "OAUTH_REQUIRED",
+        platform === "whatsapp"
+          ? "WhatsApp подключается через Embedded Signup, а не токеном."
+          : "Instagram подключается через Facebook Login, а не токеном.",
+      );
+    }
     if (platform !== "telegram" && platform !== "vk")
       throw new AppError(
         400,
@@ -281,7 +319,12 @@ export class ConnectionService {
 
   async disconnect(userId: string, publicId: string, platform: unknown) {
     const businessId = await this.business(userId, publicId);
-    if (platform !== "telegram" && platform !== "vk")
+    if (
+      platform !== "telegram" &&
+      platform !== "vk" &&
+      platform !== "whatsapp" &&
+      platform !== "instagram"
+    )
       throw new AppError(400, "INVALID_CONNECTION", "Неизвестный канал.");
     const row = await this.db
       .selectFrom("business_connection")
@@ -313,6 +356,10 @@ export class ConnectionService {
         .execute();
       await tx
         .deleteFrom("vk_runtime")
+        .where("connection_id", "=", row.id)
+        .execute();
+      await tx
+        .deleteFrom("meta_runtime")
         .where("connection_id", "=", row.id)
         .execute();
       await tx

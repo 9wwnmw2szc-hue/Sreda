@@ -11,6 +11,23 @@ import {
   EmptyStateCta,
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
+import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import type { Platform } from "@/types";
+
+function platformChip(platform: string) {
+  switch (platform) {
+    case "telegram":
+      return "TG";
+    case "vk":
+      return "VK";
+    case "whatsapp":
+      return "WA";
+    case "instagram":
+      return "IG";
+    default:
+      return platform.slice(0, 2).toUpperCase();
+  }
+}
 type Conversation = {
   id: string;
   platform: string;
@@ -61,18 +78,24 @@ function Inbox({
     [busy, setBusy] = useState(false),
     [loaded, setLoaded] = useState(false),
     [filter, setFilter] = useState(""),
+    [platformFilter, setPlatformFilter] = useState(""),
     [page, setPage] = useState(0),
     [messagePage, setMessagePage] = useState(0);
   const requestKey = useRef("");
   const base = `/api/v1/businesses/${businessId}/conversations`;
   const current = conversations.find((c) => c.id === selected);
+  const listQuery =
+    base +
+    "?status=" +
+    filter +
+    "&page=" +
+    page +
+    (platformFilter ? "&platform=" + platformFilter : "");
   useEffect(() => {
     let active = true;
     async function refresh() {
       try {
-        const list = await apiRequest<Conversation[]>(
-          base + "?status=" + filter + "&page=" + page,
-        );
+        const list = await apiRequest<Conversation[]>(listQuery);
         if (active) {
           setConversations(list);
           setLoaded(true);
@@ -93,7 +116,7 @@ function Inbox({
       active = false;
       clearInterval(timer);
     };
-  }, [base, filter, page]);
+  }, [listQuery]);
   useEffect(() => {
     if (!selected) return;
     let active = true;
@@ -125,11 +148,7 @@ function Inbox({
         method: "PATCH",
         body: JSON.stringify({ status: value }),
       });
-      setConversations(
-        await apiRequest<Conversation[]>(
-          base + "?status=" + filter + "&page=" + page,
-        ),
-      );
+      setConversations(await apiRequest<Conversation[]>(listQuery));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось изменить статус.");
     } finally {
@@ -187,6 +206,36 @@ function Inbox({
               Следующая
             </button>
           </nav>
+          <nav aria-label="Площадка" className="message-actions">
+            {(
+              [
+                ["", "Все"],
+                ["telegram", "TG"],
+                ["vk", "VK"],
+                ["whatsapp", "WA"],
+                ["instagram", "IG"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value || "all"}
+                type="button"
+                className={
+                  "button button--sm " +
+                  (platformFilter === value
+                    ? "button--primary"
+                    : "button--outline")
+                }
+                aria-pressed={platformFilter === value}
+                disabled={busy}
+                onClick={() => {
+                  setPlatformFilter(value);
+                  setPage(0);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
           <label className="field">
             <span className="field__label">Статус</span>
             <select
@@ -215,7 +264,7 @@ function Inbox({
           ) : !conversations.length ? (
             <EmptyStateCta
               title="Сообщений пока нет"
-              description="Подключите Telegram или VK — диалоги клиентов появятся здесь."
+              description="Подключите Telegram, VK, WhatsApp или Instagram — диалоги клиентов появятся здесь."
               href="/connections"
               action="Открыть подключения"
             />
@@ -237,8 +286,13 @@ function Inbox({
                   >
                     <strong>
                       {c.clientName || c.externalUsername || c.externalUserId} ·{" "}
-                      {c.platform}
+                      <span className="platform-chip">
+                        {platformChip(c.platform)}
+                      </span>
                     </strong>
+                    <span className="sr-only">
+                      <PlatformBadge platform={c.platform as Platform} compact />
+                    </span>
                     <span>{c.lastMessage.slice(0, 100)}</span>
                     <small>
                       {new Date(c.lastMessageAt).toLocaleString("ru", {

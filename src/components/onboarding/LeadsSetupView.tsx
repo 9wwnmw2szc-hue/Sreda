@@ -27,6 +27,7 @@ import {
 import type { Business } from "@/types";
 import { apiRequest } from "@/lib/apiClient";
 import { isDemoMode } from "@/lib/dataMode";
+import { platformLabel } from "@/lib/labels";
 const STEPS = ["Площадки", "Поля заявки", "Проверка", "Итог"];
 function loadDraft(businessId: string) {
   if (!isDemoMode) return newLeadSetupDraft();
@@ -320,7 +321,8 @@ function LeadsWizard({
                   aria-describedby={error ? "setup-error" : undefined}
                 >
                   <legend className="sr-only">Площадки для заявок</legend>
-                  {(["telegram", "vk"] as const).map((channel, index) => (
+                  {(["telegram", "vk", "whatsapp", "instagram"] as const).map(
+                    (channel, index) => (
                     <label
                       key={channel}
                       className={`setup-option ${draft.channels.includes(channel) ? "is-selected" : ""}`}
@@ -328,12 +330,22 @@ function LeadsWizard({
                       <PlatformBadge platform={channel} compact />
                       <span>
                         <strong>
-                          {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                          {channel === "telegram"
+                            ? "Telegram"
+                            : channel === "vk"
+                              ? "ВКонтакте"
+                              : channel === "whatsapp"
+                                ? "WhatsApp"
+                                : "Instagram"}
                         </strong>
                         <small>
                           {channel === "telegram"
                             ? "Ваш бот для клиентов"
-                            : "Сообщество вашего бизнеса"}
+                            : channel === "vk"
+                              ? "Сообщество вашего бизнеса"
+                              : channel === "whatsapp"
+                                ? "WhatsApp Business (опционально)"
+                                : "Instagram Direct (опционально)"}
                         </small>
                       </span>
                       <input
@@ -342,11 +354,18 @@ function LeadsWizard({
                         checked={draft.channels.includes(channel)}
                         onChange={() => toggleChannel(channel)}
                         aria-label={
-                          channel === "telegram" ? "Telegram" : "ВКонтакте"
+                          channel === "telegram"
+                            ? "Telegram"
+                            : channel === "vk"
+                              ? "ВКонтакте"
+                              : channel === "whatsapp"
+                                ? "WhatsApp"
+                                : "Instagram"
                         }
                       />
                     </label>
-                  ))}
+                  ),
+                  )}
                 </fieldset>
                 <p className="setup-hint">
                   Выберите каналы приёма заявок. Подключение и запуск
@@ -510,7 +529,7 @@ function LeadsWizard({
                       }}
                     >
                       <PlatformBadge platform={channel} compact />
-                      {channel === "telegram" ? "Telegram" : "ВКонтакте"}
+                      {platformLabel(channel)}
                     </button>
                   ))}
                 </div>
@@ -576,9 +595,7 @@ function LeadsWizard({
                     <span>Площадки</span>
                     <strong>
                       {draft.channels
-                        .map((c) =>
-                          c === "telegram" ? "Telegram" : "ВКонтакте",
-                        )
+                        .map((c) => platformLabel(c))
                         .join(" + ")}
                     </strong>
                   </div>

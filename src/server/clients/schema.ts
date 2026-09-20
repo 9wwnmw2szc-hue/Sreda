@@ -14,7 +14,7 @@ export interface ClientTables {
   client_identity: {
     business_id: string;
     client_id: string;
-    kind: "telegram" | "vk" | "phone" | "email";
+    kind: "telegram" | "vk" | "whatsapp" | "instagram" | "phone" | "email";
     value: string;
     username: string | null;
     verified_at: Generated<Date>;

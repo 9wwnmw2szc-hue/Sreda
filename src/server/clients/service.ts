@@ -5,7 +5,7 @@ import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
 type Identity = {
-  kind: "telegram" | "vk" | "phone" | "email";
+  kind: "telegram" | "vk" | "whatsapp" | "instagram" | "phone" | "email";
   value: string;
   username?: string | null;
 };

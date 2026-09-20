@@ -6,6 +6,10 @@ export function platformLabel(platform: Platform): string {
       return "Telegram";
     case "vk":
       return "ВКонтакте";
+    case "whatsapp":
+      return "WhatsApp";
+    case "instagram":
+      return "Instagram";
     case "max":
       return "MAX";
     default:

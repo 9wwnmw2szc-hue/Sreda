@@ -12,8 +12,10 @@ import { randomUUID } from "node:crypto";
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
+import { whatsappSessionOpen } from "../meta/api.ts";
+import { isChannelPlatform } from "../channels/types.ts";
 
-type Platform = "telegram" | "vk";
+type Platform = "telegram" | "vk" | "whatsapp" | "instagram";
 type ConversationStatus = "open" | "assigned" | "closed" | "blocked";
 
 function text(value: unknown, max = 10000) {
@@ -65,6 +67,7 @@ export class CommunicationService {
     publicId: string,
     status?: ConversationStatus,
     page = 0,
+    platform?: Platform,
   ) {
     if (!Number.isSafeInteger(page) || page < 0 || page > 100000)
       throw new AppError(400, "INVALID_PAGE", "Проверьте страницу.");
@@ -72,6 +75,8 @@ export class CommunicationService {
     if (status && !["open", "assigned", "closed", "blocked"].includes(status)) {
       throw new AppError(400, "INVALID_STATUS", "Неизвестный статус диалога.");
     }
+    if (platform && !isChannelPlatform(platform))
+      throw new AppError(400, "INVALID_PLATFORM", "Неизвестная площадка.");
     let query = this.db
       .selectFrom("communication_conversation")
       .select([
@@ -91,6 +96,8 @@ export class CommunicationService {
       .limit(100)
       .offset(page * 100);
     if (status) query = query.where("status", "=", status) as typeof query;
+    if (platform)
+      query = query.where("platform", "=", platform) as typeof query;
     const conversations = await query.execute();
     return Promise.all(
       conversations.map(async (row) => {
@@ -246,14 +253,23 @@ export class CommunicationService {
     const message = text(body.text || (attachmentIds.length ? "Вложение" : ""));
     requireUuid(conversationId);
     const businessId = (await this.resolve(userId, publicId)).id;
-    const conversation = await this.db
+      const conversation = await this.db
       .selectFrom("communication_conversation")
-      .select(["id", "platform", "external_user_id"])
+      .select(["id", "platform", "external_user_id", "last_inbound_at"])
       .where("id", "=", conversationId)
       .where("business_id", "=", businessId)
       .executeTakeFirst();
     if (!conversation)
       throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
+    if (
+      conversation.platform === "whatsapp" &&
+      !whatsappSessionOpen(conversation.last_inbound_at)
+    )
+      throw new AppError(
+        409,
+        "WHATSAPP_WINDOW_CLOSED",
+        "Окно свободных ответов WhatsApp (24 часа после сообщения клиента) закрыто. Отправьте шаблонное сообщение или дождитесь нового обращения клиента.",
+      );
     const row = await this.db.transaction().execute(async (tx) => {
       await tx
         .selectFrom("business")
@@ -357,11 +373,17 @@ export class CommunicationService {
               .select("status")
               .where("connection_id", "=", connection.id)
               .executeTakeFirst()
-          : await tx
-              .selectFrom("vk_runtime")
-              .select("status")
-              .where("connection_id", "=", connection.id)
-              .executeTakeFirst()
+          : conversation.platform === "vk"
+            ? await tx
+                .selectFrom("vk_runtime")
+                .select("status")
+                .where("connection_id", "=", connection.id)
+                .executeTakeFirst()
+            : await tx
+                .selectFrom("meta_runtime")
+                .select("status")
+                .where("connection_id", "=", connection.id)
+                .executeTakeFirst()
         : undefined;
       if (
         !connection ||
@@ -407,10 +429,18 @@ export class CommunicationService {
             .insertInto("telegram_outbox")
             .values({ ...values, chat_id: conversation.external_user_id })
             .execute();
-        else
+        else if (conversation.platform === "vk")
           await tx
             .insertInto("vk_outbox")
             .values({ ...values, peer_id: conversation.external_user_id })
+            .execute();
+        else
+          await tx
+            .insertInto("meta_outbox")
+            .values({
+              ...values,
+              recipient_id: conversation.external_user_id,
+            })
             .execute();
       }
       if (current.status !== "assigned")
@@ -672,6 +702,7 @@ export class CommunicationService {
           status: "open",
           assigned_member_user_id: null,
           last_message_at: new Date(),
+          last_inbound_at: new Date(),
           created_at: new Date(),
           closed_at: null,
         })
@@ -687,6 +718,7 @@ export class CommunicationService {
                   ? previous.assigned_member_user_id
                   : null,
               last_message_at: new Date(),
+              last_inbound_at: new Date(),
               closed_at: null,
             }),
         )
