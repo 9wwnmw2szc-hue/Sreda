@@ -26,6 +26,34 @@ const createdBusinessIds = [];
 before(() => migrate(db, new URL("../migrations", import.meta.url).pathname));
 after(async () => {
   for (const businessId of createdBusinessIds) {
+    const connections = await db
+      .selectFrom("business_connection")
+      .select("id")
+      .where("business_id", "=", businessId)
+      .execute()
+      .catch(() => []);
+    for (const row of connections) {
+      await db
+        .deleteFrom("connection_secret")
+        .where("connection_id", "=", row.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("telegram_runtime")
+        .where("connection_id", "=", row.id)
+        .execute()
+        .catch(() => {});
+      await db
+        .deleteFrom("vk_runtime")
+        .where("connection_id", "=", row.id)
+        .execute()
+        .catch(() => {});
+    }
+    await db
+      .deleteFrom("business_connection")
+      .where("business_id", "=", businessId)
+      .execute()
+      .catch(() => {});
     await db
       .deleteFrom("channel_admin_session")
       .where("business_id", "=", businessId)
