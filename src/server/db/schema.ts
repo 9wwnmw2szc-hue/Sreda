@@ -156,7 +156,17 @@ export interface Database
     created_at: Generated<Date>;
   };
 
-  user: { id: string; public_id: string; name: string; username: string };
+  user: {
+    id: string;
+    public_id: string;
+    name: string;
+    username: string;
+    email: string;
+    deleted_at: Date | null;
+    deletion_status: "active" | "pending" | "deleted";
+    createdAt: Generated<Date>;
+    updatedAt: Generated<Date>;
+  };
   account: {
     id: string;
     userId: string;
@@ -164,7 +174,50 @@ export interface Database
     password: string | null;
     updatedAt: Date;
   };
-  session: { id: string; userId: string; token: string };
+  session: {
+    id: string;
+    userId: string;
+    token: string;
+    expiresAt: Date;
+    updatedAt: Date;
+    createdAt: Generated<Date>;
+  };
+  platform_admin: {
+    user_id: string;
+    role: "SUPER_ADMIN" | "SUPPORT" | "MODERATOR" | "FINANCE";
+    status: "active" | "revoked";
+    created_at: Generated<Date>;
+    created_by: string | null;
+    updated_at: Generated<Date>;
+    revoked_at: Date | null;
+  };
+  platform_admin_audit_log: {
+    id: string;
+    admin_user_id: string;
+    admin_role: string;
+    action: string;
+    target_type: string;
+    target_id: string | null;
+    business_id: string | null;
+    reason: string | null;
+    metadata: Generated<unknown>;
+    request_id: string | null;
+    created_at: Generated<Date>;
+  };
+  platform_suspension: {
+    entity_type: "user" | "business";
+    entity_id: string;
+    reason: string;
+    created_by: string;
+    created_at: Generated<Date>;
+    lifted_at: Date | null;
+    lifted_by: string | null;
+  };
+  platform_admin_bootstrap: {
+    id: boolean;
+    used_at: Date | null;
+    used_by: string | null;
+  };
   recovery_code: {
     user_id: string;
     code_hash: string;
@@ -180,7 +233,19 @@ export interface Database
       | "password_changed"
       | "pin_enabled"
       | "pin_changed"
-      | "pin_disabled";
+      | "pin_disabled"
+      | "account_deletion_requested"
+      | "account_deletion_completed";
+    created_at: Generated<Date>;
+  };
+  account_deletion_request: {
+    id: string;
+    user_id: string;
+    token_hash: string;
+    impact_snapshot: Generated<unknown>;
+    business_decisions: Generated<unknown>;
+    expires_at: Date;
+    consumed_at: Date | null;
     created_at: Generated<Date>;
   };
   business: {

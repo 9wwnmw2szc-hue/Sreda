@@ -1894,6 +1894,12 @@ export class OrderService {
         inventory_restored: !!(
           inventoryRestoredAt && !current.inventory_restored_at
         ),
+        ...(typeof body.channel === "string" &&
+        (body.channel === "telegram" ||
+          body.channel === "vk" ||
+          body.channel === "web")
+          ? { channel: body.channel }
+          : {}),
       });
       return { id: current.id, status: to };
     });

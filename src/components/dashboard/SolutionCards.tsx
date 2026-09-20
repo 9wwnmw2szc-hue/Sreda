@@ -1,20 +1,20 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import {
   DASHBOARD_SOLUTION_COPY,
-  solutionModuleAsset,
   solutionRoute,
 } from "@/config/solutionPresentation";
-import {
-  productSolutionHref,
-} from "@/lib/productSolutions";
+import { productSolutionHref } from "@/lib/productSolutions";
 import type { WorkspaceSolutionItem } from "@/hooks/useDashboardData";
 import type { SolutionStatus } from "@/types";
+import { SolutionIcon } from "@/components/solutions/SolutionIcon";
 
-function statusLabel(status: SolutionStatus, note?: string): {
+function statusLabel(
+  status: SolutionStatus,
+  note?: string,
+): {
   text: string;
   tone: "ok" | "warn" | "idle" | "error";
 } {
@@ -52,22 +52,16 @@ export function SolutionCards({
             ? "/solutions"
             : productSolutionHref(item.status, item.code) ||
               solutionRoute(item.code);
-        const visual = solutionModuleAsset(item.code);
+        const tone =
+          item.code === "admin_messages" ? "messages" : item.code;
         return (
           <Link
             key={item.code}
             href={href}
-            className={`soty-solution-card soty-solution-card--${item.code === "admin_messages" ? "messages" : item.code}`}
+            className={`soty-solution-card soty-solution-card--${tone}`}
           >
             <div className="soty-solution-card__art">
-              <Image
-                src={visual}
-                alt=""
-                width={160}
-                height={160}
-                sizes="(max-width: 768px) 72px, 120px"
-                unoptimized
-              />
+              <SolutionIcon solution={item.code} variant="hero" />
             </div>
             <div className="soty-solution-card__body">
               <h3>{copy.title}</h3>

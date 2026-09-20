@@ -12,7 +12,9 @@ import { PasswordChangePanel } from "./PasswordChangePanel";
 import { BusinessProfilePanel } from "./BusinessProfilePanel";
 import { IndustrySetupCard } from "./IndustrySetupCard";
 import { PinPanel } from "./PinPanel";
+import { ChannelAdminPanel } from "./ChannelAdminPanel";
 import { ThemeAppearancePanel } from "@/components/theme/ThemeAppearancePanel";
+import { AccountDeletionPanel } from "./AccountDeletionPanel";
 
 export function SettingsView() {
   const {
@@ -137,6 +139,13 @@ export function SettingsView() {
           canEdit={currentBusiness.role !== "operator"}
         />
       )}
+      {!isDemoMode && currentBusiness && (
+        <ChannelAdminPanel
+          key={`channel-admin:${currentBusiness.id}`}
+          businessId={currentBusiness.id}
+          canManage={currentBusiness.role !== "operator"}
+        />
+      )}
       {!isDemoMode && (
         <MembersPanel
           key={`${currentBusiness?.id ?? "none"}:${currentBusiness?.role ?? "none"}`}
@@ -150,6 +159,7 @@ export function SettingsView() {
           business={currentBusiness}
         />
       )}
+      {!isDemoMode && <AccountDeletionPanel />}
     </div>
   );
 }

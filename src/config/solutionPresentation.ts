@@ -1,6 +1,7 @@
-/** The approved visual code matches the solution code 1:1 (no shared sales alias). */
+/** Visual codes for brand 3D solution icons. Legacy `sales` → orders. */
 export function solutionVisualCode(code: string) {
   if (code === "admin_messages") return "messages";
+  if (code === "sales") return "orders";
   return code;
 }
 

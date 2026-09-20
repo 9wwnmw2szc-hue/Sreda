@@ -7,6 +7,8 @@ export function loginCredential(db: Kysely<Database>, username: string) {
     .leftJoin("account_pin", "account_pin.user_id", "user.id")
     .select(["account.userId", "account.password", "account_pin.pin_hash"])
     .where("user.username", "=", username).where("account.providerId", "=", "credential")
+    .where("user.deletion_status", "=", "active")
+    .where("user.deleted_at", "is", null)
     .executeTakeFirst();
 }
 

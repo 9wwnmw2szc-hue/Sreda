@@ -580,13 +580,13 @@ ul {
 .business-switcher {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 6px;
   position: relative;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   min-height: 52px;
   height: auto;
-  padding: 8px 36px 8px 12px;
+  padding: 7px 6px;
   background: var(--bg-surface);
   flex: 0 1 280px;
   min-width: 0;
@@ -598,39 +598,46 @@ ul {
   place-items: center;
   background: color-mix(in srgb, var(--brand-primary) 28%, var(--bg-surface));
   color: var(--brand-primary-text);
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex: 0 0 28px;
+  align-self: center;
 }
 .business-switcher__meta {
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 .business-switcher__meta > small {
   display: block;
   font-size: 11px;
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--text-muted);
   letter-spacing: 0.01em;
 }
 .business-switcher__name {
-  display: block;
   min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.25;
+  max-width: 100%;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
   color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+  text-wrap: balance;
 }
 .business-switcher__select {
   position: absolute;
@@ -652,14 +659,16 @@ ul {
   /* legacy path kept for any non-class selects */
   appearance: none;
 }
+.business-switcher__chevron,
 .business-switcher > svg {
   pointer-events: none;
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  align-self: center;
   color: var(--text-muted);
-  flex-shrink: 0;
+  transform: none;
 }
 .business-switcher:focus-within {
   outline: 2px solid var(--focus-ring);
@@ -1016,6 +1025,21 @@ ul {
 .button--outline:hover {
   background: var(--bg-page);
   border-color: color-mix(in srgb, var(--border-default) 70%, var(--text-secondary));
+}
+.button--danger {
+  background: #b42318;
+  color: #fff;
+  border-color: #b42318;
+  font-weight: 600;
+  box-shadow: none;
+}
+.button--danger:hover {
+  background: #912018;
+  border-color: #912018;
+}
+.button--danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .button--ghost {
   background: transparent;
@@ -1936,7 +1960,7 @@ ul {
     width: 100%;
     flex: auto;
     min-height: 52px;
-    padding: 8px 36px 8px 12px;
+    padding: 7px 8px;
     border-radius: var(--radius-md);
     background: var(--bg-surface);
     order: -1;
@@ -1945,7 +1969,7 @@ ul {
     font-size: 11px;
   }
   .business-switcher__name {
-    font-size: 14px;
+    font-size: 15px;
   }
   .business-switcher__select {
     font-size: 16px;
@@ -2406,41 +2430,28 @@ ul {
   width: 112px;
   height: 112px;
   border-radius: 22px;
-  background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.72) 0%,
-    rgba(255, 255, 255, 0.48) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 8px 20px rgba(32, 37, 43, 0.08),
-    0 1px 2px rgba(32, 37, 43, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(32, 37, 43, 0.04);
-  backdrop-filter: blur(8px) saturate(1.05);
-  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   justify-self: center;
 }
+.catalog-card__art .soty-solution-icon,
 .catalog-card__art img {
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  opacity: 1 !important;
-  mix-blend-mode: normal !important;
-  filter: saturate(1.18) contrast(1.1) brightness(1.06) !important;
+  opacity: 1;
+  mix-blend-mode: normal;
+  filter: none;
 }
 [data-theme="dark"] .catalog-card__art {
-  background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.12) 100%
-  );
-  border-color: rgba(255, 255, 255, 0.24);
-  box-shadow:
-    0 10px 22px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 [data-theme="dark"] .catalog-card__art img {
   opacity: 1 !important;
@@ -3173,6 +3184,18 @@ ul {
 .settings-page dt { color:var(--text-secondary); font-size:13px; margin-bottom:4px; }
 .settings-page dd { margin:0; overflow-wrap:anywhere; }
 .settings-business { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.settings-business .business-switcher { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+.settings-business > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.25;
+}
 .audit-list { display:grid; gap:0; margin:0; padding:0; list-style:none; }
 .audit-list li { display:flex; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid var(--border); color:var(--text-primary); }
 .audit-list li:last-child { border-bottom:0; }
@@ -4159,6 +4182,30 @@ ul {
   min-height: 64px;
 }
 
+.desktop-topbar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.desktop-topbar__utility {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.desktop-topbar__actions > .create-menu {
+  flex-shrink: 0;
+}
+
+.desktop-topbar__actions > .profile-menu {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 @media (max-width: 1099px) {
   .desktop-topbar {
     display: none !important;
@@ -4174,6 +4221,8 @@ ul {
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  max-width: 100%;
+  min-width: 0;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -4188,6 +4237,7 @@ ul {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 11rem;
   padding-right: 6px;
 }
 
@@ -4196,11 +4246,18 @@ ul {
   font-weight: 600;
   line-height: 1.2;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.desktop-profile__meta small,
 .desktop-profile__meta span {
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .create-menu {
@@ -4264,7 +4321,7 @@ ul {
 }
 
 .sidebar__switcher {
-  margin: 0 4px 18px;
+  margin: 0 -2px 18px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4274,17 +4331,15 @@ ul {
   width: 100%;
   flex: auto;
   max-width: none;
+  padding: 7px 6px;
+  gap: 6px;
 }
 .sidebar__switcher .business-switcher__name {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  overflow-wrap: anywhere;
-  line-height: 1.25;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .sidebar__plan {
@@ -5170,67 +5225,86 @@ input[type="time"] {
 .soty-solution-card__art {
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.7) 0%,
-    rgba(255, 255, 255, 0.42) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow:
-    0 6px 16px rgba(32, 37, 43, 0.07),
-    0 1px 2px rgba(32, 37, 43, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(32, 37, 43, 0.035);
-  backdrop-filter: blur(8px) saturate(1.05);
-  -webkit-backdrop-filter: blur(8px) saturate(1.05);
-  flex: 0 0 72px;
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  flex: 0 0 88px;
   flex-shrink: 0;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
 }
 
+.soty-solution-card__art .soty-solution-icon,
 .soty-solution-card__art img {
-  width: 52px;
-  height: 52px;
+  width: 76px;
+  height: 76px;
   object-fit: contain;
-  opacity: 1 !important;
-  filter: saturate(1.18) contrast(1.1) brightness(1.06) !important;
-  mix-blend-mode: normal !important;
+  opacity: 1;
+  filter: none;
+  mix-blend-mode: normal;
   transform: none;
+  transition:
+    transform 0.22s ease,
+    filter 0.22s ease;
+}
+
+.soty-solution-card:hover .soty-solution-card__art .soty-solution-icon,
+.soty-solution-card:hover .soty-solution-card__art img {
+  transform: translateY(-2px) scale(1.03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soty-solution-card__art .soty-solution-icon,
+  .soty-solution-card__art img,
+  .soty-solution-card:hover .soty-solution-card__art .soty-solution-icon,
+  .soty-solution-card:hover .soty-solution-card__art img {
+    transition: none;
+    transform: none;
+  }
 }
 
 [data-theme="dark"] .soty-solution-card__art {
-  background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 [data-theme="dark"] .soty-solution-card__art img {
-  opacity: 1 !important;
-  filter: saturate(1.22) contrast(1.12) brightness(1.14) !important;
+  opacity: 1;
+  filter: none;
 }
 
 @media (max-width: 699px) {
   .soty-solution-card__art {
-    width: 60px !important;
-    height: 60px !important;
-    flex: 0 0 60px !important;
+    width: 68px !important;
+    height: 68px !important;
+    flex: 0 0 68px !important;
     border-radius: 18px;
   }
+  .soty-solution-card__art .soty-solution-icon,
   .soty-solution-card__art img {
-    width: 44px !important;
-    height: 44px !important;
+    width: 58px !important;
+    height: 58px !important;
   }
+}
+
+.soty-solution-icon {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.soty-solution-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 1;
 }
 
 .sidebar__link.is-active {
@@ -6924,7 +6998,7 @@ a.soty-activity__row {
 /* Tablet landscape: restore desktop shell from 900px */
 @media (min-width: 900px) and (max-width: 1099px) {
   :root {
-    --sidebar-width: 200px;
+    --sidebar-width: 216px;
     --content-gutter: 20px;
   }
 
@@ -6986,7 +7060,7 @@ a.soty-activity__row {
 
 @media (min-width: 1440px) {
   :root {
-    --sidebar-width: 236px;
+    --sidebar-width: 248px;
   }
 }
 
@@ -7206,4 +7280,72 @@ a.soty-activity__row {
 
 .settings-panel .sign-out {
   margin-top: 8px;
+}
+
+.account-danger-zone {
+  margin-top: 28px;
+  border-color: color-mix(in srgb, #b42318 28%, var(--border-default));
+}
+
+.account-danger-zone .button--danger {
+  margin-top: 12px;
+}
+
+.account-deletion-dialog {
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(90vh, 720px);
+}
+
+.account-deletion-dialog .sign-out-dialog__inner {
+  max-height: min(86vh, 680px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+}
+
+.account-deletion-impact {
+  display: grid;
+  gap: 14px;
+}
+
+.account-deletion-biz {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-muted, var(--bg-page));
+}
+
+.account-deletion-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+}
+
+.account-deletion-field {
+  display: grid;
+  gap: 6px;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.account-deletion-field .input {
+  width: 100%;
+}
+
+.sign-out-dialog__actions .button--danger {
+  min-width: 132px;
+}
+
+@media (max-width: 430px) {
+  .account-deletion-dialog .sign-out-dialog__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .account-deletion-dialog .sign-out-dialog__actions .button {
+    width: 100%;
+  }
 }

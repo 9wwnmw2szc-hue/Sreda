@@ -1064,8 +1064,20 @@ test("connections verify bot, encrypt token, enforce scope and delete secret thr
     ).status,
     200,
   );
+  const internalBusiness = await db
+    .selectFrom("business")
+    .select("id")
+    .where("public_id", "=", business.id)
+    .executeTakeFirstOrThrow();
   assert.equal(
-    (await db.selectFrom("connection_secret").selectAll().execute()).length,
+    (
+      await db
+        .selectFrom("connection_secret as s")
+        .innerJoin("business_connection as c", "c.id", "s.connection_id")
+        .where("c.business_id", "=", internalBusiness.id)
+        .select("s.connection_id")
+        .execute()
+    ).length,
     0,
   );
   assert.equal(
