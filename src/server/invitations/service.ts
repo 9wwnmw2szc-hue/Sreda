@@ -274,6 +274,37 @@ export class InvitationService {
       .where("business_id", "=", businessId)
       .where("user_id", "=", target.id)
       .execute();
+    const channelBindings = await this.db
+      .selectFrom("business_channel_admin as a")
+      .innerJoin(
+        "provider_identity as p",
+        "p.id",
+        "a.provider_identity_id",
+      )
+      .select([
+        "a.connection_id",
+        "a.platform",
+        "p.external_user_id",
+      ])
+      .where("a.business_id", "=", businessId)
+      .where("a.user_id", "=", target.id)
+      .where("a.status", "=", "active")
+      .execute();
+    await this.db
+      .updateTable("business_channel_admin")
+      .set({ status: "revoked", revoked_at: new Date() })
+      .where("business_id", "=", businessId)
+      .where("user_id", "=", target.id)
+      .where("status", "=", "active")
+      .execute();
+    for (const row of channelBindings) {
+      await this.db
+        .deleteFrom("channel_admin_session")
+        .where("connection_id", "=", row.connection_id)
+        .where("external_user_id", "=", row.external_user_id)
+        .where("platform", "=", row.platform)
+        .execute();
+    }
     await this.audit(this.db, businessId, ownerId, "member_revoked", target.id);
     return { ok: true };
   }
