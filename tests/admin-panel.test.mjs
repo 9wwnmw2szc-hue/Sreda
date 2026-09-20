@@ -339,16 +339,28 @@ test("integration diagnostics never returns encrypted tokens", async () => {
     })
     .execute();
 
-  const diag = await adminApi.integration(
-    request("/api/admin/integrations/" + connectionId, {
-      cookie: admin.cookie,
-    }),
-    connectionId,
-  );
-  assert.equal(diag.status, 200);
-  const payload = JSON.stringify(await diag.json());
-  assert.equal(payload.includes("ciphertext-should-never-leak"), false);
-  assert.match(payload, /configured|not_configured/);
+  try {
+    const diag = await adminApi.integration(
+      request("/api/admin/integrations/" + connectionId, {
+        cookie: admin.cookie,
+      }),
+      connectionId,
+    );
+    assert.equal(diag.status, 200);
+    const payload = JSON.stringify(await diag.json());
+    assert.equal(payload.includes("ciphertext-should-never-leak"), false);
+    assert.match(payload, /configured|not_configured/);
+  } finally {
+    // Shared CI Postgres: do not leave secrets that break global empty-table asserts.
+    await db
+      .deleteFrom("connection_secret")
+      .where("connection_id", "=", connectionId)
+      .execute();
+    await db
+      .deleteFrom("business_connection")
+      .where("id", "=", connectionId)
+      .execute();
+  }
 });
 
 test("cross-tenant admin access only via admin API with permission", async () => {
