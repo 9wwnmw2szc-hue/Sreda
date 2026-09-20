@@ -24,6 +24,9 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
 
   assert.match(settings, /SignOutButton/);
   assert.match(settings, /Выйти из аккаунта|SignOutButton/);
+  assert.match(settings, /AccountDeletionPanel/);
+  assert.match(await read("./src/components/account/AccountDeletionPanel.tsx"), /Удалить аккаунт/);
+  assert.match(await read("./src/components/account/AccountDeletionPanel.tsx"), /Опасная зона/);
 
   assert.match(button, /Выйти из аккаунта\?/);
   assert.match(button, /Текущая сессия будет завершена на этом устройстве/);

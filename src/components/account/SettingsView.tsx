@@ -13,6 +13,7 @@ import { BusinessProfilePanel } from "./BusinessProfilePanel";
 import { IndustrySetupCard } from "./IndustrySetupCard";
 import { PinPanel } from "./PinPanel";
 import { ThemeAppearancePanel } from "@/components/theme/ThemeAppearancePanel";
+import { AccountDeletionPanel } from "./AccountDeletionPanel";
 
 export function SettingsView() {
   const {
@@ -150,6 +151,7 @@ export function SettingsView() {
           business={currentBusiness}
         />
       )}
+      {!isDemoMode && <AccountDeletionPanel />}
     </div>
   );
 }

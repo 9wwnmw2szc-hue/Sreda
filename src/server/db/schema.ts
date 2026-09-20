@@ -156,7 +156,14 @@ export interface Database
     created_at: Generated<Date>;
   };
 
-  user: { id: string; public_id: string; name: string; username: string };
+  user: {
+    id: string;
+    public_id: string;
+    name: string;
+    username: string;
+    deleted_at: Date | null;
+    deletion_status: "active" | "pending" | "deleted";
+  };
   account: {
     id: string;
     userId: string;
@@ -180,7 +187,19 @@ export interface Database
       | "password_changed"
       | "pin_enabled"
       | "pin_changed"
-      | "pin_disabled";
+      | "pin_disabled"
+      | "account_deletion_requested"
+      | "account_deletion_completed";
+    created_at: Generated<Date>;
+  };
+  account_deletion_request: {
+    id: string;
+    user_id: string;
+    token_hash: string;
+    impact_snapshot: Generated<unknown>;
+    business_decisions: Generated<unknown>;
+    expires_at: Date;
+    consumed_at: Date | null;
     created_at: Generated<Date>;
   };
   business: {
