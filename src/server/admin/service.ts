@@ -1787,7 +1787,10 @@ export class AdminService {
       reason: string;
     },
   ) {
-    if (!platformAllowed(actor.role, "admin.integrations.manage")) {
+    if (
+      !platformAllowed(actor.role, "admin.support.manage") &&
+      !platformAllowed(actor.role, "admin.integrations.manage")
+    ) {
       throw new AppError(403, "FORBIDDEN", "Недостаточно прав.");
     }
     const reason = requireReason(input.reason);
