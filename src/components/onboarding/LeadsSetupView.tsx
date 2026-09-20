@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +14,7 @@ import { useCurrentBusiness } from "@/hooks/useCurrentBusiness";
 import { BusinessSwitcher } from "@/components/dashboard/BusinessSwitcher";
 import { LoadingPanel } from "@/components/dashboard/LoadingPanel";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import { SolutionIcon } from "@/components/solutions/SolutionIcon";
 import {
   LEAD_FIELDS,
   newLeadSetupDraft,
@@ -264,14 +264,7 @@ function LeadsWizard({
   return (
     <>
       <header className="setup-intro">
-        <Image
-          src="/assets/soty/v1/module-leads.webp"
-          width={140}
-          height={140}
-          alt=""
-          sizes="100px"
-          unoptimized
-        />
+        <SolutionIcon solution="leads" variant="hero" />
         <div>
           <span className="eyebrow">Готовое решение</span>
           <h1>Приём заявок</h1>
@@ -692,14 +685,7 @@ function LeadsWizard({
           </fieldset>
         </section>
         <aside className="setup-summary panel">
-          <Image
-            src="/assets/soty/v1/module-leads.webp"
-            alt=""
-            width={180}
-            height={180}
-            sizes="150px"
-            unoptimized
-          />
+          <SolutionIcon solution="leads" variant="hero" />
           <h2>Заявки без лишней работы</h2>
           <p>
             Клиент отвечает на несколько вопросов. Вы получаете
