@@ -9,10 +9,7 @@ import { readMetaConfig } from "@/server/meta/config";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
+export async function GET(request: Request) {
   return respond(async () => {
     const r = getRuntime();
     await createApplication(r).requireUser(request.headers);
