@@ -8,7 +8,21 @@ async function read(rel) {
   return readFile(new URL(rel, root), "utf8");
 }
 
-test("desktop profile menu and mobile sidebar expose logout action", async () => {
+test("desktop topbar actions order is utility, add, then profile", async () => {
+  const shell = await read("./src/components/layout/AppShell.tsx");
+  const css = await read("./src/app/globals.css");
+  const utility = shell.indexOf("desktop-topbar__utility");
+  const create = shell.indexOf('className="create-menu"');
+  const profile = shell.indexOf('className="profile-menu"');
+  assert.ok(utility > 0);
+  assert.ok(create > utility);
+  assert.ok(profile > create);
+  assert.match(css, /\.desktop-topbar__actions\s*\{[^}]*display:\s*flex/s);
+  assert.match(css, /\.desktop-topbar__utility\s*\{[^}]*gap:\s*var\(--space-3\)/s);
+  assert.match(css, /\.desktop-topbar__actions\s*\{[^}]*gap:\s*var\(--space-6\)/s);
+  assert.match(css, /text-overflow:\s*ellipsis/);
+});
+
   const shell = await read("./src/components/layout/AppShell.tsx");
   const sidebar = await read("./src/components/layout/Sidebar.tsx");
   const settings = await read("./src/components/account/SettingsView.tsx");
