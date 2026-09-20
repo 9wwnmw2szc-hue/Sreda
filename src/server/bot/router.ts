@@ -12,6 +12,8 @@ import { createLead } from "../leads/service.ts";
 import { CommunicationService } from "../communications/service.ts";
 import { normalizeIdentity } from "../clients/service.ts";
 import type { LeadSetupDraft, LeadFieldId } from "../../lib/leadSetupDraft.ts";
+import { routeChannelAdmin } from "../channel-admin/router.ts";
+import { ChannelAdminBindingService } from "../channel-admin/binding.ts";
 const defaults: Record<string, string> = {
   name: "Как к вам обращаться?",
   phone: "Ваш телефон",
@@ -172,7 +174,16 @@ export async function routeBot(
     );
     return;
   }
+  if (await routeChannelAdmin(tx, input, queue)) return;
   if (text === "/start" || text === "/menu" || text === "Главное меню") {
+    const admin = await new ChannelAdminBindingService(tx).resolveAdmin(tx, {
+      connectionId,
+      businessId,
+      platform,
+      externalUserId: userId,
+    });
+    if (admin && !menu.includes("Управление бизнесом"))
+      menu.push("Управление бизнесом");
     await showMenu();
     return;
   }
