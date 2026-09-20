@@ -4,6 +4,8 @@ import { platformPermissions } from "@/server/admin/permissions";
 import { filterAdminNav } from "@/config/adminNav";
 import { AdminShell } from "@/components/admin/AdminShell";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminConsoleLayout({
   children,
 }: {

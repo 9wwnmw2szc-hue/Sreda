@@ -5,12 +5,13 @@
  * Required env:
  *   DATABASE_URL
  *   PLATFORM_ADMIN_BOOTSTRAP_USERNAME  — existing user username
- *   PLATFORM_ADMIN_BOOTSTRAP_TOKEN     — must match PLATFORM_ADMIN_BOOTSTRAP_TOKEN
- *                                       in the environment (shared secret, ≥32 chars)
+ *   PLATFORM_ADMIN_BOOTSTRAP_TOKEN     — operator-held secret (>=32 chars)
+ *   PLATFORM_ADMIN_BOOTSTRAP_CONFIRM=YES
  *
- * Does NOT create a public HTTP endpoint. Refuses if bootstrap already used,
- * unless PLATFORM_ADMIN_BOOTSTRAP_FORCE=1 and at least one SUPER_ADMIN already exists
- * (force only re-runs assignment for the named user — still requires token).
+ * Optional:
+ *   PLATFORM_ADMIN_BOOTSTRAP_FORCE=1 — allow re-assign when bootstrap already used
+ *
+ * No public HTTP endpoint.
  */
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
@@ -19,16 +20,15 @@ async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   const username = process.env.PLATFORM_ADMIN_BOOTSTRAP_USERNAME?.trim();
   const token = process.env.PLATFORM_ADMIN_BOOTSTRAP_TOKEN ?? "";
-  const expected = process.env.PLATFORM_ADMIN_BOOTSTRAP_TOKEN ?? "";
   const force = process.env.PLATFORM_ADMIN_BOOTSTRAP_FORCE === "1";
 
   if (!databaseUrl) throw new Error("DATABASE_URL is required");
   if (!username) throw new Error("PLATFORM_ADMIN_BOOTSTRAP_USERNAME is required");
   if (token.length < 32) {
-    throw new Error("PLATFORM_ADMIN_BOOTSTRAP_TOKEN must be at least 32 characters");
+    throw new Error(
+      "PLATFORM_ADMIN_BOOTSTRAP_TOKEN must be at least 32 characters",
+    );
   }
-  // Token is compared to itself via env presence — operator must set the same
-  // value intentionally. Additional confirmation via BOOTSTRAP_CONFIRM=YES.
   if (process.env.PLATFORM_ADMIN_BOOTSTRAP_CONFIRM !== "YES") {
     throw new Error(
       "Set PLATFORM_ADMIN_BOOTSTRAP_CONFIRM=YES to acknowledge one-time bootstrap",
@@ -51,7 +51,9 @@ async function main() {
         tx,
       );
       if (!bootstrap.rows[0]) {
-        throw new Error("platform_admin_bootstrap row missing — run migrations");
+        throw new Error(
+          "platform_admin_bootstrap row missing — run migrations",
+        );
       }
       if (bootstrap.rows[0].used_at && !force) {
         throw new Error(
@@ -102,6 +104,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify({ ok: false, error: String(error.message || error) }));
+  console.error(
+    JSON.stringify({ ok: false, error: String(error.message || error) }),
+  );
   process.exit(1);
 });

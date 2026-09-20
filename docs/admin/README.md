@@ -24,13 +24,17 @@ Permissions are defined in `src/server/admin/permissions.ts`. Nav is filtered by
 
 ## Bootstrap
 
-First `SUPER_ADMIN` is created via CLI only:
+First `SUPER_ADMIN` is created via **CLI only** (no public HTTP endpoint):
 
 ```bash
-npm run admin:bootstrap -- --username <existing-user-login>
+PLATFORM_ADMIN_BOOTSTRAP_USERNAME=<existing-username> \
+PLATFORM_ADMIN_BOOTSTRAP_TOKEN=<secret-at-least-32-chars> \
+PLATFORM_ADMIN_BOOTSTRAP_CONFIRM=YES \
+npm run admin:bootstrap
 ```
 
-Further roles are assigned from **Admin → Пользователи → карточка → Роли платформы** (requires `admin.admins.manage`).
+The bootstrap marker in `platform_admin_bootstrap` prevents accidental reuse.
+Further roles are assigned from **Admin → Пользователи → карточка** (requires `admin.admins.manage`).
 
 ## Explicit non-goals
 

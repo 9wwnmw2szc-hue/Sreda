@@ -11,7 +11,7 @@ CREATE TABLE platform_admin (
 
 CREATE INDEX platform_admin_role_status_idx ON platform_admin (role, status);
 
--- Append-only admin audit trail. Application never UPDATEs or DELETEs rows.
+-- Append-only admin audit trail. Application never updates or deletes rows.
 CREATE TABLE platform_admin_audit_log (
   id uuid PRIMARY KEY,
   admin_user_id uuid NOT NULL REFERENCES "user"(id) ON DELETE RESTRICT,
@@ -21,7 +21,7 @@ CREATE TABLE platform_admin_audit_log (
   target_id text,
   business_id uuid REFERENCES business(id) ON DELETE SET NULL,
   reason text,
-  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  metadata jsonb NOT NULL DEFAULT '{}',
   request_id text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -29,8 +29,7 @@ CREATE TABLE platform_admin_audit_log (
 CREATE INDEX platform_admin_audit_created_idx ON platform_admin_audit_log (created_at DESC);
 CREATE INDEX platform_admin_audit_admin_idx ON platform_admin_audit_log (admin_user_id, created_at DESC);
 CREATE INDEX platform_admin_audit_action_idx ON platform_admin_audit_log (action, created_at DESC);
-CREATE INDEX platform_admin_audit_business_idx ON platform_admin_audit_log (business_id, created_at DESC)
-  WHERE business_id IS NOT NULL;
+CREATE INDEX platform_admin_audit_business_idx ON platform_admin_audit_log (business_id, created_at DESC);
 CREATE INDEX platform_admin_audit_target_idx ON platform_admin_audit_log (target_type, target_id, created_at DESC);
 
 -- Soft suspend for users/businesses (no hard delete from admin UI).
@@ -45,12 +44,11 @@ CREATE TABLE platform_suspension (
   PRIMARY KEY (entity_type, entity_id)
 );
 
-CREATE INDEX platform_suspension_active_idx ON platform_suspension (entity_type, created_at DESC)
-  WHERE lifted_at IS NULL;
+CREATE INDEX platform_suspension_active_idx ON platform_suspension (entity_type, created_at DESC);
 
--- One-time super-admin bootstrap marker (CLI only; no public endpoint).
+-- One-time super-admin bootstrap marker (CLI only, no public endpoint).
 CREATE TABLE platform_admin_bootstrap (
-  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  id boolean PRIMARY KEY DEFAULT true CHECK (id = true),
   used_at timestamptz,
   used_by uuid REFERENCES "user"(id) ON DELETE SET NULL
 );
