@@ -20,8 +20,8 @@ test("desktop topbar actions order is utility, add, then profile", async () => {
   assert.match(css, /\.desktop-topbar__actions/);
   assert.match(css, /display:\s*flex/);
   assert.match(css, /\.desktop-topbar__utility/);
-  assert.match(css, /gap:\s*var\(--space-3\)/);
-  assert.match(css, /gap:\s*var\(--space-6\)/);
+  assert.match(css, /gap:\s*var\(--space-4\)/);
+  assert.match(css, /gap:\s*var\(--space-8\)/);
   assert.match(css, /text-overflow:\s*ellipsis/);
 });
 

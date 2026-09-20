@@ -4163,14 +4163,14 @@ ul {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: var(--space-6);
+  gap: var(--space-8);
   min-width: 0;
 }
 
 .desktop-topbar__utility {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
