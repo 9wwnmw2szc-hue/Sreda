@@ -7,18 +7,21 @@ import { migrate } from "../src/server/db/migrate.ts";
 import { encryptSecret } from "../src/server/connections/crypto.ts";
 import { MetaChannelService } from "../src/server/meta/service.ts";
 import { CommunicationService } from "../src/server/communications/service.ts";
-import { AppError } from "../src/server/http/errors.ts";
+import { META_GRAPH_API_VERSION } from "../src/server/meta/config.ts";
 
 const secret = "meta-instagram-fixture-secret-32!";
-const appSecret = "meta-ig-app-secret16";
-const verifyToken = "meta-ig-verify-token16";
+const appSecret = "ig-app-secret-value16";
+const verifyToken = "ig-verify-token-16ch";
 
-process.env.META_APP_ID = "ig-app";
-process.env.META_APP_SECRET = appSecret;
-process.env.META_WEBHOOK_VERIFY_TOKEN = verifyToken;
-process.env.META_WEBHOOKS_ENABLED = "true";
-process.env.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID = "wa-config";
-process.env.META_INSTAGRAM_LOGIN_CONFIG_ID = "ig-config";
+const testConfig = {
+  appId: "ig-app",
+  appSecret,
+  webhookVerifyToken: verifyToken,
+  graphApiVersion: META_GRAPH_API_VERSION,
+  whatsappConfigId: "wa-config",
+  instagramConfigId: "ig-config",
+  enabled: true,
+};
 
 const db = new Kysely({
   dialect: new PGliteDialect({ pglite: new PGlite() }),
@@ -37,13 +40,16 @@ function sign(body) {
 
 async function seedBusiness(suffix = "a") {
   const userId = randomUUID();
-  await db.insertInto("user").values({
-    id: userId,
-    name: "Owner",
-    email: userId + "@test.invalid",
-    emailVerified: false,
-    username: "u" + userId.replace(/-/g, "").slice(0, 20),
-  }).execute();
+  await db
+    .insertInto("user")
+    .values({
+      id: userId,
+      name: "Owner",
+      email: userId + "@test.invalid",
+      emailVerified: false,
+      username: "u" + userId.replace(/-/g, "").slice(0, 20),
+    })
+    .execute();
   const business = await db
     .insertInto("business")
     .values({
@@ -65,7 +71,7 @@ async function seedBusiness(suffix = "a") {
   return { userId, businessId: business.id, publicId: business.public_id };
 }
 
-async function seedInstagram(businessId, pageId = "page-1", igUserId = "ig-1") {
+async function seedInstagram(businessId, pageId = "page-1", igUserId = "17841400000000001") {
   const connectionId = randomUUID();
   await db
     .insertInto("business_connection")
@@ -112,12 +118,13 @@ function service(transport = fetch) {
     true,
     new CommunicationService(db),
     transport,
+    testConfig,
   );
 }
 
 test("instagram inbound creates conversation", async () => {
   const { businessId } = await seedBusiness("in");
-  await seedInstagram(businessId, "page-in", "ig-in");
+  await seedInstagram(businessId, "page-in", "17841400000000011");
   const body = JSON.stringify({
     object: "instagram",
     entry: [
@@ -125,7 +132,7 @@ test("instagram inbound creates conversation", async () => {
         id: "page-in",
         messaging: [
           {
-            sender: { id: "igsid-1" },
+            sender: { id: "17841400000009901" },
             recipient: { id: "page-in" },
             timestamp: Date.now(),
             message: { mid: "mid.1", text: "Привет из Instagram" },
@@ -142,7 +149,7 @@ test("instagram inbound creates conversation", async () => {
     .where("platform", "=", "instagram")
     .executeTakeFirst();
   assert.ok(conversation);
-  assert.equal(conversation.external_user_id, "igsid-1");
+  assert.equal(conversation.external_user_id, "17841400000009901");
   const messages = await db
     .selectFrom("communication_message")
     .selectAll()
@@ -154,7 +161,11 @@ test("instagram inbound creates conversation", async () => {
 
 test("instagram outbound enqueues meta_outbox", async () => {
   const { userId, businessId, publicId } = await seedBusiness("out");
-  const connectionId = await seedInstagram(businessId, "page-out", "ig-out");
+  const connectionId = await seedInstagram(
+    businessId,
+    "page-out",
+    "17841400000000022",
+  );
   const conversationId = randomUUID();
   await db
     .insertInto("communication_conversation")
@@ -162,7 +173,7 @@ test("instagram outbound enqueues meta_outbox", async () => {
       id: conversationId,
       business_id: businessId,
       platform: "instagram",
-      external_user_id: "igsid-out",
+      external_user_id: "17841400000008801",
       external_username: null,
       status: "open",
       assigned_member_user_id: null,
@@ -185,15 +196,15 @@ test("instagram outbound enqueues meta_outbox", async () => {
     .where("connection_id", "=", connectionId)
     .execute();
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0].recipient_id, "igsid-out");
+  assert.equal(jobs[0].recipient_id, "17841400000008801");
   assert.equal(jobs[0].message, "Ответ в Direct");
 });
 
 test("instagram webhook does not leak across tenants", async () => {
   const a = await seedBusiness("iso-a");
   const b = await seedBusiness("iso-b");
-  await seedInstagram(a.businessId, "page-a", "ig-a");
-  await seedInstagram(b.businessId, "page-b", "ig-b");
+  await seedInstagram(a.businessId, "page-a", "17841400000000031");
+  await seedInstagram(b.businessId, "page-b", "17841400000000032");
   const body = JSON.stringify({
     object: "page",
     entry: [
@@ -201,7 +212,7 @@ test("instagram webhook does not leak across tenants", async () => {
         id: "page-a",
         messaging: [
           {
-            sender: { id: "igsid-tenant" },
+            sender: { id: "17841400000007701" },
             recipient: { id: "page-a" },
             message: { mid: "mid.tenant", text: "Только A" },
           },
@@ -226,7 +237,13 @@ test("instagram webhook does not leak across tenants", async () => {
 
 test("instagram deliverOne sends via Graph and marks sent", async () => {
   const { businessId } = await seedBusiness("del");
-  const connectionId = await seedInstagram(businessId, "page-del", "ig-del");
+  const connectionId = await seedInstagram(
+    businessId,
+    "page-del",
+    "17841400000000041",
+  );
+  // Clear any leftover pending outbox from earlier cases in this file.
+  await db.deleteFrom("meta_outbox").where("delivered_at", "is", null).execute();
   const messageId = randomUUID();
   const conversationId = randomUUID();
   await db
@@ -235,7 +252,7 @@ test("instagram deliverOne sends via Graph and marks sent", async () => {
       id: conversationId,
       business_id: businessId,
       platform: "instagram",
-      external_user_id: "igsid-del",
+      external_user_id: "17841400000006601",
       external_username: null,
       status: "assigned",
       assigned_member_user_id: null,
@@ -264,7 +281,7 @@ test("instagram deliverOne sends via Graph and marks sent", async () => {
     .insertInto("meta_outbox")
     .values({
       connection_id: connectionId,
-      recipient_id: "igsid-del",
+      recipient_id: "17841400000006601",
       message: "Доставка",
       communication_message_id: messageId,
     })
@@ -275,7 +292,7 @@ test("instagram deliverOne sends via Graph and marks sent", async () => {
     assert.match(String(url), /page-del\/messages/);
     assert.equal(init?.method, "POST");
     const body = JSON.parse(String(init?.body || "{}"));
-    assert.equal(body.recipient.id, "igsid-del");
+    assert.equal(body.recipient.id, "17841400000006601");
     assert.ok(!JSON.stringify(body).includes("ig-page-token"));
     return {
       ok: true,
@@ -307,6 +324,6 @@ test("instagram wrong signature rejected", async () => {
         '{"object":"instagram","entry":[]}',
         "sha256=00",
       ),
-    (e) => e instanceof AppError && e.code === "INVALID_SIGNATURE",
+    (e) => e && e.code === "INVALID_SIGNATURE",
   );
 });

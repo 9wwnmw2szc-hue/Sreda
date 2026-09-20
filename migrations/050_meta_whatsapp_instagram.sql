@@ -1,5 +1,5 @@
 -- Additive: WhatsApp + Instagram as first-class ChannelPlatform values.
--- Soft-widens CHECKs; adds Meta runtime/outbox/dedupe tables shared by both providers.
+-- Soft-widens CHECKs and adds Meta runtime/outbox/dedupe tables shared by both providers.
 -- Does NOT drop or truncate existing Telegram/VK data.
 
 -- business_connection.platform

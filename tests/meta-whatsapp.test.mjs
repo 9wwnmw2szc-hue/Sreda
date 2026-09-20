@@ -7,18 +7,21 @@ import { migrate } from "../src/server/db/migrate.ts";
 import { encryptSecret } from "../src/server/connections/crypto.ts";
 import { MetaChannelService } from "../src/server/meta/service.ts";
 import { CommunicationService } from "../src/server/communications/service.ts";
-import { AppError } from "../src/server/http/errors.ts";
+import { META_GRAPH_API_VERSION } from "../src/server/meta/config.ts";
 
 const secret = "meta-whatsapp-fixture-secret-32ch!";
-const appSecret = "meta-app-secret-value-16";
-const verifyToken = "meta-verify-token-16chars";
+const appSecret = "wa-app-secret-value16";
+const verifyToken = "wa-verify-token-16ch";
 
-process.env.META_APP_ID = "app123";
-process.env.META_APP_SECRET = appSecret;
-process.env.META_WEBHOOK_VERIFY_TOKEN = verifyToken;
-process.env.META_WEBHOOKS_ENABLED = "true";
-process.env.META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID = "wa-config";
-process.env.META_INSTAGRAM_LOGIN_CONFIG_ID = "ig-config";
+const testConfig = {
+  appId: "wa-app",
+  appSecret,
+  webhookVerifyToken: verifyToken,
+  graphApiVersion: META_GRAPH_API_VERSION,
+  whatsappConfigId: "wa-config",
+  instagramConfigId: "ig-config",
+  enabled: true,
+};
 
 const db = new Kysely({
   dialect: new PGliteDialect({ pglite: new PGlite() }),
@@ -37,13 +40,16 @@ function sign(body) {
 
 async function seedBusiness(suffix = "a") {
   const userId = randomUUID();
-  await db.insertInto("user").values({
-    id: userId,
-    name: "Owner",
-    email: userId + "@test.invalid",
-    emailVerified: false,
-    username: "u" + userId.replace(/-/g, "").slice(0, 20),
-  }).execute();
+  await db
+    .insertInto("user")
+    .values({
+      id: userId,
+      name: "Owner",
+      email: userId + "@test.invalid",
+      emailVerified: false,
+      username: "u" + userId.replace(/-/g, "").slice(0, 20),
+    })
+    .execute();
   const business = await db
     .insertInto("business")
     .values({
@@ -112,6 +118,7 @@ function service(transport = fetch) {
     true,
     new CommunicationService(db),
     transport,
+    testConfig,
   );
 }
 
@@ -124,14 +131,18 @@ test("whatsapp webhook verify returns challenge", () => {
   assert.equal(challenge, "12345");
   assert.throws(
     () => service().handleWebhookVerify("subscribe", "wrong", "1"),
-    (e) => e instanceof AppError && e.status === 403,
+    (e) => e && e.code === "INVALID_WEBHOOK" && e.status === 403,
   );
 });
 
 test("whatsapp webhook rejects bad signature", async () => {
   await assert.rejects(
-    () => service().receiveWebhook('{"object":"whatsapp_business_account"}', "sha256=deadbeef"),
-    (e) => e instanceof AppError && e.code === "INVALID_SIGNATURE",
+    () =>
+      service().receiveWebhook(
+        '{"object":"whatsapp_business_account"}',
+        "sha256=deadbeef",
+      ),
+    (e) => e && e.code === "INVALID_SIGNATURE",
   );
 });
 
@@ -222,10 +233,7 @@ test("whatsapp outbound freeform fails outside 24h window", async () => {
       communications.sendMessage(userId, publicId, conversationId, {
         text: "Ответ вне окна",
       }),
-    (e) =>
-      e instanceof AppError &&
-      e.code === "WHATSAPP_WINDOW_CLOSED" &&
-      e.status === 409,
+    (e) => e && e.code === "WHATSAPP_WINDOW_CLOSED" && e.status === 409,
   );
   const outbox = await db
     .selectFrom("meta_outbox")

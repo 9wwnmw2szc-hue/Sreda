@@ -769,7 +769,11 @@ export class CommunicationService {
         .where("business_id", "=", input.businessId)
         .where("period_start", "=", periodStart)
         .execute();
-      if (input.connectionId && input.attachments?.length)
+      if (
+        input.connectionId &&
+        input.attachments?.length &&
+        (input.platform === "telegram" || input.platform === "vk")
+      )
         await recordAttachments(
           tx,
           input.businessId,

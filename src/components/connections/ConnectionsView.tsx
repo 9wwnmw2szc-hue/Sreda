@@ -292,7 +292,7 @@ function Connections({ id }: { id: string }) {
                     }),
                   });
                   if (result.candidates.length === 1) {
-                    const c = result.candidates[0];
+                    const c = result.candidates[0]!;
                     await apiRequest(base + "/meta/callback", {
                       method: "POST",
                       body: JSON.stringify({
