@@ -247,17 +247,6 @@ export async function routeChannelAdmin(
     })) ?? null;
 
   if (wantsAdmin) {
-    if (admin) {
-      await showHome(
-        tx,
-        queue,
-        admin,
-        input.connectionId,
-        externalUserId,
-        platform,
-      );
-      return true;
-    }
     const list = await bindings.listBusinessesForIdentity(
       tx,
       platform,
@@ -293,11 +282,13 @@ export async function routeChannelAdmin(
       );
       return true;
     }
+    const preferred =
+      list.find((b) => b.businessId === input.businessId) ?? list[0]!;
     const firstAdmin = await resolveForSessionBusiness(
       tx,
       bindings,
       input,
-      list[0]!.businessId,
+      preferred.businessId,
     );
     if (!firstAdmin) {
       await queue(
@@ -474,7 +465,12 @@ export async function routeChannelAdmin(
   }
 
   try {
-    if (text === BTN.business || session?.mode === "settings") {
+    if (
+      text === BTN.business ||
+      text === BTN.changeName ||
+      text === BTN.changeGreeting ||
+      session?.mode === "settings"
+    ) {
       return await handleSettings(
         tx,
         queue,
@@ -515,10 +511,10 @@ export async function routeChannelAdmin(
       return true;
     }
     if (text === BTN.posts || session?.mode === "posts") {
-      return await handlePosts(tx, queue, admin, input, text);
+      return await handlePosts(tx, queue, admin, input);
     }
     if (text === BTN.stats) {
-      return await handleStats(tx, queue, admin, input);
+      return await handleStats(tx, queue, admin);
     }
     if (text === BTN.site) {
       const base = appUrl();
@@ -771,6 +767,28 @@ async function handleLeads(
           note: "",
         })
         .execute();
+      const leadAuditAction =
+        next === "processing"
+          ? "lead_taken"
+          : next === "completed" ||
+              next === "rejected" ||
+              next === "closed"
+            ? "lead_closed"
+            : null;
+      if (leadAuditAction) {
+        await audit(
+          tx,
+          fresh.businessId,
+          fresh.userId,
+          leadAuditAction,
+          leadId,
+          {
+            channel: input.platform,
+            from: current.status,
+            to: next,
+          },
+        );
+      }
       await queue(`Статус заявки: ${next}`, [
         ...LEAD_STATUSES,
         BTN.leads,
@@ -866,7 +884,7 @@ async function handleOrders(
         fresh.userId,
         fresh.publicBusinessId,
         orderId,
-        { status: text },
+        { status: text, channel: input.platform },
       );
       await queue(`Статус заказа: ${text}`, [BTN.orders, BTN.home]);
       return true;
@@ -1038,7 +1056,6 @@ async function handlePosts(
   queue: Queue,
   admin: ChannelAdminResolved,
   input: RouteInput,
-  _text: string,
 ): Promise<boolean> {
   if (!can(admin, "posts.manage") && !can(admin, "clients.read"))
     throw new AppError(403, "FORBIDDEN", "Недостаточно прав.");
@@ -1086,7 +1103,6 @@ async function handleStats(
   tx: Transaction<Database>,
   queue: Queue,
   admin: ChannelAdminResolved,
-  input: RouteInput,
 ): Promise<boolean> {
   if (!can(admin, "analytics.view") && !can(admin, "clients.read"))
     throw new AppError(403, "FORBIDDEN", "Недостаточно прав.");

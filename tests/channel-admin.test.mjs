@@ -233,10 +233,10 @@ test("web challenge consume binds identity; reuse and expiry fail", async () => 
   );
 
   const listed = await service.list(uid, b.public_id);
-  assert.equal(listed.length, 1);
-  assert.equal(listed[0].externalUserId, externalUserId);
-  assert.equal(listed[0].status, "active");
-  assert.ok(!("token" in listed[0]));
+  assert.equal(listed.items.length, 1);
+  assert.equal(listed.items[0].externalUserId, externalUserId);
+  assert.equal(listed.items[0].status, "active");
+  assert.ok(!("token" in listed.items[0]));
   void userPublicId;
 });
 
@@ -468,4 +468,358 @@ test("revoke removes access immediately", async () => {
     );
   });
   assert.match(messages.join("\n"), /не подтверждён/i);
+});
+
+test("wrong platform challenge is rejected", async () => {
+  const { uid, b } = await ownerBusiness("WrongPlatform");
+  const connectionId = await connectTelegram(b.id);
+  const service = new ChannelAdminBindingService(db);
+  const challenge = await service.createWebChallenge(
+    uid,
+    b.public_id,
+    "telegram",
+  );
+  await assert.rejects(
+    () =>
+      db.transaction().execute((tx) =>
+        service.consumeChallenge(tx, {
+          businessId: b.id,
+          connectionId,
+          platform: "vk",
+          externalUserId: "vk-wrong-1",
+          token: challenge.token,
+        }),
+      ),
+    (err) =>
+      err instanceof Error &&
+      (/другого бизнеса|канала|недействителен/i.test(err.message) ||
+        ("code" in err &&
+          (err.code === "TOKEN_MISMATCH" || err.code === "INVALID_TOKEN"))),
+  );
+});
+
+test("operator binding cannot change business settings", async () => {
+  const { uid, b } = await ownerBusiness("OperatorGate");
+  const connectionId = await connectTelegram(b.id);
+  const opId = randomUUID();
+  await db
+    .insertInto("user")
+    .values({
+      id: opId,
+      name: "Operator",
+      email: opId + "@test.invalid",
+      emailVerified: false,
+      username: "op" + opId.replace(/-/g, "").slice(0, 18),
+    })
+    .execute();
+  await db
+    .insertInto("business_member")
+    .values({
+      business_id: b.id,
+      user_id: opId,
+      role: "operator",
+      status: "active",
+    })
+    .execute();
+
+  // Owner creates challenge for self; we need operator-bound challenge.
+  // Operators cannot create challenges (settings.manage). Bind via direct consume
+  // by creating challenge as owner then... challenges are user-bound, so create
+  // as operator must fail:
+  const service = new ChannelAdminBindingService(db);
+  await assert.rejects(
+    () => service.createWebChallenge(opId, b.public_id, "telegram"),
+    (err) => err instanceof Error && /прав|FORBIDDEN/i.test(err.message),
+  );
+
+  // Owner binds own TG, then we downgrade role to operator to simulate limited perms
+  const challenge = await service.createWebChallenge(
+    uid,
+    b.public_id,
+    "telegram",
+  );
+  const externalUserId = "tg-op-gate";
+  await db.transaction().execute((tx) =>
+    service.consumeChallenge(tx, {
+      businessId: b.id,
+      connectionId,
+      platform: "telegram",
+      externalUserId,
+      token: challenge.token,
+    }),
+  );
+  await db
+    .updateTable("business_member")
+    .set({ role: "operator" })
+    .where("business_id", "=", b.id)
+    .where("user_id", "=", uid)
+    .execute();
+
+  const admin = await db.transaction().execute((tx) =>
+    service.resolveAdmin(tx, {
+      connectionId,
+      businessId: b.id,
+      platform: "telegram",
+      externalUserId,
+    }),
+  );
+  assert.ok(admin);
+  assert.equal(admin.role, "operator");
+  assert.ok(!admin.permissions.includes("settings.manage"));
+  assert.ok(admin.permissions.includes("orders.write"));
+
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "op1",
+        text: "/admin",
+      },
+      async () => {},
+    );
+  });
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "op2",
+        text: "Изменить название",
+      },
+      async () => {},
+    );
+  });
+  const out = [];
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "op3",
+        text: "Hacked Name",
+      },
+      async (m) => {
+        out.push(m);
+      },
+    );
+  });
+  const biz = await db
+    .selectFrom("business")
+    .select("name")
+    .where("id", "=", b.id)
+    .executeTakeFirstOrThrow();
+  assert.notEqual(biz.name, "Hacked Name");
+  assert.match(out.join("\n"), /прав|Недостаточно/i);
+  void opId;
+});
+
+test("name change via telegram updates canonical business row", async () => {
+  const { uid, b } = await ownerBusiness("ParityName");
+  const connectionId = await connectTelegram(b.id);
+  const service = new ChannelAdminBindingService(db);
+  const challenge = await service.createWebChallenge(
+    uid,
+    b.public_id,
+    "telegram",
+  );
+  const externalUserId = "tg-parity-1";
+  await db.transaction().execute((tx) =>
+    service.consumeChallenge(tx, {
+      businessId: b.id,
+      connectionId,
+      platform: "telegram",
+      externalUserId,
+      token: challenge.token,
+    }),
+  );
+
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "p1",
+        text: "/admin",
+      },
+      async () => {},
+    );
+  });
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "p2",
+        text: "🏠 Бизнес / Настройки",
+      },
+      async () => {},
+    );
+  });
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "p3",
+        text: "Изменить название",
+      },
+      async () => {},
+    );
+  });
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: b.id,
+        connectionId,
+        platform: "telegram",
+        userId: externalUserId,
+        eventId: "p4",
+        text: "Северный Барбершоп",
+      },
+      async () => {},
+    );
+  });
+
+  const biz = await db
+    .selectFrom("business")
+    .select("name")
+    .where("id", "=", b.id)
+    .executeTakeFirstOrThrow();
+  assert.equal(biz.name, "Северный Барбершоп");
+
+  const logs = await db
+    .selectFrom("business_audit_log")
+    .select(["action", "metadata"])
+    .where("business_id", "=", b.id)
+    .where("action", "=", "settings_changed")
+    .orderBy("created_at", "desc")
+    .execute();
+  const meta = logs
+    .map((l) => {
+      try {
+        return typeof l.metadata === "string"
+          ? JSON.parse(l.metadata)
+          : l.metadata;
+      } catch {
+        return null;
+      }
+    })
+    .find((m) => m && m.action === "channel_admin_name");
+  assert.ok(meta);
+  assert.equal(meta.channel, "telegram");
+});
+
+test("multi-business pick switches active context", async () => {
+  const a = await ownerBusiness("MultiA");
+  const b2 = await db
+    .insertInto("business")
+    .values({
+      id: randomUUID(),
+      name: "MultiB",
+      timezone: "Europe/Moscow",
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  createdBusinessIds.push(b2.id);
+  await db
+    .insertInto("business_member")
+    .values({
+      business_id: b2.id,
+      user_id: a.uid,
+      role: "owner",
+      status: "active",
+    })
+    .execute();
+
+  const connA = await connectTelegram(a.b.id);
+  const service = new ChannelAdminBindingService(db);
+  const ch1 = await service.createWebChallenge(
+    a.uid,
+    a.b.public_id,
+    "telegram",
+  );
+  await db.transaction().execute((tx) =>
+    service.consumeChallenge(tx, {
+      businessId: a.b.id,
+      connectionId: connA,
+      platform: "telegram",
+      externalUserId: "tg-multi-1",
+      token: ch1.token,
+    }),
+  );
+
+  // Second business needs its own telegram connection for challenge creation
+  const connB = await connectTelegram(b2.id);
+  const ch2 = await service.createWebChallenge(a.uid, b2.public_id, "telegram");
+  await db.transaction().execute((tx) =>
+    service.consumeChallenge(tx, {
+      businessId: b2.id,
+      connectionId: connB,
+      platform: "telegram",
+      externalUserId: "tg-multi-1",
+      token: ch2.token,
+    }),
+  );
+
+  const list = await db.transaction().execute((tx) =>
+    service.listBusinessesForIdentity(tx, "telegram", "tg-multi-1"),
+  );
+  assert.equal(list.length, 2);
+
+  const messages = [];
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: a.b.id,
+        connectionId: connA,
+        platform: "telegram",
+        userId: "tg-multi-1",
+        eventId: "m1",
+        text: "/admin",
+      },
+      async (m) => {
+        messages.push(m);
+      },
+    );
+  });
+  assert.match(messages.join("\n"), /Выберите бизнес|MultiA|MultiB/i);
+
+  await db.transaction().execute(async (tx) => {
+    await routeChannelAdmin(
+      tx,
+      {
+        businessId: a.b.id,
+        connectionId: connA,
+        platform: "telegram",
+        userId: "tg-multi-1",
+        eventId: "m2",
+        text: "MultiB",
+      },
+      async (m) => {
+        messages.push(m);
+      },
+    );
+  });
+  assert.match(messages.join("\n"), /Переключено на «MultiB»|MultiB/i);
 });

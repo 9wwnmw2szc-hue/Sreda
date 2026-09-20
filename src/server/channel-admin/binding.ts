@@ -133,20 +133,26 @@ export class ChannelAdminBindingService {
         "p.username",
         "p.external_user_id",
         "u.public_id as user_public_id",
+        "u.name as user_name",
+        "u.username as user_username",
       ])
       .where("a.business_id", "=", b.id)
       .orderBy("a.bound_at", "desc")
       .execute();
-    return rows.map((row) => ({
-      platform: row.platform,
-      displayName: row.display_name,
-      username: row.username,
-      externalUserId: row.external_user_id,
-      userPublicId: row.user_public_id,
-      status: row.status,
-      boundAt: row.bound_at,
-      lastActiveAt: row.last_active_at,
-    }));
+    return {
+      items: rows.map((row) => ({
+        platform: row.platform,
+        displayName: row.display_name,
+        username: row.username,
+        externalUserId: row.external_user_id,
+        userPublicId: row.user_public_id,
+        userName: row.user_name,
+        userUsername: row.user_username,
+        status: row.status,
+        boundAt: row.bound_at,
+        lastActiveAt: row.last_active_at,
+      })),
+    };
   }
 
   async createWebChallenge(
