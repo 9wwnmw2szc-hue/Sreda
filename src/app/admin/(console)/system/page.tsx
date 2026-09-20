@@ -35,11 +35,11 @@ export default function AdminSystemPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      setLoading(true);
-      setError("");
       try {
         const res = await adminGet<SystemData>("/api/admin/system");
-        if (!cancelled) setData(res);
+        if (cancelled) return;
+        setData(res);
+        setError("");
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -82,7 +82,7 @@ export default function AdminSystemPage() {
                 <span>Database</span>
                 <StatusBadge status={healthBadge(data.health.database)} />
               </div>
-              {Object.entries(data.health.workers).map(([name, status]) => (
+              {Object.entries(data.health.workers ?? {}).map(([name, status]) => (
                 <div className="admin-stat-row" key={name}>
                   <span>{name}</span>
                   <StatusBadge status={healthBadge(status)} />

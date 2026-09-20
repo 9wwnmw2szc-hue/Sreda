@@ -174,7 +174,7 @@ function DashboardInner() {
                 <span>Database</span>
                 <StatusBadge status={healthBadge(data.health.database)} />
               </div>
-              {Object.entries(data.health.workers).map(([name, status]) => (
+              {Object.entries(data.health.workers ?? {}).map(([name, status]) => (
                 <div className="admin-stat-row" key={name}>
                   <span>{name}</span>
                   <StatusBadge status={healthBadge(status)} />
