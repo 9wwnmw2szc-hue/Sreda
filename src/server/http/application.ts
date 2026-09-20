@@ -20,6 +20,19 @@ export function createApplication(options: {
     const session = await options.auth.api.getSession({ headers });
     if (!session || !session.user.username)
       throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
+    if (options.db) {
+      const row = await options.db
+        .selectFrom("user")
+        .select(["deletion_status", "deleted_at"])
+        .where("id", "=", session.user.id)
+        .executeTakeFirst();
+      if (
+        !row ||
+        row.deletion_status === "deleted" ||
+        row.deleted_at != null
+      )
+        throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
+    }
     if (options.db && options.secret)
       await limit(
         options.db,

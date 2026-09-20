@@ -1017,6 +1017,21 @@ ul {
   background: var(--bg-page);
   border-color: color-mix(in srgb, var(--border-default) 70%, var(--text-secondary));
 }
+.button--danger {
+  background: #b42318;
+  color: #fff;
+  border-color: #b42318;
+  font-weight: 600;
+  box-shadow: none;
+}
+.button--danger:hover {
+  background: #912018;
+  border-color: #912018;
+}
+.button--danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .button--ghost {
   background: transparent;
   border-color: transparent;
@@ -7206,4 +7221,72 @@ a.soty-activity__row {
 
 .settings-panel .sign-out {
   margin-top: 8px;
+}
+
+.account-danger-zone {
+  margin-top: 28px;
+  border-color: color-mix(in srgb, #b42318 28%, var(--border-default));
+}
+
+.account-danger-zone .button--danger {
+  margin-top: 12px;
+}
+
+.account-deletion-dialog {
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(90vh, 720px);
+}
+
+.account-deletion-dialog .sign-out-dialog__inner {
+  max-height: min(86vh, 680px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+}
+
+.account-deletion-impact {
+  display: grid;
+  gap: 14px;
+}
+
+.account-deletion-biz {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-muted, var(--bg-page));
+}
+
+.account-deletion-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+}
+
+.account-deletion-field {
+  display: grid;
+  gap: 6px;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.account-deletion-field .input {
+  width: 100%;
+}
+
+.sign-out-dialog__actions .button--danger {
+  min-width: 132px;
+}
+
+@media (max-width: 430px) {
+  .account-deletion-dialog .sign-out-dialog__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .account-deletion-dialog .sign-out-dialog__actions .button {
+    width: 100%;
+  }
 }
