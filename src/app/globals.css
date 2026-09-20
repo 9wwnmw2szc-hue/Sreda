@@ -4174,6 +4174,30 @@ ul {
   min-height: 64px;
 }
 
+.desktop-topbar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.desktop-topbar__utility {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.desktop-topbar__actions > .create-menu {
+  flex-shrink: 0;
+}
+
+.desktop-topbar__actions > .profile-menu {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 @media (max-width: 1099px) {
   .desktop-topbar {
     display: none !important;
@@ -4189,6 +4213,8 @@ ul {
   border: 1px solid var(--border-subtle);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  max-width: 100%;
+  min-width: 0;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
@@ -4203,6 +4229,7 @@ ul {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 11rem;
   padding-right: 6px;
 }
 
@@ -4211,11 +4238,18 @@ ul {
   font-weight: 600;
   line-height: 1.2;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.desktop-profile__meta small,
 .desktop-profile__meta span {
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .create-menu {

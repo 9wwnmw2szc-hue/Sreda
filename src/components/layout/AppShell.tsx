@@ -111,14 +111,47 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         <header className="desktop-topbar" aria-label="Панель инструментов">
           <div className="desktop-topbar__spacer" />
           <div className="desktop-topbar__actions">
-            <Link
-              href="/analytics"
-              className="icon-button"
-              aria-label="Аналитика"
-            >
-              <BarChart3 size={20} strokeWidth={1.7} />
-            </Link>
-            <NotificationBell />
+            <div className="desktop-topbar__utility">
+              <Link
+                href="/analytics"
+                className="icon-button"
+                aria-label="Аналитика"
+              >
+                <BarChart3 size={20} strokeWidth={1.7} />
+              </Link>
+              <NotificationBell />
+            </div>
+            <div className="create-menu" ref={createRef}>
+              <button
+                type="button"
+                className="button button--primary create-menu__trigger"
+                aria-expanded={createOpen}
+                aria-haspopup="menu"
+                onClick={() => setCreateOpen((v) => !v)}
+              >
+                <Plus size={18} strokeWidth={2.2} />
+                Добавить
+              </button>
+              {createOpen && (
+                <ul className="create-menu__panel" role="menu">
+                  {CREATE_ACTIONS.map((action) => (
+                    <li key={action.href} role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="create-menu__item"
+                        onClick={() => {
+                          setCreateOpen(false);
+                          router.push(action.href);
+                        }}
+                      >
+                        {action.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="profile-menu" ref={profileRef}>
               <button
                 type="button"
@@ -155,37 +188,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
                       onSignedOut={() => setProfileOpen(false)}
                     />
                   </li>
-                </ul>
-              )}
-            </div>
-            <div className="create-menu" ref={createRef}>
-              <button
-                type="button"
-                className="button button--primary create-menu__trigger"
-                aria-expanded={createOpen}
-                aria-haspopup="menu"
-                onClick={() => setCreateOpen((v) => !v)}
-              >
-                <Plus size={18} strokeWidth={2.2} />
-                Добавить
-              </button>
-              {createOpen && (
-                <ul className="create-menu__panel" role="menu">
-                  {CREATE_ACTIONS.map((action) => (
-                    <li key={action.href} role="none">
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="create-menu__item"
-                        onClick={() => {
-                          setCreateOpen(false);
-                          router.push(action.href);
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    </li>
-                  ))}
                 </ul>
               )}
             </div>

@@ -8,6 +8,23 @@ async function read(rel) {
   return readFile(new URL(rel, root), "utf8");
 }
 
+test("desktop topbar actions order is utility, add, then profile", async () => {
+  const shell = await read("./src/components/layout/AppShell.tsx");
+  const css = await read("./src/app/globals.css");
+  const utility = shell.indexOf("desktop-topbar__utility");
+  const create = shell.indexOf('className="create-menu"');
+  const profile = shell.indexOf('className="profile-menu"');
+  assert.ok(utility > 0);
+  assert.ok(create > utility);
+  assert.ok(profile > create);
+  assert.match(css, /\.desktop-topbar__actions/);
+  assert.match(css, /display:\s*flex/);
+  assert.match(css, /\.desktop-topbar__utility/);
+  assert.match(css, /gap:\s*var\(--space-4\)/);
+  assert.match(css, /gap:\s*var\(--space-8\)/);
+  assert.match(css, /text-overflow:\s*ellipsis/);
+});
+
 test("desktop profile menu and mobile sidebar expose logout action", async () => {
   const shell = await read("./src/components/layout/AppShell.tsx");
   const sidebar = await read("./src/components/layout/Sidebar.tsx");
