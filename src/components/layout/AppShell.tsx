@@ -16,6 +16,7 @@ import {
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Brand } from "@/components/ui/Brand";
 import { SignOutButton } from "@/components/account/SignOutButton";
+import { CommandSearch } from "@/components/dashboard/CommandSearch";
 import { MOBILE_BOTTOM_NAV } from "@/config/navigation";
 import type { User } from "@/types";
 
@@ -112,6 +113,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <div className="desktop-topbar__spacer" />
           <div className="desktop-topbar__actions">
             <div className="desktop-topbar__utility">
+              <CommandSearch compact />
               <Link
                 href="/analytics"
                 className="icon-button"
@@ -196,7 +198,10 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
         <header className="mobile-header">
           <Brand compact showTagline={false} />
-          <NotificationBell />
+          <div className="mobile-header__actions">
+            <CommandSearch compact />
+            <NotificationBell />
+          </div>
         </header>
 
         <main

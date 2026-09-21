@@ -47,14 +47,14 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(settings, /AccountDeletionPanel/);
   const accountIdx = settings.indexOf('section === "account"');
   const signOutIdx = settings.indexOf("settings-sign-out-panel");
-  const securityIdx = settings.indexOf('section === "security"');
+  const securityIdx = settings.indexOf('aria-label="Безопасность"');
   const dangerIdx = settings.indexOf('section === "danger"');
   const bizDangerIdx = settings.indexOf("<BusinessDeletionPanel");
   const accountDangerIdx = settings.indexOf("<AccountDeletionPanel");
   assert.ok(accountIdx > 0 && signOutIdx > accountIdx);
   assert.ok(securityIdx > signOutIdx);
-  assert.ok(bizDangerIdx > 0 && bizDangerIdx < accountIdx);
-  assert.ok(dangerIdx > securityIdx && accountDangerIdx > dangerIdx);
+  assert.ok(dangerIdx > accountIdx && bizDangerIdx > dangerIdx);
+  assert.ok(accountDangerIdx > bizDangerIdx);
 
   assert.match(
     await read("./src/components/account/AccountDeletionPanel.tsx"),

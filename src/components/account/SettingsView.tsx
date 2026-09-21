@@ -19,15 +19,16 @@ import { AccountDeletionPanel } from "./AccountDeletionPanel";
 import { BusinessDeletionPanel } from "./BusinessDeletionPanel";
 import { ConnectionsView } from "@/components/connections/ConnectionsView";
 import { NotificationsView } from "@/components/notifications/NotificationsView";
+import { PRODUCT_SOLUTIONS } from "@/lib/productSolutions";
 
 const SECTIONS = [
   ["business", "Бизнес"],
+  ["solutions", "Решения"],
   ["connections", "Подключения"],
-  ["members", "Сотрудники"],
   ["notifications", "Уведомления"],
-  ["account", "Аккаунт"],
-  ["security", "Безопасность"],
+  ["ai", "AI"],
   ["billing", "Тариф"],
+  ["account", "Аккаунт"],
   ["danger", "Опасная зона"],
 ] as const;
 
@@ -136,26 +137,48 @@ export function SettingsView() {
               canEdit={currentBusiness.role !== "operator"}
             />
           )}
-          {!isDemoMode && currentBusiness && (
-            <BusinessProfilePanel
-              key={currentBusiness.id}
-              businessId={currentBusiness.id}
-              canEdit={currentBusiness.role !== "operator"}
-            />
-          )}
-          {!isDemoMode &&
-            currentBusiness &&
-            currentBusiness.role === "owner" && (
-              <div id="business-danger">
-                <BusinessDeletionPanel
-                  key={`biz-delete:${currentBusiness.id}`}
-                  businessId={currentBusiness.id}
-                  businessName={currentBusiness.name}
-                  onDeleted={handleBusinessDeleted}
+          {!isDemoMode && (
+            <>
+              <h2 className="settings-group-title text-section-title">
+                Сотрудники
+              </h2>
+              <MembersPanel
+                key={`${currentBusiness?.id ?? "none"}:${currentBusiness?.role ?? "none"}`}
+                business={currentBusiness ?? undefined}
+                onAccepted={refreshBusinesses}
+              />
+              {currentBusiness && (
+                <AuditLogPanel
+                  key={`${currentBusiness.id}:${currentBusiness.role}`}
+                  business={currentBusiness}
                 />
-              </div>
-            )}
+              )}
+            </>
+          )}
         </>
+      )}
+
+      {section === "solutions" && (
+        <section className="panel settings-panel">
+          <h2 className="text-section-title">Решения</h2>
+          <p className="account-footnote">
+            Подключение и настройка решений — в каталоге. Здесь быстрые ссылки.
+          </p>
+          <ul className="settings-link-list">
+            <li>
+              <Link href="/solutions" className="text-link">
+                Каталог решений
+              </Link>
+            </li>
+            {PRODUCT_SOLUTIONS.map((item) => (
+              <li key={item.code}>
+                <Link href={item.setupPath} className="text-link">
+                  {item.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {section === "connections" && !isDemoMode && (
@@ -171,23 +194,27 @@ export function SettingsView() {
         </>
       )}
 
-      {section === "members" && !isDemoMode && (
-        <>
-          <MembersPanel
-            key={`${currentBusiness?.id ?? "none"}:${currentBusiness?.role ?? "none"}`}
-            business={currentBusiness ?? undefined}
-            onAccepted={refreshBusinesses}
-          />
-          {currentBusiness && (
-            <AuditLogPanel
-              key={`${currentBusiness.id}:${currentBusiness.role}`}
-              business={currentBusiness}
-            />
-          )}
-        </>
+      {section === "notifications" && !isDemoMode && <NotificationsView />}
+
+      {section === "ai" && !isDemoMode && currentBusiness && (
+        <BusinessProfilePanel
+          key={`ai:${currentBusiness.id}`}
+          businessId={currentBusiness.id}
+          canEdit={currentBusiness.role !== "operator"}
+        />
       )}
 
-      {section === "notifications" && !isDemoMode && <NotificationsView />}
+      {section === "billing" && (
+        <section className="panel">
+          <h2>Тариф</h2>
+          <p className="account-footnote">
+            Активные решения и оценка по каталогу. Оплата через провайдера — в подготовке.
+          </p>
+          <Link className="button button--outline" href="/billing">
+            Открыть тариф
+          </Link>
+        </section>
+      )}
 
       {section === "account" && (
         <>
@@ -221,62 +248,34 @@ export function SettingsView() {
               <SignOutButton variant="ghost" />
             </section>
           )}
+          {!isDemoMode && (
+            <section className="settings-security-group" aria-label="Безопасность">
+              <h2 className="settings-group-title text-section-title">
+                Безопасность
+              </h2>
+              <PasswordChangePanel />
+              <PinPanel />
+              <RecoveryCodesPanel />
+            </section>
+          )}
         </>
-      )}
-
-      {section === "security" && !isDemoMode && (
-        <>
-          <section className="settings-security-group" aria-label="Безопасность">
-            <h2 className="settings-group-title text-section-title">
-              Безопасность
-            </h2>
-            <PasswordChangePanel />
-            <PinPanel />
-            <RecoveryCodesPanel />
-          </section>
-          <section className="panel">
-            <h2>Вход по коду</h2>
-            <p>
-              После подключения бота здесь можно будет включить получение кодов
-              в вашей админ-панели Telegram или VK.
-            </p>
-            <p className="account-footnote">
-              Сначала нужно подтвердить, что получатель кодов — вы. Вход по
-              логину и паролю сохранится.
-            </p>
-            <dl>
-              <div>
-                <dt>Telegram</dt>
-                <dd>Пока недоступно</dd>
-              </div>
-              <div>
-                <dt>VK</dt>
-                <dd>Пока недоступно</dd>
-              </div>
-            </dl>
-          </section>
-        </>
-      )}
-
-      {section === "billing" && (
-        <section className="panel">
-          <h2>Тариф</h2>
-          <p className="account-footnote">
-            Текущий тариф и подключённые решения. Оплата на этом этапе не
-            списывается.
-          </p>
-          <Link className="button button--outline" href="/billing">
-            Открыть тариф
-          </Link>
-        </section>
       )}
 
       {section === "danger" && !isDemoMode && (
         <>
           <p className="account-footnote">
-            Удаление бизнеса и удаление аккаунта — разные действия. Бизнес
-            удаляет только владелец в разделе «Бизнес».
+            Удаление бизнеса и удаление аккаунта — разные действия.
           </p>
+          {currentBusiness && currentBusiness.role === "owner" && (
+            <div id="business-danger">
+              <BusinessDeletionPanel
+                key={`biz-delete:${currentBusiness.id}`}
+                businessId={currentBusiness.id}
+                businessName={currentBusiness.name}
+                onDeleted={handleBusinessDeleted}
+              />
+            </div>
+          )}
           <AccountDeletionPanel />
         </>
       )}

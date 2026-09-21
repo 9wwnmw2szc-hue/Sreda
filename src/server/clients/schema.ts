@@ -8,6 +8,8 @@ export interface ClientTables {
     email: string | null;
     first_seen_at: Generated<Date>;
     last_seen_at: Generated<Date>;
+    archived_at: Date | null;
+    merged_into_id: string | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };

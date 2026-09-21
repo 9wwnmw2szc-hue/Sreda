@@ -297,6 +297,9 @@ test("settings sections and sidebar order match the product map", async () => {
   assert.match(settings, /Сотрудники/);
   assert.match(settings, /Уведомления/);
   assert.match(settings, /Опасная зона/);
+  assert.match(settings, /\["solutions", "Решения"\]/);
+  assert.match(settings, /\["ai", "AI"\]/);
+  assert.match(settings, /оплата через провайдера — в подготовке/i);
   assert.match(sidebar, /is-locked/);
   assert.match(sidebar, /"\/solutions"/);
 });

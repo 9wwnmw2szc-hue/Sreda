@@ -67,16 +67,42 @@ function stepsForIndustry(industry?: string | null): ChecklistStep[] {
           href: "/solutions/leads/setup",
         },
         { id: "telegram", label: "Подключить Telegram", href: "/connections" },
-        { id: "ai", label: "Заполнить AI-профиль", href: "/settings" },
+        { id: "ai", label: "Заполнить AI-профиль", href: "/settings?section=ai" },
       ];
     default:
       return [
         { id: "industry", label: "Выбрать направление", href: "/onboarding" },
         { id: "solutions", label: "Посмотреть решения", href: "/solutions" },
         { id: "telegram", label: "Подключить Telegram", href: "/connections" },
-        { id: "ai", label: "Заполнить AI-профиль", href: "/settings" },
+        { id: "ai", label: "Заполнить AI-профиль", href: "/settings?section=ai" },
       ];
   }
+}
+
+export type SetupReadiness = {
+  hasIndustry?: boolean;
+  hasActiveSolution?: boolean;
+  hasConnection?: boolean;
+};
+
+function readinessSteps(_readiness: SetupReadiness): ChecklistStep[] {
+  return [
+    {
+      id: "industry",
+      label: "Выбрать направление",
+      href: "/onboarding",
+    },
+    {
+      id: "solutions",
+      label: "Подключить решение",
+      href: "/solutions",
+    },
+    {
+      id: "telegram",
+      label: "Подключить площадку",
+      href: "/settings?section=connections",
+    },
+  ];
 }
 
 export function SetupChecklist({
@@ -84,14 +110,54 @@ export function SetupChecklist({
   progress,
   industry,
   onProgressChange,
+  variant = "full",
+  readiness,
 }: {
   businessId: string;
   progress: Record<string, boolean>;
   industry?: string | null;
   onProgressChange?: (progress: Record<string, boolean>) => void;
+  variant?: "full" | "compact";
+  readiness?: SetupReadiness;
 }) {
   const [busy, setBusy] = useState(false);
   const [local, setLocal] = useState(progress);
+
+  if (variant === "compact") {
+    const derived = readinessSteps(readiness ?? {});
+    const doneMap: Record<string, boolean> = {
+      industry: !!(readiness?.hasIndustry || local.industry),
+      solutions: !!(readiness?.hasActiveSolution || local.solutions),
+      telegram: !!(readiness?.hasConnection || local.telegram),
+    };
+    const steps = derived.map((step) => ({
+      ...step,
+      done: doneMap[step.id] === true,
+    }));
+    const done = steps.filter((s) => s.done).length;
+    const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
+    if (pct >= 100) return null;
+    return (
+      <section className="setup-checklist setup-checklist--compact" aria-label="Чеклист настройки">
+        <div className="setup-checklist__head">
+          <h2 className="text-section-title">Старт за 3 шага</h2>
+          <p className="text-body-sm">{pct}% · {done} из {steps.length}</p>
+        </div>
+        <SetupProgress steps={steps} done={done} />
+        <ul className="setup-progress__list">
+          {steps.map((step) => (
+            <li key={step.id} className={step.done ? "is-done" : ""}>
+              <Link href={step.href} className="text-link">
+                {step.done ? "✓ " : ""}
+                {step.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
   const steps = stepsForIndustry(industry).map((step) => ({
     ...step,
     done:

@@ -1117,6 +1117,52 @@ ul {
   font-size: 13px;
   margin-bottom: 12px;
 }
+.billing-page {
+  display: grid;
+  gap: 16px;
+}
+.billing-page__header h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+  letter-spacing: -0.03em;
+}
+.billing-summary__status {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.billing-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.billing-lines__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.billing-lines__item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.billing-lines__meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.billing-lines__price {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
 .empty-copy {
   color: var(--text-secondary);
   font-size: 14px;

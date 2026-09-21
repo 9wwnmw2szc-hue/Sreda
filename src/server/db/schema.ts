@@ -451,7 +451,8 @@ export interface Database
       | "analytics_file_deleted"
       | "analytics_export_created"
       | "analytics_ai_created"
-      | "analytics_import_confirmed";
+      | "analytics_import_confirmed"
+      | "client_merged";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

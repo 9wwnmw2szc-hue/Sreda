@@ -4,6 +4,7 @@ import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
+import { audit } from "../audit/service.ts";
 type Identity = {
   kind: "telegram" | "vk" | "whatsapp" | "instagram" | "phone" | "email";
   value: string;
@@ -67,11 +68,17 @@ export async function matchClient(
   const ids = new Set<string>();
   for (const i of identities) {
     const found = await tx
-      .selectFrom("client_identity")
-      .select("client_id")
-      .where("business_id", "=", businessId)
-      .where("kind", "=", i.kind)
-      .where("value", "=", i.value)
+      .selectFrom("client_identity as i")
+      .innerJoin("client as c", (join) =>
+        join
+          .onRef("c.id", "=", "i.client_id")
+          .onRef("c.business_id", "=", "i.business_id"),
+      )
+      .select("i.client_id")
+      .where("i.business_id", "=", businessId)
+      .where("i.kind", "=", i.kind)
+      .where("i.value", "=", i.value)
+      .where("c.archived_at", "is", null)
       .executeTakeFirst();
     if (found) ids.add(found.client_id);
   }
@@ -162,6 +169,7 @@ export class ClientService {
       .selectFrom("client as c")
       .selectAll("c")
       .where("c.business_id", "=", b.id)
+      .where("c.archived_at", "is", null)
       .orderBy("c.id")
       .limit(100);
     if (!["all", "new", "active", "leads", "bookings", "open"].includes(filter))
@@ -281,6 +289,7 @@ export class ClientService {
       .selectAll()
       .where("business_id", "=", b.id)
       .where("id", "=", id)
+      .where("archived_at", "is", null)
       .executeTakeFirst();
     if (!client)
       throw new AppError(404, "CLIENT_NOT_FOUND", "Клиент не найден.");
@@ -389,6 +398,7 @@ export class ClientService {
           .set({ ...input, updated_at: new Date() })
           .where("business_id", "=", b.id)
           .where("id", "=", id)
+          .where("archived_at", "is", null)
           .returning("id")
           .executeTakeFirst();
         if (!changed)
@@ -428,6 +438,7 @@ export class ClientService {
         .select("id")
         .where("business_id", "=", b.id)
         .where("id", "=", id)
+        .where("archived_at", "is", null)
         .executeTakeFirst();
       if (!c) throw new AppError(404, "CLIENT_NOT_FOUND", "Клиент не найден.");
       return tx
@@ -441,6 +452,196 @@ export class ClientService {
         })
         .returningAll()
         .executeTakeFirstOrThrow();
+    });
+  }
+
+  async merge(
+    userId: string,
+    publicId: string,
+    raw: Record<string, unknown>,
+  ) {
+    const sourceId =
+      typeof raw.source_client_id === "string" ? raw.source_client_id : "";
+    const targetId =
+      typeof raw.target_client_id === "string" ? raw.target_client_id : "";
+    requireUuid(sourceId);
+    requireUuid(targetId);
+    if (sourceId === targetId)
+      throw new AppError(
+        400,
+        "INVALID_MERGE",
+        "Выберите двух разных клиентов.",
+      );
+
+    return this.db.transaction().execute(async (tx) => {
+      const b = await requireBusiness(tx, userId, publicId, "clients.write");
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", b.id)
+        .forUpdate()
+        .execute();
+      await requireBusiness(tx, userId, publicId, "clients.write");
+
+      const source = await tx
+        .selectFrom("client")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .where("id", "=", sourceId)
+        .where("archived_at", "is", null)
+        .forUpdate()
+        .executeTakeFirst();
+      const target = await tx
+        .selectFrom("client")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .where("id", "=", targetId)
+        .where("archived_at", "is", null)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!source || !target)
+        throw new AppError(
+          404,
+          "CLIENT_NOT_FOUND",
+          "Клиент не найден в этом бизнесе.",
+        );
+
+      const targetIdentities = await tx
+        .selectFrom("client_identity")
+        .select(["kind", "value"])
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", targetId)
+        .execute();
+      const targetKeys = new Set(
+        targetIdentities.map((i) => `${i.kind}:${i.value}`),
+      );
+      const sourceIdentities = await tx
+        .selectFrom("client_identity")
+        .selectAll()
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+
+      for (const identity of sourceIdentities) {
+        const key = `${identity.kind}:${identity.value}`;
+        if (targetKeys.has(key)) {
+          await tx
+            .deleteFrom("client_identity")
+            .where("business_id", "=", b.id)
+            .where("client_id", "=", sourceId)
+            .where("kind", "=", identity.kind)
+            .where("value", "=", identity.value)
+            .execute();
+        } else {
+          await tx
+            .updateTable("client_identity")
+            .set({ client_id: targetId })
+            .where("business_id", "=", b.id)
+            .where("client_id", "=", sourceId)
+            .where("kind", "=", identity.kind)
+            .where("value", "=", identity.value)
+            .execute();
+        }
+      }
+
+      await tx
+        .updateTable("lead")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("booking")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("order")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("cart")
+        .set({ client_id: targetId, updated_at: new Date() })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("client_note")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("client_activity")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("communication_conversation")
+        .set({ client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("client_id", "=", sourceId)
+        .execute();
+      await tx
+        .updateTable("calendar_event")
+        .set({ related_client_id: targetId })
+        .where("business_id", "=", b.id)
+        .where("related_client_id", "=", sourceId)
+        .execute();
+
+      await tx
+        .updateTable("client")
+        .set({
+          name: target.name || source.name,
+          phone: target.phone ?? source.phone,
+          email: target.email ?? source.email,
+          first_seen_at:
+            source.first_seen_at < target.first_seen_at
+              ? source.first_seen_at
+              : target.first_seen_at,
+          last_seen_at:
+            source.last_seen_at > target.last_seen_at
+              ? source.last_seen_at
+              : target.last_seen_at,
+          updated_at: new Date(),
+        })
+        .where("business_id", "=", b.id)
+        .where("id", "=", targetId)
+        .execute();
+
+      const now = new Date();
+      await tx
+        .updateTable("client")
+        .set({
+          archived_at: now,
+          merged_into_id: targetId,
+          updated_at: now,
+        })
+        .where("business_id", "=", b.id)
+        .where("id", "=", sourceId)
+        .execute();
+
+      await clientActivity(
+        tx,
+        b.id,
+        targetId,
+        "client.merged",
+        `client-merge:${sourceId}:${targetId}`,
+        sourceId,
+        userId,
+      );
+      await audit(tx, b.id, userId, "client_merged", targetId, {
+        source_client_id: sourceId,
+        target_client_id: targetId,
+        source_name: source.name,
+        target_name: target.name,
+      });
+
+      return { target_client_id: targetId, source_client_id: sourceId };
     });
   }
 }
