@@ -97,9 +97,8 @@ test("schedule mode label does not nudge with «рекомендуем»", async
     "utf8",
   );
   assert.equal(panel.toLowerCase().includes("рекомендуем"), false);
-  assert.match(panel, /Автоматически/);
-  assert.match(panel, /Автоматическое расписание/);
-  assert.match(panel, /по умолчанию/);
+  assert.match(panel, /Автоматическое расписание \(по умолчанию\)/);
+  assert.match(panel, /Вручную \(расширенный режим\)/);
 });
 
 test("catalog and solution cards prefer wrap-safe typography tokens", async () => {
