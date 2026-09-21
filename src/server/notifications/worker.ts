@@ -1,5 +1,6 @@
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
+import { hasVerifiedStaffIdentity } from "./staff-destination.ts";
 
 async function queuePlatform(
   db: Kysely<Database>,
@@ -151,7 +152,7 @@ export async function notificationValid(
 ) {
   const event = await tx
     .selectFrom("notification")
-    .select(["business_id", "type"])
+    .select(["business_id", "type", "target_path"])
     .where("id", "=", id)
     .executeTakeFirst();
   if (!event) return false;
@@ -162,6 +163,7 @@ export async function notificationValid(
     .where("user_id", "=", user)
     .where("status", "=", "active")
     .executeTakeFirst();
+  if (!member) return false;
   const binding = await tx
     .selectFrom("notification_binding")
     .select("chat_id")
@@ -171,6 +173,7 @@ export async function notificationValid(
     .where("connection_id", "=", connection)
     .where("chat_id", "=", chat)
     .executeTakeFirst();
+  if (!binding?.chat_id) return false;
   const pref = await tx
     .selectFrom("notification_preference")
     .select("enabled")
@@ -178,5 +181,18 @@ export async function notificationValid(
     .where("user_id", "=", user)
     .where("type", "=", event.type)
     .executeTakeFirst();
-  return !!member && !!binding && pref?.enabled !== false;
+  if (pref?.enabled === false) return false;
+
+  // Destination must be a verified staff messenger identity for this member.
+  // Customer interaction alone never authorizes operational notifications.
+  if (
+    !(await hasVerifiedStaffIdentity(tx, {
+      userId: user,
+      platform,
+      chatId: chat,
+    }))
+  )
+    return false;
+
+  return true;
 }

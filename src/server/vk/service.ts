@@ -5,6 +5,7 @@ import { vkAttachments } from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
 import { entityReminderValid } from "../calendar/worker.ts";
+import { notificationValid } from "../notifications/worker.ts";
 import { claimDelivery, expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -198,6 +199,55 @@ export class VKService {
         .execute();
       throw error;
     }
+  }
+
+  /** Pause VK callbacks without deleting the community token. */
+  async stop(userId: string, publicId: string) {
+    const row = await this.db
+      .selectFrom("business_member as member")
+      .innerJoin("business", "business.id", "member.business_id")
+      .innerJoin("business_connection as c", "c.business_id", "business.id")
+      .innerJoin("connection_secret as s", "s.connection_id", "c.id")
+      .leftJoin("vk_runtime as r", "r.connection_id", "c.id")
+      .select([
+        "c.id",
+        "c.external_account_id",
+        "s.encrypted_token",
+        "member.role",
+        "r.server_id",
+      ])
+      .where("business.public_id", "=", publicId)
+      .where("business.archived_at", "is", null)
+      .where("member.user_id", "=", userId)
+      .where("member.status", "=", "active")
+      .where("c.platform", "=", "vk")
+      .where("c.status", "=", "connected")
+      .executeTakeFirst();
+    if (!row)
+      throw new AppError(404, "CONNECTION_REQUIRED", "VK не подключён.");
+    if (row.role !== "owner" && row.role !== "admin")
+      throw new AppError(403, "FORBIDDEN", "Недостаточно прав.");
+    if (row.server_id && row.external_account_id) {
+      try {
+        await vkCall(
+          decryptSecret(row.encrypted_token, this.secret),
+          "groups.deleteCallbackServer",
+          {
+            group_id: row.external_account_id,
+            server_id: row.server_id,
+          },
+          this.transport,
+        );
+      } catch {
+        /* server may already be removed */
+      }
+    }
+    await this.db
+      .updateTable("vk_runtime")
+      .set({ status: "pending", server_id: null, updated_at: new Date() })
+      .where("connection_id", "=", row.id)
+      .execute();
+    return { ok: true as const, runtimeStatus: "pending" as const };
   }
 
   async receive(id: string, body: Record<string, unknown>) {
@@ -433,6 +483,28 @@ export class VKService {
           .set({ status: "cancelled", last_error: "STALE_REMINDER" })
           .where("id", "=", row.entity_reminder_id)
           .where("status", "in", ["pending", "queued", "uncertain"])
+          .execute();
+        return true;
+      }
+      if (
+        row.notification_id &&
+        (!row.notification_user_id ||
+          !(await notificationValid(
+            tx,
+            row.notification_id,
+            row.notification_user_id,
+            row.connection_id,
+            row.peer_id,
+            "vk",
+          )))
+      ) {
+        await tx
+          .updateTable("vk_outbox")
+          .set({
+            delivery_state: "failed",
+            last_error: "RECIPIENT_UNAVAILABLE",
+          })
+          .where("id", "=", row.id)
           .execute();
         return true;
       }

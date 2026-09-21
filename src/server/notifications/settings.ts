@@ -3,6 +3,7 @@ import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { requireBusiness } from "../access/permissions.ts";
 import { AppError } from "../http/errors.ts";
+import { claimStaffProviderIdentity } from "./staff-destination.ts";
 
 export const notificationTypes = [
   "lead.created",
@@ -217,6 +218,7 @@ export async function bindNotification(
   code: string,
 ) {
   if (!/^[\w-]{32}$/.test(code)) return false;
+  if (!chatId || chatId.length > 64) return false;
   const connection = await tx
     .selectFrom("business_connection")
     .select(["id", "platform"])
@@ -224,7 +226,10 @@ export async function bindNotification(
     .where("id", "=", connectionId)
     .where("status", "=", "connected")
     .executeTakeFirst();
-  if (!connection || (connection.platform !== "telegram" && connection.platform !== "vk"))
+  if (
+    !connection ||
+    (connection.platform !== "telegram" && connection.platform !== "vk")
+  )
     return false;
   const platform = connection.platform as StaffPlatform;
   const row = await tx
@@ -251,6 +256,16 @@ export async function bindNotification(
     .where("platform", "=", platform)
     .executeTakeFirst();
   if (bound && bound.user_id !== row.user_id) return false;
+
+  // Explicit User claim for this messenger identity — never treat a customer chat
+  // as staff merely because it interacted with the business bot.
+  const claimed = await claimStaffProviderIdentity(tx, {
+    userId: row.user_id,
+    platform,
+    externalUserId: chatId,
+  });
+  if (!claimed.ok) return false;
+
   await tx
     .updateTable("notification_binding")
     .set({ chat_id: chatId, code_hash: null, expires_at: null })

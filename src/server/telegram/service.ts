@@ -132,6 +132,48 @@ export class TelegramService {
       throw error;
     }
   }
+
+  /** Pause the bot without deleting the connection or token. */
+  async stop(userId: string, publicId: string) {
+    const row = await this.db
+      .selectFrom("business_member as member")
+      .innerJoin("business", "business.id", "member.business_id")
+      .innerJoin(
+        "business_connection as c",
+        "c.business_id",
+        "business.id",
+      )
+      .innerJoin("connection_secret as s", "s.connection_id", "c.id")
+      .select(["c.id", "s.encrypted_token", "member.role"])
+      .where("business.public_id", "=", publicId)
+      .where("business.archived_at", "is", null)
+      .where("member.user_id", "=", userId)
+      .where("member.status", "=", "active")
+      .where("c.platform", "=", "telegram")
+      .where("c.status", "=", "connected")
+      .executeTakeFirst();
+    if (!row)
+      throw new AppError(404, "CONNECTION_REQUIRED", "Telegram не подключён.");
+    if (row.role !== "owner" && row.role !== "admin")
+      throw new AppError(403, "FORBIDDEN", "Недостаточно прав.");
+    try {
+      await telegramCall(
+        decryptSecret(row.encrypted_token, this.secret),
+        "deleteWebhook",
+        { drop_pending_updates: false },
+        this.transport,
+      );
+    } catch {
+      /* webhook may already be gone; local state still stops processing */
+    }
+    await this.db
+      .updateTable("telegram_runtime")
+      .set({ status: "pending", updated_at: new Date() })
+      .where("connection_id", "=", row.id)
+      .execute();
+    return { ok: true as const, runtimeStatus: "pending" as const };
+  }
+
   async receive(id: string, provided: string, body: Record<string, unknown>) {
     if (!this.enabled)
       throw new AppError(
@@ -333,6 +375,7 @@ export class TelegramService {
             row.notification_user_id,
             row.connection_id,
             row.chat_id,
+            "telegram",
           )))
       ) {
         await tx

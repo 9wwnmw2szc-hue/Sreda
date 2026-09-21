@@ -40,6 +40,7 @@ export async function vkCall(
     | "groups.getCallbackServers"
     | "groups.addCallbackServer"
     | "groups.editCallbackServer"
+    | "groups.deleteCallbackServer"
     | "groups.setCallbackSettings",
   body: Record<string, unknown>,
   transport: typeof fetch = fetch,

@@ -500,6 +500,8 @@ function CatalogPanel({
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [showCategory, setShowCategory] = useState(false);
+  const [showProduct, setShowProduct] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -570,6 +572,7 @@ function CatalogPanel({
         body: JSON.stringify({ name: categoryName.trim(), active: true }),
       });
       setCategoryName("");
+      setShowCategory(false);
       await reload();
       onNotice("Категория создана.");
     } catch (err) {
@@ -636,6 +639,7 @@ function CatalogPanel({
         active: true,
       });
       await reload();
+      setShowProduct(false);
       onNotice("Товар создан.");
     } catch (err) {
       onError(err instanceof Error ? err.message : "Не удалось создать товар.");
@@ -687,12 +691,7 @@ function CatalogPanel({
         {loading ? (
           <p role="status">Загрузка…</p>
         ) : !categories.length ? (
-          <EmptyStateCta
-            title="Категорий пока нет"
-            description="Создайте первую категорию, чтобы упорядочить товары."
-            href="#new-category"
-            action="К форме категории"
-          />
+          <p className="account-footnote">Категорий пока нет.</p>
         ) : (
           <ul className="crm-list">
             {categories.map((c) => (
@@ -708,12 +707,7 @@ function CatalogPanel({
         {loading ? (
           <p role="status">Загрузка…</p>
         ) : !products.length ? (
-          <EmptyStateCta
-            title="Товаров пока нет"
-            description="Добавьте первый товар: название, цену, описание и при необходимости варианты."
-            href="#new-product"
-            action="К форме товара"
-          />
+          <p className="account-footnote">Товаров пока нет.</p>
         ) : (
           <ul className="crm-list">
             {products.map((p) => (
@@ -737,161 +731,212 @@ function CatalogPanel({
           </ul>
         )}
       </section>
-      <section className="panel crm-panel">
-        <h2 id="new-category">Новая категория</h2>
-        <form onSubmit={(e) => void createCategory(e)}>
-          <fieldset disabled={busy}>
-            <label>
-              Название
-              <input
-                required
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-              />
-            </label>
-            <button className="button button--outline" type="submit">
-              Создать категорию
-            </button>
-          </fieldset>
-        </form>
-        <h2 id="new-product">Новый товар</h2>
-        <form onSubmit={(e) => void createProduct(e)}>
-          <fieldset disabled={busy}>
-            <label>
-              Название
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </label>
-            <label>
-              Цена
-              <input
-                required
-                inputMode="decimal"
-                value={form.price}
-                onChange={(e) => setForm({ ...form, price: e.target.value })}
-              />
-            </label>
-            <label>
-              Старая цена / скидка
-              <input
-                inputMode="decimal"
-                value={form.compare_at_price}
-                onChange={(e) =>
-                  setForm({ ...form, compare_at_price: e.target.value })
-                }
-              />
-            </label>
-            <label>
-              Артикул (SKU)
-              <input
-                value={form.sku}
-                onChange={(e) => setForm({ ...form, sku: e.target.value })}
-              />
-            </label>
-            <label>
-              Описание
-              <textarea
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-              />
-            </label>
-            <label>
-              Категория
-              <select
-                value={form.category_id}
-                onChange={(e) =>
-                  setForm({ ...form, category_id: e.target.value })
-                }
-              >
-                <option value="">Без категории</option>
-                {categories
-                  .filter((c) => c.active)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={form.track_inventory}
-                onChange={(e) =>
-                  setForm({ ...form, track_inventory: e.target.checked })
-                }
-              />{" "}
-              Учитывать остаток
-            </label>
-            {form.track_inventory && !form.use_variants ? (
+      <section className="panel crm-panel catalog-create">
+        {!showCategory ? (
+          <button
+            className="button button--outline"
+            type="button"
+            onClick={() => setShowCategory(true)}
+          >
+            + Добавить категорию
+          </button>
+        ) : (
+          <form id="new-category" onSubmit={(e) => void createCategory(e)}>
+            <h2>Новая категория</h2>
+            <fieldset disabled={busy}>
               <label>
-                Количество
+                Название
                 <input
-                  inputMode="numeric"
-                  value={form.stock_quantity}
+                  required
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                />
+              </label>
+              <div className="catalog-create__actions">
+                <button className="button button--outline" type="submit">
+                  Создать категорию
+                </button>
+                <button
+                  className="button button--ghost"
+                  type="button"
+                  onClick={() => setShowCategory(false)}
+                >
+                  Закрыть
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        )}
+        {!showProduct ? (
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => setShowProduct(true)}
+          >
+            + Добавить товар
+          </button>
+        ) : (
+          <form id="new-product" onSubmit={(e) => void createProduct(e)}>
+            <h2>Новый товар</h2>
+            <fieldset disabled={busy}>
+              <legend>Основное</legend>
+              <label>
+                Название
+                <input
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </label>
+              <label>
+                Описание
+                <textarea
+                  value={form.description}
                   onChange={(e) =>
-                    setForm({ ...form, stock_quantity: e.target.value })
+                    setForm({ ...form, description: e.target.value })
                   }
                 />
               </label>
-            ) : null}
-            <label>
-              <input
-                type="checkbox"
-                checked={form.use_variants}
-                onChange={(e) =>
-                  setForm({ ...form, use_variants: e.target.checked })
-                }
-              />{" "}
-              Есть варианты (размер / цвет)
-            </label>
-            {form.use_variants ? (
-              <>
+              <label>
+                Артикул (SKU)
+                <input
+                  value={form.sku}
+                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                />
+              </label>
+            </fieldset>
+            <fieldset disabled={busy}>
+              <legend>Цена</legend>
+              <label>
+                Цена
+                <input
+                  required
+                  inputMode="decimal"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                />
+              </label>
+              <label>
+                Старая цена / скидка
+                <input
+                  inputMode="decimal"
+                  value={form.compare_at_price}
+                  onChange={(e) =>
+                    setForm({ ...form, compare_at_price: e.target.value })
+                  }
+                />
+              </label>
+            </fieldset>
+            <fieldset disabled={busy}>
+              <legend>Категория</legend>
+              <label>
+                Категория
+                <select
+                  value={form.category_id}
+                  onChange={(e) =>
+                    setForm({ ...form, category_id: e.target.value })
+                  }
+                >
+                  <option value="">Без категории</option>
+                  {categories
+                    .filter((c) => c.active)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </fieldset>
+            <fieldset disabled={busy}>
+              <legend>Остаток</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.track_inventory}
+                  onChange={(e) =>
+                    setForm({ ...form, track_inventory: e.target.checked })
+                  }
+                />{" "}
+                Учитывать остаток
+              </label>
+              {form.track_inventory && !form.use_variants ? (
                 <label>
-                  Вариант
+                  Количество
                   <input
-                    required={form.use_variants}
-                    placeholder="Например: M / красный"
-                    value={form.variant_label}
+                    inputMode="numeric"
+                    value={form.stock_quantity}
                     onChange={(e) =>
-                      setForm({ ...form, variant_label: e.target.value })
+                      setForm({ ...form, stock_quantity: e.target.value })
                     }
                   />
                 </label>
-                <label>
-                  Цена варианта
-                  <input
-                    inputMode="decimal"
-                    value={form.variant_price}
-                    onChange={(e) =>
-                      setForm({ ...form, variant_price: e.target.value })
-                    }
-                  />
-                </label>
-                {form.track_inventory ? (
+              ) : null}
+            </fieldset>
+            <fieldset disabled={busy}>
+              <legend>Варианты</legend>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.use_variants}
+                  onChange={(e) =>
+                    setForm({ ...form, use_variants: e.target.checked })
+                  }
+                />{" "}
+                Есть варианты (размер / цвет)
+              </label>
+              {form.use_variants ? (
+                <>
                   <label>
-                    Остаток варианта
+                    Вариант
                     <input
-                      inputMode="numeric"
-                      value={form.variant_stock}
+                      required={form.use_variants}
+                      placeholder="Например: M / красный"
+                      value={form.variant_label}
                       onChange={(e) =>
-                        setForm({ ...form, variant_stock: e.target.value })
+                        setForm({ ...form, variant_label: e.target.value })
                       }
                     />
                   </label>
-                ) : null}
-              </>
-            ) : null}
-            <button className="button button--primary" type="submit">
-              Создать товар
-            </button>
-          </fieldset>
-        </form>
+                  <label>
+                    Цена варианта
+                    <input
+                      inputMode="decimal"
+                      value={form.variant_price}
+                      onChange={(e) =>
+                        setForm({ ...form, variant_price: e.target.value })
+                      }
+                    />
+                  </label>
+                  {form.track_inventory ? (
+                    <label>
+                      Остаток варианта
+                      <input
+                        inputMode="numeric"
+                        value={form.variant_stock}
+                        onChange={(e) =>
+                          setForm({ ...form, variant_stock: e.target.value })
+                        }
+                      />
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+            </fieldset>
+            <div className="catalog-create__actions">
+              <button className="button button--primary" type="submit">
+                Создать товар
+              </button>
+              <button
+                className="button button--ghost"
+                type="button"
+                onClick={() => setShowProduct(false)}
+              >
+                Закрыть
+              </button>
+            </div>
+          </form>
+        )}
       </section>
     </div>
   );

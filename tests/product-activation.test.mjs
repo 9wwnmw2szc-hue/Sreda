@@ -129,13 +129,15 @@ test("navigation and destinations expose activated products", async () => {
     "/posts",
     "/calendar",
     "/clients",
-    "/connections",
     "/notifications",
     "/settings",
     "/billing",
   ]) {
     assert.ok(hrefs.includes(href), href);
   }
+  assert.equal(NAV_ITEMS.some((item) => item.href === "/connections"), false);
+  assert.equal(NAV_ITEMS[1]?.href, "/solutions");
+  assert.equal(NAV_ITEMS[2]?.href, "/messages");
   assert.ok(WORKSPACE_SOLUTION_ORDER.includes("orders"));
   assert.equal(
     NAV_ITEMS.find((item) => item.href === "/orders")?.label,

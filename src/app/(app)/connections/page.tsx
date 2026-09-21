@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
-import { ConnectionsView } from "@/components/connections/ConnectionsView";
-
-export const metadata: Metadata = {
-  title: "Подключения",
-};
+import { redirect } from "next/navigation";
 
 export default function ConnectionsPage() {
-  return <ConnectionsView />;
+  redirect("/settings?section=connections");
 }

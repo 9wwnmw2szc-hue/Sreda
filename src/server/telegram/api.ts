@@ -19,6 +19,7 @@ export async function telegramCall(
     | "getFile"
     | "sendMessage"
     | "setWebhook"
+    | "deleteWebhook"
     | "getMe"
     | "getChat"
     | "getChatMember",

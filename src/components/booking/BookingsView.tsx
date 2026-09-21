@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
-import {
-  EmptyStateCta,
-  SolutionSetupBanner,
-} from "@/components/solutions/SolutionSetupBanner";
+import { SolutionSetupBanner } from "@/components/solutions/SolutionSetupBanner";
+import { Pagination } from "@/components/ui/Pagination";
+import { Disclosure } from "@/components/ui/Disclosure";
 import { AutoSchedulePanel } from "@/components/booking/AutoSchedulePanel";
 import { FIELD_HINTS } from "@/lib/setupUx";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
@@ -82,6 +81,18 @@ const dateAt = (date: Date, tz: string) =>
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+const shiftIso = (iso: string, days: number) => {
+  const [year = 1970, month = 1, day = 1] = iso.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+};
+const labelIso = (iso: string) => {
+  const [year = 1970, month = 1, day = 1] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat("ru", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+};
 const labels: Record<string, string> = {
   confirmed: "Подтверждена",
   pending: "Ожидает",
@@ -298,31 +309,100 @@ function Calendar({
         dateAt(new Date(b.starts_at), timezone) <=
           (mode === "week" ? until : date)),
   );
+  const today = dateAt(new Date(), timezone);
   return (
-    <div>
-      <h1>Онлайн-запись</h1>
-      <p>Часовой пояс: {timezone}</p>
+    <div className="booking-page">
+      <header className="page-header">
+        <h1 className="text-page-title">Запись</h1>
+        <p className="text-body-sm">Часовой пояс: {timezone}</p>
+      </header>
       <SolutionSetupBanner code="booking" />
+      <div className="booking-toolbar">
+        <div className="booking-date-nav">
+          <button
+            type="button"
+            className="button button--outline"
+            onClick={() => {
+              setDate(today);
+              setSlots([]);
+              setPage(0);
+            }}
+          >
+            Сегодня
+          </button>
+          <button
+            type="button"
+            className="button button--outline"
+            aria-label="Предыдущий день"
+            onClick={() => {
+              setDate(shiftIso(date, -1));
+              setSlots([]);
+              setPage(0);
+            }}
+          >
+            ←
+          </button>
+          <strong className="booking-date-label">{labelIso(date)}</strong>
+          <button
+            type="button"
+            className="button button--outline"
+            aria-label="Следующий день"
+            onClick={() => {
+              setDate(shiftIso(date, 1));
+              setSlots([]);
+              setPage(0);
+            }}
+          >
+            →
+          </button>
+          <label className="booking-date-field">
+            <span className="sr-only">Дата</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => {
+                if (e.target.value) setDate(e.target.value);
+                setSlots([]);
+                setPage(0);
+                setSlot("");
+                requestKey.current = "";
+              }}
+            />
+          </label>
+        </div>
+        <div className="booking-modes" role="group" aria-label="Вид календаря">
+          {(
+            [
+              ["day", "День"],
+              ["week", "Неделя"],
+              ["list", "Список"],
+            ] as const
+          ).map(([v, t]) => (
+            <button
+              key={v}
+              type="button"
+              className="button button--outline"
+              aria-pressed={mode === v}
+              onClick={() => {
+                setMode(v);
+                setPage(0);
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        {canConfigure ? (
+          <a className="button button--ghost booking-settings-link" href="#booking-config">
+            Настройки записи
+          </a>
+        ) : null}
+      </div>
       {catalog && !catalog.services.length ? (
-        <EmptyStateCta
-          title="Сначала создайте услугу"
-          description={`Добавьте услугу, затем ${terms.specialist.toLowerCase()} или режим без выбора и настройте расписание.`}
-          href="#booking-config"
-          action="К настройке записи"
-        />
+        <p className="account-footnote">
+          Добавьте услугу и расписание в настройках записи.
+        </p>
       ) : null}
-      <nav aria-label="Страницы записей">
-        <button disabled={page === 0 || busy} onClick={() => setPage(page - 1)}>
-          Предыдущая
-        </button>
-        <span> Страница {page + 1} </span>
-        <button
-          disabled={bookings.length < 500 || busy}
-          onClick={() => setPage(page + 1)}
-        >
-          Следующая
-        </button>
-      </nav>
       {error && (
         <p role="alert" className="account-error">
           {error}
@@ -334,41 +414,6 @@ function Calendar({
       ) : (
         <>
           <section className="panel crm-panel">
-            <div className="message-actions">
-              {(
-                [
-                  ["day", "День"],
-                  ["week", "Неделя"],
-                  ["list", "Список"],
-                ] as const
-              ).map(([v, t]) => (
-                <button
-                  key={v}
-                  className="button button--outline"
-                  aria-pressed={mode === v}
-                  onClick={() => {
-                    setMode(v);
-                    setPage(0);
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <label>
-              Дата
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  if (e.target.value) setDate(e.target.value);
-                  setSlots([]);
-                  setPage(0);
-                  setSlot("");
-                  requestKey.current = "";
-                }}
-              />
-            </label>
             {!visible.length ? (
               <p>На выбранную дату записей нет.</p>
             ) : (
@@ -428,6 +473,12 @@ function Calendar({
                 ))}
               </div>
             )}
+            <Pagination
+              page={page}
+              hasNext={bookings.length >= 500}
+              busy={busy}
+              onPage={setPage}
+            />
           </section>
           <section className="panel crm-panel">
             <h2>{reschedule ? "Перенос записи" : "Создать запись"}</h2>
@@ -742,8 +793,7 @@ function Configuration({
       <h2>Настройка записи</h2>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      <details open={openDetails || undefined}>
-        <summary>Услуги</summary>
+      <Disclosure title="Услуги" defaultOpen={openDetails}>
         <select
           value={service.id}
           onChange={(e) => {
@@ -865,9 +915,8 @@ function Configuration({
           </label>
           <button disabled={busy}>Сохранить услугу</button>
         </form>
-      </details>
-      <details>
-        <summary>{terms.specialists}</summary>
+      </Disclosure>
+      <Disclosure title={terms.specialists}>
         <select
           value={specialist.id}
           onChange={(e) =>
@@ -929,7 +978,7 @@ function Configuration({
           </label>
           <button disabled={busy}>Сохранить</button>
         </form>
-      </details>
+      </Disclosure>
       <AutoSchedulePanel
         businessId={base.replace("/api/v1/businesses/", "")}
         timezone={timezone}
@@ -946,8 +995,9 @@ function Configuration({
         settings={catalog.settings}
         onSaved={onChange}
       />
-      <details>
-        <summary>Услуги и исключения ({terms.specialist.toLowerCase()})</summary>
+      <Disclosure
+        title={`Услуги и исключения (${terms.specialist.toLowerCase()})`}
+      >
         <label>
           {terms.specialist}
           <select
@@ -1095,9 +1145,8 @@ function Configuration({
         >
           Применить интервалы только к этой дате
         </button>
-      </details>
-      <details>
-        <summary>Правила записи</summary>
+      </Disclosure>
+      <Disclosure title="Правила записи">
         {(
           [
             "minimum_booking_notice",
@@ -1221,7 +1270,7 @@ function Configuration({
             </ul>
           </div>
         )}
-      </details>
+      </Disclosure>
     </section>
   );
 }

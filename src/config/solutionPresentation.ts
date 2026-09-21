@@ -19,8 +19,9 @@ export function solutionRoute(code: string) {
   return SOLUTION_DESTINATIONS[code as PresentedSolutionCode] ?? "/solutions";
 }
 
+/** Canonical brand 3D icons — true alpha, UI owns the plate. */
 export function solutionModuleAsset(code: string) {
-  return `/assets/soty/v1/module-${solutionVisualCode(code)}.webp`;
+  return `/assets/soty/v2/module-${solutionVisualCode(code)}.webp`;
 }
 
 export const DASHBOARD_SOLUTION_COPY: Record<
