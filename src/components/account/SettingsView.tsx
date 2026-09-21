@@ -208,7 +208,8 @@ export function SettingsView() {
         <section className="panel">
           <h2>Тариф</h2>
           <p className="account-footnote">
-            Активные решения и оценка по каталогу. Оплата через провайдера — в подготовке.
+            Активные решения и оценка по каталогу. Подключение оплаты — следующий
+            шаг; списаний пока нет.
           </p>
           <Link className="button button--outline" href="/billing">
             Открыть тариф
