@@ -171,16 +171,27 @@ export function createApplication(options: {
         )
           throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
         requireOrigin(request, options.origin);
-        if (request.method === "POST")
+        if (request.method === "POST") {
+          const body = await readJson(request, 65536);
+          if (body && typeof body === "object" && (body as { internal?: unknown }).internal === true)
+            return json(
+              await options.communications.addInternalNote(
+                user.id,
+                businessId,
+                conversationId,
+                body,
+              ),
+            );
           return json(
             await options.communications.sendMessage(
               user.id,
               businessId,
               conversationId,
-              await readJson(request, 65536),
+              body,
             ),
             202,
           );
+        }
         return json(
           await options.communications.updateStatus(
             user.id,

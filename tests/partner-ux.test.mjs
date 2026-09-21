@@ -299,7 +299,7 @@ test("settings sections and sidebar order match the product map", async () => {
   assert.match(settings, /Опасная зона/);
   assert.match(settings, /\["solutions", "Решения"\]/);
   assert.match(settings, /\["ai", "AI"\]/);
-  assert.match(settings, /оплата через провайдера — в подготовке/i);
+  assert.match(settings, /Подключение оплаты[\s\S]*следующий\s+шаг/i);
   assert.match(sidebar, /is-locked/);
   assert.match(sidebar, /"\/solutions"/);
 });

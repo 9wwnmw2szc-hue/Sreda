@@ -10,6 +10,7 @@ import { MembersPanel } from "./MembersPanel";
 import { AuditLogPanel } from "./AuditLogPanel";
 import { RecoveryCodesPanel } from "./RecoveryCodesPanel";
 import { PasswordChangePanel } from "./PasswordChangePanel";
+import { SessionsPanel } from "./SessionsPanel";
 import { BusinessProfilePanel } from "./BusinessProfilePanel";
 import { IndustrySetupCard } from "./IndustrySetupCard";
 import { PinPanel } from "./PinPanel";
@@ -255,6 +256,7 @@ export function SettingsView() {
                 Безопасность
               </h2>
               <PasswordChangePanel />
+              <SessionsPanel />
               <PinPanel />
               <RecoveryCodesPanel />
             </section>

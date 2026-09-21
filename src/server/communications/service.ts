@@ -88,6 +88,7 @@ export class CommunicationService {
         "status",
         "assigned_member_user_id as assignedMemberUserId",
         "last_message_at as lastMessageAt",
+        "last_inbound_at as lastInboundAt",
         "created_at as createdAt",
       ])
       .where("business_id", "=", businessId)
@@ -116,7 +117,7 @@ export class CommunicationService {
           .executeTakeFirstOrThrow();
         const last = await this.db
           .selectFrom("communication_message")
-          .select("text")
+          .select(["text", "direction", "created_at"])
           .where("conversation_id", "=", row.id)
           .orderBy("created_at", "desc")
           .limit(1)
@@ -136,6 +137,13 @@ export class CommunicationService {
               .where("id", "=", row.clientId)
               .executeTakeFirst()
           : null;
+        const waitingSince =
+          row.status !== "closed" &&
+          row.status !== "blocked" &&
+          last?.direction === "inbound" &&
+          (row.lastInboundAt ?? last.created_at)
+            ? (row.lastInboundAt ?? last.created_at).toISOString()
+            : null;
         return {
           ...row,
           clientName: client?.name,
@@ -144,6 +152,10 @@ export class CommunicationService {
           assignedName: employee?.name,
           lastMessageAt: row.lastMessageAt.toISOString(),
           createdAt: row.createdAt.toISOString(),
+          waitingSince,
+          lastInboundAt: row.lastInboundAt
+            ? row.lastInboundAt.toISOString()
+            : null,
         };
       }),
     );
@@ -468,6 +480,72 @@ export class CommunicationService {
       conversationId,
       platform: conversation.platform,
       direction: row.direction,
+      text: row.text,
+      createdAt: row.created_at.toISOString(),
+      deliveryStatus: row.delivery_status,
+    };
+  }
+
+  /** Staff-only note — never queued to Telegram/VK/Meta outbox. */
+  async addInternalNote(
+    userId: string,
+    publicId: string,
+    conversationId: string,
+    raw: unknown,
+  ) {
+    await this.resolve(userId, publicId, true);
+    requireUuid(conversationId);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      throw new AppError(400, "INVALID_NOTE", "Проверьте текст заметки.");
+    const body = raw as Record<string, unknown>;
+    const note = text(body.text);
+    if (!note || note.length > 4000)
+      throw new AppError(
+        400,
+        "INVALID_NOTE",
+        "Внутренняя заметка — от 1 до 4000 символов.",
+      );
+    const businessId = (await this.resolve(userId, publicId)).id;
+    const row = await this.db.transaction().execute(async (tx) => {
+      await requireBusiness(tx, userId, publicId, "messages.write");
+      const conversation = await tx
+        .selectFrom("communication_conversation")
+        .select("id")
+        .where("id", "=", conversationId)
+        .where("business_id", "=", businessId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!conversation)
+        throw new AppError(404, "CONVERSATION_NOT_FOUND", "Диалог не найден.");
+      const inserted = await tx
+        .insertInto("communication_message")
+        .values({
+          id: randomUUID(),
+          conversation_id: conversationId,
+          business_id: businessId,
+          direction: "internal",
+          text: note,
+          external_message_id: null,
+          actor_user_id: userId,
+          moderation_status: "allowed",
+          delivery_status: "sent",
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      await audit(
+        tx,
+        businessId,
+        userId,
+        "conversation_internal_note",
+        conversationId,
+        { message_id: inserted.id },
+      );
+      return inserted;
+    });
+    return {
+      id: row.id,
+      conversationId,
+      direction: "internal" as const,
       text: row.text,
       createdAt: row.created_at.toISOString(),
       deliveryStatus: row.delivery_status,

@@ -1,7 +1,6 @@
 /**
- * Low-stock threshold crossing detection (domain stub).
- * Notification wiring (notify + preference type) lands in a follow-up once
- * `inventory.low_stock` is added to notification_preference CHECK / settings UI.
+ * Low-stock threshold crossing detection with deduped event keys.
+ * Wired via orders.decrementStock → notify(inventory.low_stock).
  */
 
 export type LowStockCrossing = {
@@ -55,10 +54,7 @@ export function evaluateLowStockCrossing(input: {
   };
 }
 
-/**
- * Stub: returns whether a notification *would* be emitted.
- * Does not write to the database — wire to `notify()` when type is allowed.
- */
+/** Whether a low-stock notification should be emitted for this stock transition. */
 export function maybeNotifyLowStock(
   input: Parameters<typeof evaluateLowStockCrossing>[0],
 ): { shouldNotify: boolean; eventKey: string | null } {

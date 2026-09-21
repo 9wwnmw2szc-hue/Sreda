@@ -86,14 +86,22 @@ export function CommandSearch({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     const term = q.trim();
-    if (!currentBusiness || isDemoMode || term.length < 2) {
-      setHits([]);
-      setLoading(false);
-      setError("");
-      return;
-    }
     let alive = true;
-    setLoading(true);
+    if (!currentBusiness || isDemoMode || term.length < 2) {
+      const clear = window.setTimeout(() => {
+        if (!alive) return;
+        setHits([]);
+        setLoading(false);
+        setError("");
+      }, 0);
+      return () => {
+        alive = false;
+        window.clearTimeout(clear);
+      };
+    }
+    const loadingTimer = window.setTimeout(() => {
+      if (alive) setLoading(true);
+    }, 0);
     const timer = window.setTimeout(() => {
       void apiRequest<{ items: SearchHit[] }>(
         `/api/v1/businesses/${currentBusiness.id}/search?q=${encodeURIComponent(term)}&limit=20`,
@@ -116,6 +124,7 @@ export function CommandSearch({ compact = false }: { compact?: boolean }) {
     }, 280);
     return () => {
       alive = false;
+      window.clearTimeout(loadingTimer);
       window.clearTimeout(timer);
     };
   }, [q, currentBusiness]);

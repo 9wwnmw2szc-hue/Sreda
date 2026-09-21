@@ -14,6 +14,7 @@ import {
   normalizeSolutionCode,
 } from "./catalog.ts";
 import { assertCanGrantEntitlement } from "../billing/entitlement.ts";
+import { trackProductEvent } from "../analytics/product-events.ts";
 import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
@@ -202,7 +203,7 @@ export class SolutionService {
       typeof raw.enabled !== "boolean"
     )
       throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
-    return this.db.transaction().execute(async (tx) => {
+    const result = await this.db.transaction().execute(async (tx) => {
       const id = await new SolutionService(tx).business(userId, publicId, true);
       await tx
         .selectFrom("business")
@@ -239,8 +240,17 @@ export class SolutionService {
         solution: code,
         status,
       });
-      return { ok: true };
+      return { ok: true as const, enabled: raw.enabled, code, businessId: id };
     });
+    if (result.enabled) {
+      await trackProductEvent(this.db, {
+        event: "solution_activated",
+        businessId: result.businessId,
+        userId,
+        meta: { solution: result.code },
+      });
+    }
+    return { ok: true };
   }
   async list(userId: string, publicId: string) {
     const id = await this.business(userId, publicId);

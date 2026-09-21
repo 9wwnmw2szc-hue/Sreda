@@ -85,7 +85,7 @@ export type SetupReadiness = {
   hasConnection?: boolean;
 };
 
-function readinessSteps(_readiness: SetupReadiness): ChecklistStep[] {
+function readinessSteps(): ChecklistStep[] {
   return [
     {
       id: "industry",
@@ -124,7 +124,7 @@ export function SetupChecklist({
   const [local, setLocal] = useState(progress);
 
   if (variant === "compact") {
-    const derived = readinessSteps(readiness ?? {});
+    const derived = readinessSteps();
     const doneMap: Record<string, boolean> = {
       industry: !!(readiness?.hasIndustry || local.industry),
       solutions: !!(readiness?.hasActiveSolution || local.solutions),

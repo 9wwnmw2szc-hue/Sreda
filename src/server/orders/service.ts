@@ -10,12 +10,37 @@ import {
   normalizeIdentity,
 } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
+import { evaluateLowStockCrossing } from "./low-stock.ts";
 import type {
   CartPlatform,
   OrderFulfillment,
   OrderStatus,
   ProductAvailability,
 } from "./schema.ts";
+
+async function maybeEmitLowStock(
+  tx: Transaction<Database>,
+  businessId: string,
+  input: {
+    productId: string;
+    productName: string;
+    variantId?: string | null;
+    previousStock: number;
+    nextStock: number;
+    threshold: number | null | undefined;
+  },
+) {
+  const crossing = evaluateLowStockCrossing(input);
+  if (!crossing.crossed || !crossing.eventKey) return;
+  await notify(
+    tx,
+    businessId,
+    "inventory.low_stock",
+    crossing.eventKey,
+    `Низкий остаток: ${input.productName} (${input.nextStock})`,
+    "/orders",
+  );
+}
 
 const fail = (message = "Проверьте параметры заказа.") =>
   new AppError(400, "INVALID_ORDER", message);
@@ -529,7 +554,13 @@ async function decrementStock(
       throw new AppError(404, "VARIANT_NOT_FOUND", "Вариант не найден.");
     const product = await tx
       .selectFrom("product")
-      .select(["track_inventory", "active", "use_variants"])
+      .select([
+        "track_inventory",
+        "active",
+        "use_variants",
+        "name",
+        "low_stock_threshold",
+      ])
       .where("business_id", "=", businessId)
       .where("id", "=", productId)
       .forUpdate()
@@ -552,12 +583,13 @@ async function decrementStock(
           "OUT_OF_STOCK",
           "Недостаточно товара на складе.",
         );
+      const remaining = stock - quantity;
       await tx
         .updateTable("product_variant")
         .set({
-          stock_quantity: stock - quantity,
+          stock_quantity: remaining,
           updated_at: new Date(),
-          ...(stock - quantity === 0 ? { availability: "out_of_stock" } : {}),
+          ...(remaining === 0 ? { availability: "out_of_stock" } : {}),
         })
         .where("business_id", "=", businessId)
         .where("id", "=", variantId)
@@ -571,10 +603,18 @@ async function decrementStock(
         {
           product_id: productId,
           delta: -quantity,
-          remaining: stock - quantity,
+          remaining,
         },
         "system",
       );
+      await maybeEmitLowStock(tx, businessId, {
+        productId,
+        productName: product.name,
+        variantId,
+        previousStock: stock,
+        nextStock: remaining,
+        threshold: product.low_stock_threshold,
+      });
       return true;
     }
     return false;
@@ -597,12 +637,13 @@ async function decrementStock(
     const stock = product.stock_quantity ?? 0;
     if (stock < quantity)
       throw new AppError(409, "OUT_OF_STOCK", "Недостаточно товара на складе.");
+    const remaining = stock - quantity;
     await tx
       .updateTable("product")
       .set({
-        stock_quantity: stock - quantity,
+        stock_quantity: remaining,
         updated_at: new Date(),
-        ...(stock - quantity === 0 ? { availability: "out_of_stock" } : {}),
+        ...(remaining === 0 ? { availability: "out_of_stock" } : {}),
       })
       .where("business_id", "=", businessId)
       .where("id", "=", productId)
@@ -613,9 +654,16 @@ async function decrementStock(
       null,
       "inventory_adjusted",
       productId,
-      { delta: -quantity, remaining: stock - quantity },
+      { delta: -quantity, remaining },
       "system",
     );
+    await maybeEmitLowStock(tx, businessId, {
+      productId,
+      productName: product.name,
+      previousStock: stock,
+      nextStock: remaining,
+      threshold: product.low_stock_threshold,
+    });
     return true;
   }
   return false;

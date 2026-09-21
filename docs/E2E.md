@@ -9,7 +9,7 @@ Automated suite ≠ full product E2E. Use both.
 | `npm test` | ~39 files under `tests/*.test.mjs` (domain, migrations, UX contracts, Meta stubs, hardening) |
 | `npm run test:http` | Built-server HTTP flows (`tests/http/`) |
 | CI Verify | Above + lint/typecheck/build + Docker worker import smoke |
-| `npm run audit:responsive` | Playwright route/overflow audit against a reachable `AUDIT_BASE_URL` |
+| `npm run test:e2e` | Playwright smoke (`e2e/critical-path.spec.mjs`) against `E2E_BASE_URL` / `AUDIT_BASE_URL` |
 
 PostgreSQL-backed race tests need `TEST_DATABASE_URL` (provided in CI). Local PGlite covers many migration/unit paths.
 

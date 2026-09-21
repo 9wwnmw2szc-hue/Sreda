@@ -89,6 +89,36 @@ export interface Database
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };
+  ai_usage_event: {
+    id: Generated<string>;
+    business_id: string;
+    feature: string;
+    model: Generated<string>;
+    request_count: Generated<number>;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    estimated_cost_minor: number | null;
+    currency: Generated<string>;
+    created_at: Generated<Date>;
+  };
+  product_event: {
+    id: string;
+    business_id: string | null;
+    user_id: string | null;
+    event: string;
+    meta: Generated<unknown>;
+    created_at: Generated<Date>;
+  };
+  reply_template: {
+    id: string;
+    business_id: string;
+    title: string;
+    body: string;
+    created_by: string | null;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+    archived_at: Date | null;
+  };
   solution_config: {
     business_id: string;
     solution_code: string;
@@ -452,7 +482,9 @@ export interface Database
       | "analytics_export_created"
       | "analytics_ai_created"
       | "analytics_import_confirmed"
-      | "client_merged";
+      | "client_merged"
+      | "conversation_internal_note"
+      | "data_import_committed";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;
