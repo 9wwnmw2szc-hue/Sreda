@@ -154,12 +154,8 @@ export function ProductEditor({
   const [uploadNote, setUploadNote] = useState("");
 
   useEffect(() => {
-    if (!productId) {
-      setLoadingDetail(false);
-      return;
-    }
+    if (!productId) return;
     let alive = true;
-    setLoadingDetail(true);
     void apiRequest<ProductDetail>(productsBase + "/" + productId)
       .then((detail) => {
         if (!alive) return;

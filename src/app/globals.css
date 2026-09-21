@@ -1562,40 +1562,55 @@ ul {
   margin-top: 4px;
 }
 .detail-dialog {
-  border: 1px solid #dce4d6;
-  border-radius: 22px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl, 22px);
   padding: 0;
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100dvh - 48px);
   margin: auto;
   color: var(--text-primary);
-  background: #fcfdf9;
-  box-shadow: 0 35px 100px #172c1a40;
+  background: var(--bg-elevated, var(--bg-surface));
+  box-shadow: var(--shadow-md, 0 16px 48px rgba(32, 37, 43, 0.18));
   overflow: auto;
 }
 .detail-dialog::backdrop {
-  background: #14251977;
+  background: color-mix(in srgb, var(--text-primary) 45%, transparent);
   backdrop-filter: blur(5px);
 }
 .detail-dialog__inner {
   padding: 24px;
+  color: var(--text-primary);
+  background: var(--bg-elevated, var(--bg-surface));
 }
 .detail-dialog header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  color: var(--text-primary);
 }
 .detail-dialog header h2 {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.7px;
+  color: var(--text-primary);
+}
+.detail-dialog .dialog-intro,
+.detail-dialog .account-footnote,
+.detail-dialog .detail-facts > span:first-child {
+  color: var(--text-secondary);
 }
 .dialog-intro {
   font-size: 15px;
   line-height: 1.7;
-  color: #65715e;
+  color: var(--text-secondary);
   margin: 16px 0 22px;
+}
+[data-theme="dark"] .detail-dialog,
+[data-theme="dark"] .detail-dialog__inner {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-default);
 }
 .catalog-grid {
   display: grid;
@@ -1648,11 +1663,12 @@ ul {
   justify-content: space-between;
   gap: 16px;
   padding: 13px 0;
-  border-bottom: 1px solid #e7ebdf;
+  border-bottom: 1px solid var(--border-default);
   font-size: 14px;
+  color: var(--text-primary);
 }
 .detail-facts > span:first-child {
-  color: #68735f;
+  color: var(--text-secondary);
 }
 .demo-note {
   font-size: 13px;

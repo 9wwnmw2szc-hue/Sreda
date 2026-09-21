@@ -104,14 +104,12 @@ export async function ordersFlow(
     await save(mode, choices);
     await queue(
       title,
-      choices
-        .slice(page * 7, page * 7 + 7)
-        .map((c) => c.label)
-        .concat(
-          page > 0 ? ["← Назад по списку"] : [],
-          (page + 1) * 7 < choices.length ? ["Далее →"] : [],
-          extra,
-        ),
+      ([
+        ...choices.slice(page * 7, page * 7 + 7).map((c) => c.label),
+        ...(page > 0 ? (["← Назад по списку"] as const) : []),
+        ...((page + 1) * 7 < choices.length ? (["Далее →"] as const) : []),
+        ...extra,
+      ] as OutboxButton[]),
     );
   };
 
@@ -263,10 +261,10 @@ export async function ordersFlow(
           (choices.length
             ? "\n\nВыберите вариант."
             : "\n\nВарианты недоступны."),
-        choices
-          .slice(0, 7)
-          .map((c) => c.label)
-          .concat(NAV_PRODUCT),
+        [
+          ...choices.slice(0, 7).map((c) => c.label),
+          ...NAV_PRODUCT,
+        ] as OutboxButton[],
         attachmentIds,
       );
       return;

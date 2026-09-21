@@ -534,10 +534,12 @@ async function decrementStock(
       .where("id", "=", productId)
       .forUpdate()
       .executeTakeFirst();
-    if (!product?.active || !variant.active)
+    if (!product?.active)
       throw new AppError(409, "PRODUCT_UNAVAILABLE", "Товар недоступен.");
     if (!product.use_variants)
       throw fail("Этот товар больше не использует варианты.");
+    if (!variant.active)
+      throw new AppError(409, "PRODUCT_UNAVAILABLE", "Товар недоступен.");
     if (!isSellable(variant.availability, variant.stock_quantity))
       throw new AppError(409, "OUT_OF_STOCK", "Недостаточно товара на складе.");
     if (
