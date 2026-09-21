@@ -80,6 +80,7 @@ export function SettingsView() {
         ))}
       </nav>
 
+      <div className="settings-section">
       {section === "business" && (
         <>
           <section className="panel">
@@ -279,6 +280,7 @@ export function SettingsView() {
           <AccountDeletionPanel />
         </>
       )}
+      </div>
     </div>
   );
 }
