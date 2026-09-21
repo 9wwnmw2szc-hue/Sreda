@@ -219,10 +219,19 @@ export async function routeBot(
     return;
   }
   if (
-    (text === "Каталог" || text === "Корзина" || text === "Профиль") &&
+    (text === "Каталог" ||
+      text === "Корзина" ||
+      text === "Мои заказы" ||
+      text === "Профиль") &&
     !available.has("orders")
   ) {
-    await denyDisabled(text === "Профиль" ? "Профиль" : "Заказы");
+    await denyDisabled(
+      text === "Профиль"
+        ? "Профиль"
+        : text === "Мои заказы"
+          ? "Мои заказы"
+          : "Заказы",
+    );
     return;
   }
   if (

@@ -132,6 +132,11 @@ export interface OrderTables {
     business_id: string;
     next_number: Generated<number>;
   };
+  order_settings: {
+    business_id: string;
+    customer_cancel_statuses: Generated<unknown>;
+    updated_at: Generated<Date>;
+  };
   order_item: {
     id: string;
     business_id: string;

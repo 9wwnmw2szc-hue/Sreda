@@ -28,7 +28,7 @@ export type AvailableCustomerActions = {
 
 type Db = Kysely<Database> | Transaction<Database>;
 
-const ORDER_LABELS = ["Каталог", "Корзина", "Профиль"] as const;
+const ORDER_LABELS = ["Каталог", "Корзина", "Мои заказы", "Профиль"] as const;
 /** Menu buttons shown when booking is customer-ready. */
 const BOOKING_MENU_LABELS = ["Записаться", "Мои записи"] as const;
 /** Accepted aliases (including legacy reply labels) for booking. */
