@@ -31,8 +31,8 @@ function visual(code: SolutionAccentCode): SolutionVisual {
     code,
     accentVar: SOLUTION_ACCENTS[code].cssVar,
     assetSrc: solutionModuleAsset(code),
-    assetWidth: 1024,
-    assetHeight: 1024,
+    assetWidth: 512,
+    assetHeight: 512,
     dock,
   };
 }

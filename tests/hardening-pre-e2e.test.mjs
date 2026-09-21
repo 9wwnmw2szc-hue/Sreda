@@ -1311,10 +1311,10 @@ test("solution visual codes are distinct for orders and admin_messages", async (
     solutionModuleAsset("orders"),
     solutionModuleAsset("admin_messages"),
   );
-  assert.match(solutionModuleAsset("orders"), /module-orders\.webp$/);
+  assert.match(solutionModuleAsset("orders"), /\/assets\/soty\/v2\/module-orders\.webp$/);
   assert.match(
     solutionModuleAsset("admin_messages"),
-    /module-messages\.webp$/,
+    /\/assets\/soty\/v2\/module-messages\.webp$/,
   );
   assert.equal(solutionVisualCode("sales"), "orders");
   assert.equal(solutionModuleAsset("sales"), solutionModuleAsset("orders"));

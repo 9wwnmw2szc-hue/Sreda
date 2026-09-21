@@ -290,8 +290,8 @@ test("settings sections and sidebar order match the product map", async () => {
   assert.match(sidebar, /"\/solutions"/);
 });
 
-test("solution icons keep a transparent corner instead of a baked plate", async () => {
-  const root = new URL("../public/assets/soty/v1/", import.meta.url);
+test("solution icons keep true alpha and no baked plate RGB", async () => {
+  const root = new URL("../public/assets/soty/v2/", import.meta.url);
   const files = [
     "module-orders.webp",
     "module-leads.webp",
@@ -318,9 +318,27 @@ from PIL import Image
 import sys
 for path in sys.argv[1:]:
     image = Image.open(path).convert("RGBA")
+    w, h = image.size
+    if w < 256 or h < 256:
+        raise SystemExit(path + " too small for retina " + str((w, h)))
     corner = image.getpixel((0, 0))
     if corner[3] != 0:
         raise SystemExit(path + " corner alpha " + str(corner))
+    if any(corner[i] != 0 for i in range(3)):
+        raise SystemExit(path + " corner RGB under alpha0 " + str(corner))
+    bad = 0
+    opaque = 0
+    for px in image.getdata():
+        r, g, b, a = px
+        if a == 0 and (r or g or b):
+            bad += 1
+        if a > 250:
+            opaque += 1
+    if bad:
+        raise SystemExit(path + " badRGB_on_alpha0=" + str(bad))
+    ratio = opaque / (w * h)
+    if ratio < 0.12 or ratio > 0.55:
+        raise SystemExit(path + " opaque ratio out of range " + str(ratio))
 `;
   await execFileAsync("python3", ["-c", script, ...files]);
 });

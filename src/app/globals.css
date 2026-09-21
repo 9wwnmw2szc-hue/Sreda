@@ -2447,32 +2447,51 @@ ul {
   width: 112px;
   height: 112px;
   border-radius: 22px;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 22%, rgba(255, 255, 255, 0.82)) 0%,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 10%, rgba(255, 255, 255, 0.52)) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--icon-plate-tone, #ffffff) 28%, rgba(255, 255, 255, 0.7));
+  box-shadow:
+    0 8px 20px rgba(32, 37, 43, 0.08),
+    0 1px 2px rgba(32, 37, 43, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(32, 37, 43, 0.04);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
   isolation: isolate;
   overflow: visible;
   justify-self: center;
 }
+.catalog-card--orders { --icon-plate-tone: var(--solution-orders); }
+.catalog-card--leads { --icon-plate-tone: var(--solution-leads); }
+.catalog-card--booking { --icon-plate-tone: var(--solution-booking); }
+.catalog-card--messages { --icon-plate-tone: var(--solution-messages); }
+.catalog-card--autopost { --icon-plate-tone: var(--solution-autopost); }
 .catalog-card__art .soty-solution-icon,
 .catalog-card__art img {
-  width: 96px;
-  height: 96px;
+  width: 84px;
+  height: 84px;
   object-fit: contain;
   opacity: 1;
   mix-blend-mode: normal;
   filter: none;
 }
 [data-theme="dark"] .catalog-card__art {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 18%, rgba(255, 255, 255, 0.2)) 0%,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 8%, rgba(255, 255, 255, 0.1)) 100%
+  );
+  border-color: color-mix(in srgb, var(--icon-plate-tone, #ffffff) 22%, rgba(255, 255, 255, 0.22));
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 [data-theme="dark"] .catalog-card__art img {
-  opacity: 1 !important;
-  filter: saturate(1.22) contrast(1.12) brightness(1.14) !important;
+  opacity: 1;
+  filter: none;
 }
 .catalog-card__body {
   display: flex;
@@ -3009,7 +3028,7 @@ ul {
     height: 72px;
     border-radius: 18px;
   }
-  .catalog-card__art img {
+  .catalog-card__art .soty-solution-icon {
     width: 52px;
     height: 52px;
   }
@@ -4619,18 +4638,16 @@ ul {
     gap: 14px;
   }
   .soty-solution-card__art {
-    width: 58px;
-    height: 58px;
-    flex: 0 0 58px;
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
     display: grid;
     place-items: center;
     border-radius: 18px;
   }
-  .soty-solution-card__art img {
-    width: 42px;
-    height: 42px;
-    object-fit: contain;
-    opacity: 1;
+  .soty-solution-card__art .soty-solution-icon {
+    width: 50px;
+    height: 50px;
   }
   .soty-solution-card__body {
     flex: 1;
@@ -4698,22 +4715,27 @@ ul {
 }
 
 .soty-solution-card--orders {
+  --icon-plate-tone: var(--solution-orders);
   background: color-mix(in srgb, var(--solution-orders) 42%, var(--bg-surface));
 }
 
 .soty-solution-card--leads {
+  --icon-plate-tone: var(--solution-leads);
   background: color-mix(in srgb, var(--solution-leads) 42%, var(--bg-surface));
 }
 
 .soty-solution-card--booking {
+  --icon-plate-tone: var(--solution-booking);
   background: color-mix(in srgb, var(--solution-booking) 42%, var(--bg-surface));
 }
 
 .soty-solution-card--messages {
+  --icon-plate-tone: var(--solution-messages);
   background: color-mix(in srgb, var(--solution-messages) 42%, var(--bg-surface));
 }
 
 .soty-solution-card--autopost {
+  --icon-plate-tone: var(--solution-autopost);
   background: color-mix(in srgb, var(--solution-autopost) 42%, var(--bg-surface));
 }
 
@@ -4743,16 +4765,15 @@ ul {
   .soty-solution-card__art {
     display: grid;
     place-items: center;
-    width: 76px;
-    height: 76px;
-    flex: 0 0 76px;
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
     margin-inline: auto;
   }
 
-  .soty-solution-card__art img {
+  .soty-solution-card__art .soty-solution-icon {
     width: 56px;
     height: 56px;
-    opacity: 1;
   }
 
   .soty-solution-card h3 {
@@ -5243,53 +5264,64 @@ input[type="time"] {
 .soty-solution-card__art {
   display: grid;
   place-items: center;
-  width: 88px;
-  height: 88px;
-  border-radius: 22px;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  flex: 0 0 88px;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 22%, rgba(255, 255, 255, 0.82)) 0%,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 10%, rgba(255, 255, 255, 0.52)) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--icon-plate-tone, #ffffff) 28%, rgba(255, 255, 255, 0.7));
+  box-shadow:
+    0 8px 20px rgba(32, 37, 43, 0.08),
+    0 1px 2px rgba(32, 37, 43, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(32, 37, 43, 0.04);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  flex: 0 0 72px;
   flex-shrink: 0;
   isolation: isolate;
   overflow: visible;
 }
 
+.soty-solution-card__art .soty-solution-icon {
+  width: 56px;
+  height: 56px;
+}
+
 .soty-solution-card__art .soty-solution-icon,
 .soty-solution-card__art img {
-  width: 76px;
-  height: 76px;
   object-fit: contain;
   opacity: 1;
   filter: none;
   mix-blend-mode: normal;
-  transform: none;
-  transition:
-    transform 0.22s ease,
-    filter 0.22s ease;
+  transition: transform 0.22s ease;
 }
 
-.soty-solution-card:hover .soty-solution-card__art .soty-solution-icon,
-.soty-solution-card:hover .soty-solution-card__art img {
+.soty-solution-card:hover .soty-solution-card__art .soty-solution-icon {
   transform: translateY(-2px) scale(1.03);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .soty-solution-card__art .soty-solution-icon,
-  .soty-solution-card__art img,
-  .soty-solution-card:hover .soty-solution-card__art .soty-solution-icon,
-  .soty-solution-card:hover .soty-solution-card__art img {
+  .soty-solution-card:hover .soty-solution-card__art .soty-solution-icon {
     transition: none;
     transform: none;
   }
 }
 
 [data-theme="dark"] .soty-solution-card__art {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 18%, rgba(255, 255, 255, 0.2)) 0%,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 8%, rgba(255, 255, 255, 0.1)) 100%
+  );
+  border-color: color-mix(in srgb, var(--icon-plate-tone, #ffffff) 22%, rgba(255, 255, 255, 0.22));
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 [data-theme="dark"] .soty-solution-card__art img {
@@ -5299,15 +5331,14 @@ input[type="time"] {
 
 @media (max-width: 699px) {
   .soty-solution-card__art {
-    width: 68px !important;
-    height: 68px !important;
-    flex: 0 0 68px !important;
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
     border-radius: 18px;
   }
-  .soty-solution-card__art .soty-solution-icon,
-  .soty-solution-card__art img {
-    width: 58px !important;
-    height: 58px !important;
+  .soty-solution-card__art .soty-solution-icon {
+    width: 50px;
+    height: 50px;
   }
 }
 
@@ -5315,6 +5346,8 @@ input[type="time"] {
   display: inline-grid;
   place-items: center;
   line-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .soty-solution-icon img {
@@ -5322,7 +5355,41 @@ input[type="time"] {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
   opacity: 1;
+}
+
+/* Optical sizing — equal containers, tuned visual mass */
+.soty-solution-icon--orders img {
+  transform: scale(0.94);
+}
+.soty-solution-icon--leads img {
+  transform: scale(0.98);
+}
+.soty-solution-icon--booking img {
+  transform: scale(0.9);
+}
+.soty-solution-icon--messages img {
+  transform: scale(0.92);
+}
+.soty-solution-icon--autopost img {
+  transform: scale(0.86);
+}
+
+.soty-solution-card:hover .soty-solution-icon--orders img {
+  transform: scale(0.97);
+}
+.soty-solution-card:hover .soty-solution-icon--leads img {
+  transform: scale(1.01);
+}
+.soty-solution-card:hover .soty-solution-icon--booking img {
+  transform: scale(0.93);
+}
+.soty-solution-card:hover .soty-solution-icon--messages img {
+  transform: scale(0.95);
+}
+.soty-solution-card:hover .soty-solution-icon--autopost img {
+  transform: scale(0.89);
 }
 
 .sidebar__link.is-active {
@@ -6145,10 +6212,10 @@ body {
 [data-theme="dark"] .soty-solution-card__art {
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 255, 255, 0.12) 100%
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 18%, rgba(255, 255, 255, 0.2)) 0%,
+    color-mix(in srgb, var(--icon-plate-tone, #ffffff) 8%, rgba(255, 255, 255, 0.1)) 100%
   );
-  border-color: rgba(255, 255, 255, 0.24);
+  border-color: color-mix(in srgb, var(--icon-plate-tone, #ffffff) 22%, rgba(255, 255, 255, 0.22));
   box-shadow:
     0 10px 22px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
@@ -7488,12 +7555,9 @@ a.soty-activity__row {
     height: 88px;
     justify-self: start;
   }
-  .catalog-card__art .soty-solution-icon,
-  .catalog-card__art img {
-    width: 72px;
-    height: 72px;
-    object-fit: contain;
-    opacity: 1;
+  .catalog-card__art .soty-solution-icon {
+    width: 64px;
+    height: 64px;
   }
 }
 
@@ -7718,13 +7782,9 @@ a.soty-activity__row {
 .soty-solution-card__status {
   overflow-wrap: anywhere;
 }
-.soty-solution-card__art,
-.catalog-card__art {
-  background: transparent;
-}
 .soty-solution-card__art img,
 .catalog-card__art img,
-.soty-solution-icon {
+.soty-solution-icon img {
   object-fit: contain;
   opacity: 1;
   background: transparent;
