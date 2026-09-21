@@ -8,7 +8,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     requireOrigin(request, r.origin);
     const user = await createApplication(r).requireUser(request.headers);

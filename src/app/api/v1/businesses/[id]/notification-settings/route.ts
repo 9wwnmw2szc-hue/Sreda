@@ -4,7 +4,7 @@ import { respond, requireOrigin, readJson, json } from "@/server/http/errors";
 import { limit } from "@/server/http/limits";
 import { NotificationSettings } from "@/server/notifications/settings";
 async function handle(request: Request, id: string) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const u = await createApplication(r).requireUser(request.headers);
     const s = new NotificationSettings(r.db);

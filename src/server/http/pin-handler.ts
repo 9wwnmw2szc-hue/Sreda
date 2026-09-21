@@ -7,7 +7,7 @@ import { limit } from "./limits.ts";
 
 export function createPinHandler(options: { db: Kysely<Database>; auth: Identity; origin: string; secret: string }) {
   const service = new PinService(options.db, options.secret);
-  return (request: Request) => respond(async () => {
+  return (request: Request) => respond(request, async () => {
     if (!["GET", "POST"].includes(request.method)) throw new AppError(405, "METHOD_NOT_ALLOWED", "Метод недоступен.");
     if (request.method === "POST") requireOrigin(request, options.origin);
     const session = await options.auth.api.getSession({ headers: request.headers });

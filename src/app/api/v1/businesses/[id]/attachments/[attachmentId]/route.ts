@@ -6,7 +6,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string; attachmentId: string }> },
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const user = await createApplication(r).requireUser(request.headers);
     const p = await params;

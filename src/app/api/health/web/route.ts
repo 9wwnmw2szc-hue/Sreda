@@ -1,7 +1,14 @@
 import { sql } from "kysely";
 import { getRuntime } from "@/server/runtime";
+
 export const dynamic = "force-dynamic";
-/** Deployment gate for web/database only. /api/health remains full worker readiness. */
+
+/**
+ * Dependency readiness for the web service (database).
+ * Used as Railway/deploy healthcheck so a paused worker does not block web rollout.
+ * Process-only liveness: /api/health/live. Full worker readiness: /api/health.
+ * Never exposes secrets.
+ */
 export async function GET() {
   try {
     await sql`select 1`.execute(getRuntime().db);

@@ -3,6 +3,6 @@ import { createApplication } from "@/server/http/application";
 import { respond } from "@/server/http/errors";
 export const dynamic = "force-dynamic";
 export function GET(request: Request) {
-  return respond(() => createApplication(getRuntime()).businesses(request));
+  return respond(request, () => createApplication(getRuntime()).businesses(request));
 }
 export const POST = GET;

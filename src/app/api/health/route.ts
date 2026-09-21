@@ -1,6 +1,15 @@
 import { sql } from "kysely";
 import { getRuntime } from "@/server/runtime";
+
 export const dynamic = "force-dynamic";
+
+/**
+ * Full dependency readiness (deploy / ops gate).
+ * Checks web process, database, and required worker heartbeats
+ * (telegram/vk/autopost/booking_reminders write `worker_heartbeat` while looping).
+ * Never returns secrets or connection strings — only ok / unavailable / disabled.
+ * For process-only liveness use /api/health/live; for web+db deploy gate use /api/health/web.
+ */
 export async function GET() {
   const checks: Record<string, string> = { web: "ok", database: "unavailable" };
   try {
@@ -28,6 +37,7 @@ export async function GET() {
       required.push("booking_reminders");
     if (active.some((s) => s.solution_code === "autopost"))
       required.push("autopost");
+    // Workers upsert heartbeat ~every loop; stale (>60s) means unavailable.
     const beats = await r.db
       .selectFrom("worker_heartbeat")
       .selectAll()

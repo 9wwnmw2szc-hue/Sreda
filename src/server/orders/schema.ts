@@ -48,6 +48,7 @@ export interface OrderTables {
     track_inventory: Generated<boolean>;
     availability: Generated<ProductAvailability>;
     stock_quantity: number | null;
+    low_stock_threshold: number | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };

@@ -46,7 +46,7 @@ export function createApplication(options: {
   return {
     requireUser,
     me: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         const user = await requireUser(request.headers);
         const publicUser = options.db
           ? await options.db
@@ -68,7 +68,7 @@ export function createApplication(options: {
         });
       }),
     businesses: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         if (request.method === "POST") requireOrigin(request, options.origin);
         const user = await requireUser(request.headers);
         if (request.method === "GET")
@@ -81,12 +81,12 @@ export function createApplication(options: {
         return json(business, 201);
       }),
     business: (request: Request, id: string) =>
-      respond(async () => {
+      respond(request, async () => {
         const user = await requireUser(request.headers);
         return json(await options.workspaces.require(user.id, id));
       }),
     leads: (request: Request, businessId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.leads)
           throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
         const user = await requireUser(request.headers);
@@ -121,7 +121,7 @@ export function createApplication(options: {
         throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
       }),
     leadStatus: (request: Request, businessId: string, leadId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.leads || request.method !== "PATCH")
           throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
         requireOrigin(request, options.origin);
@@ -140,7 +140,7 @@ export function createApplication(options: {
       businessId: string,
       conversationId?: string,
     ) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.communications)
           throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
         const user = await requireUser(request.headers);
@@ -195,7 +195,7 @@ export function createApplication(options: {
       businessId?: string,
       invitationId?: string,
     ) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.invitations)
           throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
         const user = await requireUser(request.headers);
@@ -225,7 +225,7 @@ export function createApplication(options: {
         throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
       }),
     members: (request: Request, businessId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.invitations)
           throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
         const user = await requireUser(request.headers);
@@ -256,14 +256,14 @@ export function createApplication(options: {
         throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
       }),
     audit: (request: Request, businessId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.invitations || request.method !== "GET")
           throw new AppError(404, "NOT_FOUND", "Страница не найдена.");
         const user = await requireUser(request.headers);
         return json(await options.invitations.auditLog(user.id, businessId));
       }),
     connections: (request: Request, businessId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (!options.connections)
           throw new AppError(503, "UNAVAILABLE", "Раздел временно недоступен.");
         const user = await requireUser(request.headers);

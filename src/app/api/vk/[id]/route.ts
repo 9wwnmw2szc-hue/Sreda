@@ -7,7 +7,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const result = await new VKService(
       r.db,

@@ -43,6 +43,12 @@ test("design tokens define typography and spacing scales", async () => {
     "--space-6",
     "--space-8",
     "--space-10",
+    "--space-12",
+    "--space-16",
+    "--font-weight-regular",
+    "--font-weight-medium",
+    "--font-weight-semibold",
+    "--font-weight-bold",
   ]) {
     assert.match(css, new RegExp(`${token}:`));
   }
