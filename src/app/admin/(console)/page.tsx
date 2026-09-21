@@ -35,6 +35,7 @@ type DashboardData = {
     disabled: number;
   };
   activity: { orders: number; leads: number; bookings: number };
+  activationFunnel7d?: Record<string, number>;
   health: {
     web: string;
     database: string;
@@ -162,6 +163,35 @@ function DashboardInner() {
               </p>
             </div>
           </div>
+
+          {data.activationFunnel7d &&
+          Object.keys(data.activationFunnel7d).length > 0 ? (
+            <div className="admin-panel">
+              <h2 className="admin-panel__title">
+                Активация (7 дней) — доходят ли до первого результата?
+              </h2>
+              <div className="admin-panel__grid">
+                {[
+                  ["registration_completed", "Регистрация"],
+                  ["business_created", "Бизнес создан"],
+                  ["solution_activated", "Решение включено"],
+                  ["channel_connected", "Канал подключён"],
+                  ["first_order", "Первый заказ"],
+                  ["first_lead", "Первая заявка"],
+                  ["first_booking", "Первая запись"],
+                  ["first_reply", "Первый ответ"],
+                  ["setup_completed", "Настройка завершена"],
+                ].map(([key, label]) => (
+                  <div className="admin-stat-row" key={key}>
+                    <span>{label}</span>
+                    <strong>
+                      {formatNumber(data.activationFunnel7d?.[key] ?? 0)}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="admin-panel">
             <h2 className="admin-panel__title">Здоровье</h2>

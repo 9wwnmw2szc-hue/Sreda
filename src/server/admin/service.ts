@@ -126,6 +126,7 @@ export class AdminService {
       tgOutboxProblems,
       vkOutboxProblems,
       health,
+      activationRows,
     ] = await Promise.all([
       this.countFrom("user"),
       this.countFrom("business"),
@@ -200,6 +201,13 @@ export class AdminService {
         .executeTakeFirst()
         .then((r) => asNumber(r?.c)),
       this.healthSnapshot(),
+      this.db
+        .selectFrom("product_event")
+        .select(["event", (eb) => eb.fn.countAll<string>().as("c")])
+        .where("created_at", ">=", weekAgo)
+        .groupBy("event")
+        .execute()
+        .catch(() => [] as { event: string; c: string }[]),
     ]);
 
     const solutionsActive = {
@@ -285,6 +293,11 @@ export class AdminService {
       }
     }
 
+    const activationFunnel7d: Record<string, number> = {};
+    for (const row of activationRows) {
+      activationFunnel7d[row.event] = asNumber(row.c);
+    }
+
     return {
       usersTotal,
       businessesTotal,
@@ -298,6 +311,7 @@ export class AdminService {
         leads: leadsCount,
         bookings: bookingsCount,
       },
+      activationFunnel7d,
       health,
       alerts,
     };

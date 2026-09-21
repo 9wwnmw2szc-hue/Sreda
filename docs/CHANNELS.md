@@ -12,6 +12,28 @@ Platform type: `ChannelPlatform` in `src/server/channels/types.ts`.
 
 Env flags (see `.env.example`): `TELEGRAM_WEBHOOKS_ENABLED`, `VK_WEBHOOKS_ENABLED`, `META_WEBHOOKS_ENABLED` / `WHATSAPP_*` / `INSTAGRAM_*`. Workers refuse to start unless the matching flag is `true`.
 
+## Meta (WhatsApp / Instagram) readiness
+
+Code is merged; **do not treat as LIVE** until env + App Review are complete.
+
+| UI state | Meaning |
+|---|---|
+| Не настроено | Meta env / app id missing |
+| Требуется настройка Meta | App credentials present; business OAuth not finished |
+| Подключено | OAuth + webhook verify succeeded for this business |
+| Ошибка | Runtime/webhook signature/tenant resolution failed |
+| Требуется повторное подключение | Token revoked / expired / re-auth needed |
+
+Checklist before claiming staging Meta smoke:
+1. `META_WEBHOOKS_ENABLED=true` and matching verify token / app secret (never log values).
+2. Webhook signature verification on inbound.
+3. Tenant resolution via `business_connection` + `meta_runtime`.
+4. Outbox path for outbound; 24h WhatsApp customer-care window enforced.
+5. Instagram messaging rules respected.
+6. Fake “Подключено” without successful OAuth is forbidden.
+
+`max` remains non-blocking for Closed Beta — see [CHANNEL_ADAPTER.md](CHANNEL_ADAPTER.md).
+
 ## Connection model
 
 - Row: `business_connection` (status `pending` → `connected` / `error` / `disconnected`).
