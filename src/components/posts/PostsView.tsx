@@ -10,6 +10,8 @@ import {
   EmptyStateCta,
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
+import { Disclosure } from "@/components/ui/Disclosure";
+import { Pagination } from "@/components/ui/Pagination";
 type Target = { id: string; title: string; platform: string; active: boolean };
 type Post = {
   attachments: FileItem[];
@@ -359,8 +361,7 @@ function Editor({
               }}
             />
           </label>
-          <details>
-            <summary>Текст для площадок (необязательно)</summary>
+          <Disclosure title="Текст для площадок" hint="Необязательно">
             <label>
               Telegram
               <textarea
@@ -383,7 +384,7 @@ function Editor({
                 }}
               />
             </label>
-          </details>
+          </Disclosure>
           <AttachmentPicker
             businessId={businessId}
             files={files}
@@ -395,8 +396,7 @@ function Editor({
             disabled={busy}
             onBusy={setUploading}
           />
-          <details>
-            <summary>Создать с AI</summary>
+          <Disclosure title="Создать с AI">
             <label>
               Задание
               <textarea
@@ -424,7 +424,7 @@ function Editor({
                 </button>
               ))}
             </div>
-          </details>
+          </Disclosure>
           <h3>Кнопки</h3>
           <p>В VK кнопки публикуются как ссылки в тексте.</p>
           {buttons.map((b, i) => (
@@ -579,8 +579,8 @@ function Editor({
               <button onClick={reset}>Закончить редактирование</button>
             )}
           </div>
-          <details id="post-targets">
-            <summary>Подключить площадку</summary>
+          <Disclosure title="Подключить площадку">
+            <div id="post-targets">
             <label>
               Платформа
               <select
@@ -613,25 +613,17 @@ function Editor({
             <button disabled={busy} onClick={() => void connect()}>
               Проверить и подключить
             </button>
-          </details>
+            </div>
+          </Disclosure>
         </section>
         <section className="panel crm-panel">
           <h2>История публикаций</h2>
-          <nav aria-label="Страницы публикаций">
-            <button
-              disabled={page === 0 || busy}
-              onClick={() => setPage(page - 1)}
-            >
-              Предыдущая
-            </button>
-            <span> Страница {page + 1} </span>
-            <button
-              disabled={posts.length < 100 || busy}
-              onClick={() => setPage(page + 1)}
-            >
-              Следующая
-            </button>
-          </nav>
+          <Pagination
+            page={page}
+            hasNext={posts.length >= 100}
+            busy={busy}
+            onPage={setPage}
+          />
           <label>
             Фильтр
             <select

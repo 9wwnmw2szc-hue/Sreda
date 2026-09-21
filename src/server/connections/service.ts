@@ -58,6 +58,8 @@ export class ConnectionService {
     const rows = await this.db
       .selectFrom("business_connection as c")
       .leftJoin("meta_runtime as r", "r.connection_id", "c.id")
+      .leftJoin("telegram_runtime as tr", "tr.connection_id", "c.id")
+      .leftJoin("vk_runtime as vr", "vr.connection_id", "c.id")
       .select([
         "c.id",
         "c.platform",
@@ -67,28 +69,38 @@ export class ConnectionService {
         "c.updated_at as updatedAt",
         "r.display_phone_number as displayPhoneNumber",
         "r.ig_username as igUsername",
-        "r.status as runtimeStatus",
+        "r.status as metaRuntimeStatus",
+        "tr.status as telegramRuntimeStatus",
+        "vr.status as vkRuntimeStatus",
         "r.webhook_subscribed as webhookSubscribed",
       ])
       .where("c.business_id", "=", businessId)
       .orderBy("c.platform")
       .execute();
-    return rows.map((row) => ({
-      id: row.id,
-      platform: row.platform,
-      displayName: row.displayName,
-      status: row.status,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      ...(isMetaPlatform(row.platform)
-        ? {
-            displayPhoneNumber: row.displayPhoneNumber,
-            igUsername: row.igUsername,
-            runtimeStatus: row.runtimeStatus,
-            webhookSubscribed: row.webhookSubscribed,
-          }
-        : {}),
-    }));
+    return rows.map((row) => {
+      const runtimeStatus =
+        row.platform === "telegram"
+          ? row.telegramRuntimeStatus
+          : row.platform === "vk"
+            ? row.vkRuntimeStatus
+            : row.metaRuntimeStatus;
+      return {
+        id: row.id,
+        platform: row.platform,
+        displayName: row.displayName,
+        status: row.status,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        runtimeStatus,
+        ...(isMetaPlatform(row.platform)
+          ? {
+              displayPhoneNumber: row.displayPhoneNumber,
+              igUsername: row.igUsername,
+              webhookSubscribed: row.webhookSubscribed,
+            }
+          : {}),
+      };
+    });
   }
   async connect(userId: string, publicId: string, raw: unknown) {
     const businessId = await this.business(userId, publicId);

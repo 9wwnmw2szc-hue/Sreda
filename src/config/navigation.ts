@@ -9,7 +9,6 @@ import {
   FileText,
   Home,
   Inbox,
-  Link2,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -30,13 +29,12 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Главная", icon: Home },
   { href: "/solutions", label: "Решения", icon: Sparkles },
+  { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/orders", label: "Заказы", icon: ShoppingBag },
   { href: "/leads", label: "Заявки", icon: Inbox },
   { href: "/bookings", label: "Запись", icon: CalendarDays },
-  { href: "/messages", label: "Сообщения", icon: MessageCircle },
   { href: "/posts", label: "Посты", icon: FileText },
   { href: "/clients", label: "Клиенты", icon: Users },
-  { href: "/connections", label: "Подключения", icon: Link2 },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
@@ -50,7 +48,7 @@ export const SECONDARY_NAV_ITEMS: NavItem[] = [
 
 export const MOBILE_BOTTOM_NAV: NavItem[] = [
   { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/orders", label: "Заказы", icon: ShoppingBag },
-  { href: "/leads", label: "Заявки", icon: Inbox },
   { href: "/messages", label: "Сообщения", icon: MessageCircle },
+  { href: "/orders", label: "Заказы", icon: ShoppingBag },
+  { href: "/settings", label: "Настройки", icon: Settings },
 ];

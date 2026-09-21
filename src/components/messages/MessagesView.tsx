@@ -12,6 +12,7 @@ import {
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import { Pagination } from "@/components/ui/Pagination";
 import type { Platform } from "@/types";
 
 function platformChip(platform: string) {
@@ -194,18 +195,11 @@ function Inbox({
       )}
       <div className="crm-columns messages-split">
         <section className="panel crm-panel messages-list">
-          <nav aria-label="Страницы диалогов">
-            <button disabled={!page} onClick={() => setPage(page - 1)}>
-              Предыдущая
-            </button>
-            <span> {page + 1} </span>
-            <button
-              disabled={conversations.length < 100}
-              onClick={() => setPage(page + 1)}
-            >
-              Следующая
-            </button>
-          </nav>
+          <Pagination
+            page={page}
+            hasNext={conversations.length >= 100}
+            onPage={setPage}
+          />
           <nav aria-label="Площадка" className="message-actions">
             {(
               [

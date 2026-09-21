@@ -125,7 +125,7 @@ function Connections({ id }: { id: string }) {
 
   async function act(
     platform: TokenPlatform,
-    action: "connect" | "start" | "disconnect",
+    action: "connect" | "start" | "stop" | "disconnect",
   ) {
     if (busy) return;
     if (action === "connect" && !tokens[platform].trim()) {
@@ -151,9 +151,10 @@ function Connections({ id }: { id: string }) {
         );
       } else if (action === "start") {
         await apiRequest(base + "/" + platform + "/start", { method: "POST" });
-        setNotice(
-          "Приём событий настроен. Проверьте ответ бота; доставка также зависит от работающего обработчика сообщений.",
-        );
+        setNotice("Бот запущен. Клиенты могут писать в этот канал.");
+      } else if (action === "stop") {
+        await apiRequest(base + "/" + platform + "/stop", { method: "POST" });
+        setNotice("Бот остановлен. Подключение и токен сохранены.");
       } else {
         await apiRequest(base + "/connections?platform=" + platform, {
           method: "DELETE",
@@ -448,17 +449,34 @@ function Connections({ id }: { id: string }) {
             {connection?.status === "connected" ? (
               <>
                 <p>Токен проверен: {connection.displayName}</p>
+                <p className="connection-runtime" role="status">
+                  {connection.runtimeStatus === "ready"
+                    ? "● Бот работает"
+                    : connection.runtimeStatus === "error"
+                      ? "⚠ Ошибка запуска"
+                      : "○ Остановлен"}
+                </p>
                 <div className="message-actions">
                   <Link className="button button--outline" href="/solutions">
                     Настроить решения
                   </Link>
-                  <button
-                    className="button button--primary"
-                    disabled={busy}
-                    onClick={() => void act(platform, "start")}
-                  >
-                    Запустить бота
-                  </button>
+                  {connection.runtimeStatus === "ready" ? (
+                    <button
+                      className="button button--outline"
+                      disabled={busy}
+                      onClick={() => void act(platform, "stop")}
+                    >
+                      Остановить бота
+                    </button>
+                  ) : (
+                    <button
+                      className="button button--primary"
+                      disabled={busy}
+                      onClick={() => void act(platform, "start")}
+                    >
+                      Запустить бота
+                    </button>
+                  )}
                   <button
                     className="button button--outline"
                     disabled={busy}

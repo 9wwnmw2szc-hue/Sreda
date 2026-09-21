@@ -45,14 +45,16 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(settings, /settings-sign-out-panel/);
   assert.match(settings, /BusinessDeletionPanel/);
   assert.match(settings, /AccountDeletionPanel/);
-  // Logout panel appears after security and before danger zones in JSX.
-  const securityIdx = settings.indexOf("Безопасность");
+  const accountIdx = settings.indexOf('section === "account"');
   const signOutIdx = settings.indexOf("settings-sign-out-panel");
+  const securityIdx = settings.indexOf('section === "security"');
+  const dangerIdx = settings.indexOf('section === "danger"');
   const bizDangerIdx = settings.indexOf("<BusinessDeletionPanel");
   const accountDangerIdx = settings.indexOf("<AccountDeletionPanel");
-  assert.ok(securityIdx > 0 && signOutIdx > securityIdx);
-  assert.ok(bizDangerIdx > signOutIdx);
-  assert.ok(accountDangerIdx > bizDangerIdx);
+  assert.ok(accountIdx > 0 && signOutIdx > accountIdx);
+  assert.ok(securityIdx > signOutIdx);
+  assert.ok(bizDangerIdx > 0 && bizDangerIdx < accountIdx);
+  assert.ok(dangerIdx > securityIdx && accountDangerIdx > dangerIdx);
 
   assert.match(
     await read("./src/components/account/AccountDeletionPanel.tsx"),
