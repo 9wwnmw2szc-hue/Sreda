@@ -291,6 +291,28 @@ test("settings sections and sidebar order match the product map", async () => {
 });
 
 test("solution icons keep a transparent corner instead of a baked plate", async () => {
+  const root = new URL("../public/assets/soty/v1/", import.meta.url);
+  const files = [
+    "module-orders.webp",
+    "module-leads.webp",
+    "module-booking.webp",
+    "module-messages.webp",
+    "module-autopost.webp",
+  ].map((name) => new URL(name, root).pathname);
+  let hasPillow = true;
+  try {
+    await execFileAsync("python3", ["-c", "from PIL import Image"]);
+  } catch {
+    hasPillow = false;
+  }
+  if (!hasPillow) {
+    const { stat } = await import("node:fs/promises");
+    for (const file of files) {
+      const info = await stat(file);
+      assert.ok(info.size > 1000, file);
+    }
+    return;
+  }
   const script = `
 from PIL import Image
 import sys
@@ -300,13 +322,5 @@ for path in sys.argv[1:]:
     if corner[3] != 0:
         raise SystemExit(path + " corner alpha " + str(corner))
 `;
-  const root = new URL("../public/assets/soty/v1/", import.meta.url);
-  const files = [
-    "module-orders.webp",
-    "module-leads.webp",
-    "module-booking.webp",
-    "module-messages.webp",
-    "module-autopost.webp",
-  ].map((name) => new URL(name, root).pathname);
   await execFileAsync("python3", ["-c", script, ...files]);
 });

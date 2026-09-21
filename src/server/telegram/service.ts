@@ -375,6 +375,7 @@ export class TelegramService {
             row.notification_user_id,
             row.connection_id,
             row.chat_id,
+            "telegram",
           )))
       ) {
         await tx

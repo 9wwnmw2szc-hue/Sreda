@@ -1210,6 +1210,18 @@ test("VK staff reminder queues when binding and runtime are ready", async () => 
       expires_at: null,
     })
     .execute();
+  await db
+    .insertInto("provider_identity")
+    .values({
+      id: randomUUID(),
+      user_id: uid,
+      platform: "vk",
+      external_user_id: "2001",
+      display_name: "staff",
+      username: null,
+      revoked_at: null,
+    })
+    .execute();
   const starts = new Date(Date.now() + 3 * 3600000);
   const event = await new CalendarService(db).create(uid, b.public_id, {
     title: "VK task",

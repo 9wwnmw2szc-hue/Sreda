@@ -5,6 +5,7 @@ import { vkAttachments } from "../attachments/inbound.ts";
 import { postDeliveryResult } from "../posts/delivery.ts";
 import { reminderValid } from "../booking/worker.ts";
 import { entityReminderValid } from "../calendar/worker.ts";
+import { notificationValid } from "../notifications/worker.ts";
 import { claimDelivery, expireClaims } from "../outbox/claim.ts";
 import { routeBot } from "../bot/router.ts";
 import { requireBusiness } from "../access/permissions.ts";
@@ -482,6 +483,28 @@ export class VKService {
           .set({ status: "cancelled", last_error: "STALE_REMINDER" })
           .where("id", "=", row.entity_reminder_id)
           .where("status", "in", ["pending", "queued", "uncertain"])
+          .execute();
+        return true;
+      }
+      if (
+        row.notification_id &&
+        (!row.notification_user_id ||
+          !(await notificationValid(
+            tx,
+            row.notification_id,
+            row.notification_user_id,
+            row.connection_id,
+            row.peer_id,
+            "vk",
+          )))
+      ) {
+        await tx
+          .updateTable("vk_outbox")
+          .set({
+            delivery_state: "failed",
+            last_error: "RECIPIENT_UNAVAILABLE",
+          })
+          .where("id", "=", row.id)
           .execute();
         return true;
       }
