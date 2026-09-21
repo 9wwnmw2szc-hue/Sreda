@@ -3,6 +3,7 @@ import type { Database } from "../db/schema.ts";
 import { availableSlots, BookingService } from "../booking/service.ts";
 import { matchClient } from "../clients/service.ts";
 import { localDay, dateOnly } from "../booking/time.ts";
+import type { BotQueue } from "./types.ts";
 export async function bookingFlow(
   tx: Transaction<Database>,
   input: {
@@ -13,7 +14,7 @@ export async function bookingFlow(
     eventId: string;
     text: string;
   },
-  queue: (text: string, buttons?: string[]) => Promise<void>,
+  queue: BotQueue,
 ) {
   const { businessId, connectionId, platform, userId, eventId, text } = input;
   const table = platform === "telegram" ? "telegram_dialog" : "vk_dialog";

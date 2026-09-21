@@ -546,11 +546,28 @@ export class VKService {
                 message: row.message,
                 keyboard: JSON.stringify({
                   one_time: false,
-                  buttons: (row.buttons as string[])
+                  buttons: (
+                    (Array.isArray(row.buttons)
+                      ? row.buttons
+                      : []) as Array<
+                      string | { text?: string; request_contact?: boolean }
+                    >
+                  )
                     .slice(0, 10)
-                    .map((label) => [
-                      { action: { type: "text", label }, color: "secondary" },
-                    ]),
+                    .map((btn) => {
+                      const label =
+                        typeof btn === "string"
+                          ? btn
+                          : typeof btn?.text === "string"
+                            ? btn.text
+                            : "";
+                      return [
+                        {
+                          action: { type: "text", label },
+                          color: "secondary",
+                        },
+                      ];
+                    }),
                 }),
               },
           this.transport,

@@ -4,6 +4,8 @@ import { bindNotification } from "../notifications/settings.ts";
 import type { InboundAttachment } from "../attachments/service.ts";
 import { bookingFlow } from "./booking-flow.ts";
 import { ordersFlow } from "./orders-flow.ts";
+import { customerProfileFlow } from "./customer-profile-flow.ts";
+import type { OutboxButton } from "./types.ts";
 import type { Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { validateSetup } from "../solutions/service.ts";
@@ -56,11 +58,16 @@ export async function routeBot(
   const config = setup ? validateSetup(JSON.parse(setup.draft)) : undefined;
   const brand = b.public_name || b.name;
   const menu = [...available.labels];
-  const queuePart = async (message: string, buttons: string[] = []) => {
+  const queuePart = async (
+    message: string,
+    buttons: OutboxButton[] = [],
+    attachmentIds: string[] = [],
+  ) => {
     const value = {
       connection_id: connectionId,
       message,
       buttons: JSON.stringify(buttons),
+      attachment_ids: JSON.stringify(attachmentIds),
       delivered_at: null,
       last_error: null,
     };
@@ -75,10 +82,18 @@ export async function routeBot(
         .values({ ...value, peer_id: userId })
         .execute();
   };
-  const queue = async (message: string, buttons: string[] = []) => {
+  const queue = async (
+    message: string,
+    buttons: OutboxButton[] = [],
+    attachmentIds: string[] = [],
+  ) => {
     const parts = messageChunks(message);
     for (let i = 0; i < parts.length; i++)
-      await queuePart(parts[i]!, i === parts.length - 1 ? buttons : []);
+      await queuePart(
+        parts[i]!,
+        i === parts.length - 1 ? buttons : [],
+        i === parts.length - 1 ? attachmentIds : [],
+      );
   };
   const current = await tx
     .selectFrom(table)
@@ -204,10 +219,10 @@ export async function routeBot(
     return;
   }
   if (
-    (text === "Каталог" || text === "Корзина") &&
+    (text === "Каталог" || text === "Корзина" || text === "Профиль") &&
     !available.has("orders")
   ) {
-    await denyDisabled("Заказы");
+    await denyDisabled(text === "Профиль" ? "Профиль" : "Заказы");
     return;
   }
   if (
@@ -237,12 +252,8 @@ export async function routeBot(
   }
   if (available.has("orders") && !startLead && !contactAdmin) {
     try {
-      if (
-        await ordersFlow(tx, input, queue, {
-          contactShop: available.has("admin_messages"),
-        })
-      )
-        return;
+      if (await customerProfileFlow(tx, input, queue)) return;
+      if (await ordersFlow(tx, input, queue)) return;
     } catch (error) {
       if (
         !(error instanceof AppError) ||

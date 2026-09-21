@@ -1,14 +1,6 @@
 /** Russian-facing number/date formatters for analytics UI and exports. */
 
-export function formatMoney(amount: number, currency = "RUB"): string {
-  const safe = Number.isFinite(amount) ? amount : 0;
-  const formatted = new Intl.NumberFormat("ru-RU", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: Number.isInteger(safe) ? 0 : 2,
-  }).format(safe);
-  if (currency === "RUB") return `${formatted} ₽`;
-  return `${formatted} ${currency}`;
-}
+export { formatMoney } from "@/lib/money";
 
 export function formatCount(n: number): string {
   return new Intl.NumberFormat("ru-RU").format(Number.isFinite(n) ? n : 0);

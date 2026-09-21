@@ -3,15 +3,24 @@ import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { normalizeIdentity } from "../clients/service.ts";
 import { CatalogService, OrderService } from "../orders/service.ts";
-
-function moneyLabel(amount: string, currency: string) {
-  return amount + " " + currency;
-}
+import { formatMoney } from "../../lib/money.ts";
+import {
+  getCustomerProfile,
+} from "./customer-profile-flow.ts";
+import type { BotQueue, OutboxButton } from "./types.ts";
 
 function lineUnit(productPrice: string, variantPrice: string | null) {
   return variantPrice != null && variantPrice !== ""
     ? variantPrice
     : productPrice;
+}
+
+const NAV_CATALOG: OutboxButton[] = ["Корзина", "← Назад", "Главное меню"];
+const NAV_PRODUCT: OutboxButton[] = ["← Назад", "Корзина", "Главное меню"];
+const NAV_CART: OutboxButton[] = ["← Назад", "Главное меню"];
+
+function isBack(text: string) {
+  return text === "← Назад" || text === "Назад";
 }
 
 export async function ordersFlow(
@@ -25,8 +34,7 @@ export async function ordersFlow(
     eventId: string;
     text: string;
   },
-  queue: (text: string, buttons?: string[]) => Promise<void>,
-  options: { contactShop: boolean } = { contactShop: false },
+  queue: BotQueue,
 ) {
   const { businessId, connectionId, platform, userId, eventId, text } = input;
   const table = platform === "telegram" ? "telegram_dialog" : "vk_dialog";
@@ -45,11 +53,6 @@ export async function ordersFlow(
   const catalog = new CatalogService(tx);
   const orders = new OrderService(tx);
   let answers: Record<string, string> = state ? JSON.parse(state.answers) : {};
-
-  const contact = options.contactShop
-    ? (["Связаться с администратором"] as const)
-    : [];
-  const shopNav = ["Каталог", "Корзина", ...contact, "Отмена"] as string[];
 
   const save = async (
     mode: string,
@@ -82,7 +85,12 @@ export async function ordersFlow(
       .where("connection_id", "=", connectionId)
       .where("chat_id", "=", userId)
       .execute();
-    await queue(message, ["Главное меню", "Каталог", "Корзина"]);
+    await queue(message, [
+      "Главное меню",
+      "Каталог",
+      "Корзина",
+      "Профиль",
+    ]);
   };
 
   const showChoices = async (
@@ -90,7 +98,7 @@ export async function ordersFlow(
     title: string,
     choices: { label: string; value: string }[],
     page = 0,
-    extra: string[] = [],
+    extra: OutboxButton[] = [],
   ) => {
     answers.choicePage = String(page);
     await save(mode, choices);
@@ -130,11 +138,11 @@ export async function ordersFlow(
       if (item.currency !== currency) mixed = true;
       else total += line;
       const variant = item.variant_label ? ` (${item.variant_label})` : "";
-      return `${i + 1}. ${item.product_name}${variant} × ${item.quantity} = ${moneyLabel(line.toFixed(2), item.currency)}`;
+      return `${i + 1}. ${item.product_name}${variant} × ${item.quantity} = ${formatMoney(line, item.currency)}`;
     });
     const footer = mixed
       ? "\n\nВ корзине товары в разных валютах. Оформите заказ по одной валюте."
-      : "\n\nИтого: " + moneyLabel(total.toFixed(2), currency);
+      : "\n\nИтого: " + formatMoney(total, currency);
     return {
       cart,
       mixed,
@@ -150,15 +158,40 @@ export async function ordersFlow(
     }));
     answers = { choicePage: "0" };
     await save("cart", choices);
-    const buttons = cart.items.length
+    const buttons: OutboxButton[] = cart.items.length
       ? [
           ...(mixed ? [] : ["Оформить заказ"]),
           "Изменить позицию",
           "Очистить корзину",
-          ...shopNav,
+          ...NAV_CART,
         ]
-      : shopNav;
+      : NAV_CATALOG;
     await queue((prefix ? prefix + "\n\n" : "") + body, buttons);
+  };
+
+  const showProductList = async (categoryId: string) => {
+    answers.categoryId = categoryId;
+    const data = await catalog.catalogForBusiness(businessId);
+    const products =
+      categoryId === "_"
+        ? data.products.filter((p) => !p.category_id)
+        : data.products.filter((p) => p.category_id === categoryId);
+    const productChoices = products.map((p, i) => ({
+      label: `${i + 1}. ${p.name} · ${formatMoney(p.price, p.currency)}`.slice(
+        0,
+        100,
+      ),
+      value: p.id,
+    }));
+    await showChoices(
+      "products",
+      productChoices.length
+        ? "Выберите товар."
+        : "В категории пока нет товаров.",
+      productChoices,
+      0,
+      NAV_CATALOG,
+    );
   };
 
   const showCategories = async () => {
@@ -173,13 +206,17 @@ export async function ordersFlow(
       value: c.id,
     }));
     if (uncategorized.length)
-      choices.push({ label: `${choices.length + 1}. Без категории`, value: "_" });
+      choices.push({
+        label: `${choices.length + 1}. Без категории`,
+        value: "_",
+      });
     if (!choices.length && data.products.length) {
       const productChoices = data.products.map((p, i) => ({
-        label: `${i + 1}. ${p.name} · ${moneyLabel(p.price, p.currency)}`.slice(
-          0,
-          100,
-        ),
+        label:
+          `${i + 1}. ${p.name} · ${formatMoney(p.price, p.currency)}`.slice(
+            0,
+            100,
+          ),
         value: p.id,
       }));
       await showChoices(
@@ -187,7 +224,7 @@ export async function ordersFlow(
         "Выберите товар.",
         productChoices,
         0,
-        shopNav,
+        NAV_CATALOG,
       );
       return;
     }
@@ -196,7 +233,7 @@ export async function ordersFlow(
       choices.length ? "Выберите категорию." : "Каталог пока пуст.",
       choices,
       0,
-      shopNav,
+      NAV_CATALOG,
     );
   };
 
@@ -205,43 +242,106 @@ export async function ordersFlow(
     answers.productId = product.id;
     delete answers.variantId;
     delete answers.quantity;
-    const photoNote = product.images.length
-      ? `\nФото: ${product.images.length} шт.`
-      : "";
+    const attachmentIds = product.images.map((img) => img.attachment_id);
     const desc = product.description?.trim()
       ? "\n" + product.description.trim().slice(0, 800)
       : "";
     const body =
-      `${product.name}\n${moneyLabel(product.price, product.currency)}` +
-      desc +
-      photoNote;
+      `${product.name}\n${formatMoney(product.price, product.currency)}` + desc;
     if (product.use_variants) {
       const variants = product.variants.filter((v) => v.active !== false);
       const choices = variants.map((v, i) => ({
         label:
           `${i + 1}. ${v.label || "Вариант"}` +
-          (v.price ? ` · ${moneyLabel(v.price, product.currency)}` : ""),
+          (v.price ? ` · ${formatMoney(v.price, product.currency)}` : ""),
         value: v.id,
       }));
-      await showChoices(
-        "variant",
-        body + (choices.length ? "\n\nВыберите вариант." : "\n\nВарианты недоступны."),
-        choices,
-        0,
-        ["Назад", ...shopNav],
+      answers.choicePage = "0";
+      await save("variant", choices);
+      await queue(
+        body +
+          (choices.length
+            ? "\n\nВыберите вариант."
+            : "\n\nВарианты недоступны."),
+        choices
+          .slice(0, 7)
+          .map((c) => c.label)
+          .concat(NAV_PRODUCT),
+        attachmentIds,
       );
       return;
     }
     await save("qty");
-    await queue(body + "\n\nСколько добавить в корзину?", [
-      "1",
-      "2",
-      "3",
-      "5",
-      "10",
-      "Назад",
-      ...shopNav,
+    await queue(
+      body + "\n\nСколько добавить в корзину?",
+      ["1", "2", "3", "5", "10", ...NAV_PRODUCT],
+      attachmentIds,
+    );
+  };
+
+  const askCheckoutName = async () => {
+    await save("checkout_name");
+    await queue("Как к вам обращаться?", ["← Назад", "Главное меню"]);
+  };
+
+  const askCheckoutPhone = async () => {
+    await save("checkout_phone");
+    if (platform === "telegram") {
+      await queue("Ваш телефон в формате +79991234567.", [
+        {
+          text: "📱 Отправить номер телефона",
+          request_contact: true,
+        },
+        "Ввести вручную",
+        "← Назад",
+        "Главное меню",
+      ]);
+    } else {
+      await queue("Ваш телефон в формате +79991234567.", [
+        "← Назад",
+        "Главное меню",
+      ]);
+    }
+  };
+
+  const askFulfillment = async () => {
+    await save("checkout_fulfillment");
+    await queue("Доставка или самовывоз?", [
+      "Доставка",
+      "Самовывоз",
+      "← Назад",
+      "Главное меню",
     ]);
+  };
+
+  const startCheckout = async () => {
+    const cart = await orders.getCart(businessId, platform, userId);
+    if (!cart.items.length) {
+      await showCart();
+      return;
+    }
+    const profile = await getCustomerProfile(
+      tx,
+      businessId,
+      platform,
+      userId,
+    );
+    if (profile) {
+      answers.name = profile.name;
+      answers.phone = profile.phone;
+      await save("checkout_profile");
+      await queue(
+        `Использовать данные профиля?\n${profile.name}\n${profile.phone}`,
+        [
+          "Использовать данные профиля",
+          "Изменить",
+          "← Назад",
+          "Главное меню",
+        ],
+      );
+      return;
+    }
+    await askCheckoutName();
   };
 
   if (text === "Каталог") {
@@ -263,7 +363,9 @@ export async function ordersFlow(
   const mode = state?.mode.slice(7);
 
   if (
-    ["categories", "products", "variant", "cart"].includes(mode ?? "") &&
+    ["categories", "products", "variant", "cart", "cart_pick"].includes(
+      mode ?? "",
+    ) &&
     ["Далее →", "← Назад по списку"].includes(text)
   ) {
     const page = Math.max(
@@ -273,66 +375,116 @@ export async function ordersFlow(
         Number(answers.choicePage ?? 0) + (text === "Далее →" ? 1 : -1),
       ),
     );
-    await showChoices(mode!, "Выберите вариант.", choices, page, shopNav);
+    const extra =
+      mode === "variant"
+        ? NAV_PRODUCT
+        : mode === "cart" || mode === "cart_pick"
+          ? NAV_CART
+          : NAV_CATALOG;
+    await showChoices(mode!, "Выберите вариант.", choices, page, extra);
     return true;
+  }
+
+  // Contextual back navigation
+  if (isBack(text)) {
+    if (mode === "categories") {
+      await menu("Выберите действие.");
+      return true;
+    }
+    if (mode === "products") {
+      await showCategories();
+      return true;
+    }
+    if (mode === "variant" || mode === "qty") {
+      if (mode === "qty" && answers.variantId && answers.productId) {
+        await showProductCard(answers.productId);
+        return true;
+      }
+      if (answers.categoryId) await showProductList(answers.categoryId);
+      else await showCategories();
+      return true;
+    }
+    if (mode === "cart") {
+      await showCategories();
+      return true;
+    }
+    if (mode === "cart_pick" || mode === "cart_edit") {
+      await showCart();
+      return true;
+    }
+    if (mode === "cart_qty") {
+      await save("cart_edit");
+      await queue("Что сделать с позицией?", [
+        "Изменить количество",
+        "Удалить",
+        ...NAV_PRODUCT,
+      ]);
+      return true;
+    }
+    if (mode === "checkout_profile") {
+      await showCart();
+      return true;
+    }
+    if (mode === "checkout_name") {
+      await showCart();
+      return true;
+    }
+    if (mode === "checkout_phone" || mode === "checkout_phone_manual") {
+      await askCheckoutName();
+      return true;
+    }
+    if (mode === "checkout_fulfillment") {
+      const profile = await getCustomerProfile(
+        tx,
+        businessId,
+        platform,
+        userId,
+      );
+      if (profile && answers.name === profile.name && answers.phone === profile.phone) {
+        answers.name = profile.name;
+        answers.phone = profile.phone;
+        await save("checkout_profile");
+        await queue(
+          `Использовать данные профиля?\n${profile.name}\n${profile.phone}`,
+          [
+            "Использовать данные профиля",
+            "Изменить",
+            "← Назад",
+            "Главное меню",
+          ],
+        );
+      } else await askCheckoutPhone();
+      return true;
+    }
+    if (mode === "checkout_address") {
+      await askFulfillment();
+      return true;
+    }
+    if (mode === "checkout_comment") {
+      if (answers.fulfillment === "delivery") {
+        await save("checkout_address");
+        await queue("Адрес доставки?", ["← Назад", "Главное меню"]);
+      } else await askFulfillment();
+      return true;
+    }
+    if (mode === "checkout_confirm") {
+      await save("checkout_comment");
+      await queue("Комментарий к заказу?\nМожно пропустить: /skip.", [
+        "/skip",
+        "← Назад",
+        "Главное меню",
+      ]);
+      return true;
+    }
   }
 
   if (mode === "categories" && picked) {
-    answers.categoryId = picked;
-    const data = await catalog.catalogForBusiness(businessId);
-    const products =
-      picked === "_"
-        ? data.products.filter((p) => !p.category_id)
-        : data.products.filter((p) => p.category_id === picked);
-    const productChoices = products.map((p, i) => ({
-      label: `${i + 1}. ${p.name} · ${moneyLabel(p.price, p.currency)}`.slice(
-        0,
-        100,
-      ),
-      value: p.id,
-    }));
-    await showChoices(
-      "products",
-      productChoices.length ? "Выберите товар." : "В категории пока нет товаров.",
-      productChoices,
-      0,
-      ["Назад", ...shopNav],
-    );
-    return true;
-  }
-
-  if (mode === "products" && text === "Назад") {
-    await showCategories();
+    await showProductList(picked);
     return true;
   }
 
   if (mode === "products" && picked) {
     await showProductCard(picked);
-    return true;
-  }
-
-  if (mode === "variant" && text === "Назад") {
-    if (answers.categoryId) {
-      const data = await catalog.catalogForBusiness(businessId);
-      const products =
-        answers.categoryId === "_"
-          ? data.products.filter((p) => !p.category_id)
-          : data.products.filter((p) => p.category_id === answers.categoryId);
-      const productChoices = products.map((p, i) => ({
-        label: `${i + 1}. ${p.name} · ${moneyLabel(p.price, p.currency)}`.slice(
-          0,
-          100,
-        ),
-        value: p.id,
-      }));
-      await showChoices(
-        "products",
-        "Выберите товар.",
-        productChoices,
-        0,
-        ["Назад", ...shopNav],
-      );
-    } else await showCategories();
     return true;
   }
 
@@ -345,15 +497,8 @@ export async function ordersFlow(
       "3",
       "5",
       "10",
-      "Назад",
-      ...shopNav,
+      ...NAV_PRODUCT,
     ]);
-    return true;
-  }
-
-  if (mode === "qty" && text === "Назад") {
-    if (answers.productId) await showProductCard(answers.productId);
-    else await showCategories();
     return true;
   }
 
@@ -366,8 +511,7 @@ export async function ordersFlow(
         "3",
         "5",
         "10",
-        "Назад",
-        ...shopNav,
+        ...NAV_PRODUCT,
       ]);
       return true;
     }
@@ -380,20 +524,14 @@ export async function ordersFlow(
       await showCart("Товар добавлен в корзину.");
     } catch (error) {
       if (!(error instanceof AppError) || error.status >= 500) throw error;
-      await queue(error.message, shopNav);
+      await queue(error.message, NAV_CATALOG);
     }
     return true;
   }
 
   if (mode === "cart") {
     if (text === "Оформить заказ") {
-      const cart = await orders.getCart(businessId, platform, userId);
-      if (!cart.items.length) {
-        await showCart();
-        return true;
-      }
-      await save("checkout_name");
-      await queue("Как к вам обращаться?", ["Отмена"]);
+      await startCheckout();
       return true;
     }
     if (text === "Очистить корзину") {
@@ -411,7 +549,7 @@ export async function ordersFlow(
         "Выберите позицию для изменения.",
         choices,
         0,
-        shopNav,
+        NAV_CART,
       );
       return true;
     }
@@ -423,17 +561,12 @@ export async function ordersFlow(
     await queue("Что сделать с позицией?", [
       "Изменить количество",
       "Удалить",
-      "Назад",
-      ...shopNav,
+      ...NAV_PRODUCT,
     ]);
     return true;
   }
 
   if (mode === "cart_edit") {
-    if (text === "Назад") {
-      await showCart();
-      return true;
-    }
     if (text === "Удалить") {
       await orders.removeCartItem(
         businessId,
@@ -446,22 +579,20 @@ export async function ordersFlow(
     }
     if (text === "Изменить количество") {
       await save("cart_qty");
-      await queue("Новое количество?", ["1", "2", "3", "5", "10", "Назад", "Отмена"]);
+      await queue("Новое количество?", [
+        "1",
+        "2",
+        "3",
+        "5",
+        "10",
+        "← Назад",
+        "Главное меню",
+      ]);
       return true;
     }
   }
 
   if (mode === "cart_qty") {
-    if (text === "Назад") {
-      await save("cart_edit");
-      await queue("Что сделать с позицией?", [
-        "Изменить количество",
-        "Удалить",
-        "Назад",
-        ...shopNav,
-      ]);
-      return true;
-    }
     const qty = Number(text);
     if (!Number.isInteger(qty) || qty < 1 || qty > 999) {
       await queue("Введите количество от 1 до 999.", [
@@ -470,8 +601,8 @@ export async function ordersFlow(
         "3",
         "5",
         "10",
-        "Назад",
-        "Отмена",
+        "← Назад",
+        "Главное меню",
       ]);
       return true;
     }
@@ -486,35 +617,93 @@ export async function ordersFlow(
       await showCart("Количество обновлено.");
     } catch (error) {
       if (!(error instanceof AppError) || error.status >= 500) throw error;
-      await queue(error.message, shopNav);
+      await queue(error.message, NAV_CART);
     }
+    return true;
+  }
+
+  if (mode === "checkout_profile") {
+    if (text === "Использовать данные профиля") {
+      if (!answers.name || !answers.phone) {
+        await askCheckoutName();
+        return true;
+      }
+      await askFulfillment();
+      return true;
+    }
+    if (text === "Изменить") {
+      delete answers.name;
+      delete answers.phone;
+      await askCheckoutName();
+      return true;
+    }
+    await queue("Выберите действие.", [
+      "Использовать данные профиля",
+      "Изменить",
+      "← Назад",
+      "Главное меню",
+    ]);
     return true;
   }
 
   if (mode === "checkout_name") {
     if (!text.trim() || text.length > 100) {
-      await queue("Введите имя до 100 символов.", ["Отмена"]);
+      await queue("Введите имя до 100 символов.", [
+        "← Назад",
+        "Главное меню",
+      ]);
       return true;
     }
     answers.name = text.trim();
-    await save("checkout_phone");
-    await queue("Ваш телефон в формате +79991234567.", ["Отмена"]);
+    await askCheckoutPhone();
     return true;
   }
 
   if (mode === "checkout_phone") {
+    if (text === "Ввести вручную") {
+      await save("checkout_phone_manual");
+      await queue("Введите телефон в формате +79991234567.", [
+        "← Назад",
+        "Главное меню",
+      ]);
+      return true;
+    }
     try {
       answers.phone = normalizeIdentity({ kind: "phone", value: text }).value;
     } catch {
-      await queue("Введите телефон в формате +79991234567.", ["Отмена"]);
+      if (platform === "telegram") {
+        await queue("Введите телефон в формате +79991234567.", [
+          {
+            text: "📱 Отправить номер телефона",
+            request_contact: true,
+          },
+          "Ввести вручную",
+          "← Назад",
+          "Главное меню",
+        ]);
+      } else {
+        await queue("Введите телефон в формате +79991234567.", [
+          "← Назад",
+          "Главное меню",
+        ]);
+      }
       return true;
     }
-    await save("checkout_fulfillment");
-    await queue("Доставка или самовывоз?", [
-      "Доставка",
-      "Самовывоз",
-      "Отмена",
-    ]);
+    await askFulfillment();
+    return true;
+  }
+
+  if (mode === "checkout_phone_manual") {
+    try {
+      answers.phone = normalizeIdentity({ kind: "phone", value: text }).value;
+    } catch {
+      await queue("Введите телефон в формате +79991234567.", [
+        "← Назад",
+        "Главное меню",
+      ]);
+      return true;
+    }
+    await askFulfillment();
     return true;
   }
 
@@ -522,7 +711,7 @@ export async function ordersFlow(
     if (text === "Доставка") {
       answers.fulfillment = "delivery";
       await save("checkout_address");
-      await queue("Адрес доставки?", ["Отмена"]);
+      await queue("Адрес доставки?", ["← Назад", "Главное меню"]);
       return true;
     }
     if (text === "Самовывоз") {
@@ -531,28 +720,34 @@ export async function ordersFlow(
       await save("checkout_comment");
       await queue("Комментарий к заказу?\nМожно пропустить: /skip.", [
         "/skip",
-        "Отмена",
+        "← Назад",
+        "Главное меню",
       ]);
       return true;
     }
     await queue("Выберите доставку или самовывоз.", [
       "Доставка",
       "Самовывоз",
-      "Отмена",
+      "← Назад",
+      "Главное меню",
     ]);
     return true;
   }
 
   if (mode === "checkout_address") {
     if (!text.trim() || text.length > 500) {
-      await queue("Укажите адрес доставки до 500 символов.", ["Отмена"]);
+      await queue("Укажите адрес доставки до 500 символов.", [
+        "← Назад",
+        "Главное меню",
+      ]);
       return true;
     }
     answers.address = text.trim();
     await save("checkout_comment");
     await queue("Комментарий к заказу?\nМожно пропустить: /skip.", [
       "/skip",
-      "Отмена",
+      "← Назад",
+      "Главное меню",
     ]);
     return true;
   }
@@ -561,12 +756,17 @@ export async function ordersFlow(
     if (text.startsWith("/") && text !== "/skip") {
       await queue("Комментарий к заказу?\nМожно пропустить: /skip.", [
         "/skip",
-        "Отмена",
+        "← Назад",
+        "Главное меню",
       ]);
       return true;
     }
     if (text.length > 2000) {
-      await queue("Комментарий слишком длинный.", ["/skip", "Отмена"]);
+      await queue("Комментарий слишком длинный.", [
+        "/skip",
+        "← Назад",
+        "Главное меню",
+      ]);
       return true;
     }
     answers.comment = text === "/skip" ? "" : text.trim();
@@ -584,7 +784,7 @@ export async function ordersFlow(
           : "Самовывоз") +
         (answers.comment ? "\n" + answers.comment : "") +
         "\n\nПодтвердить заказ?",
-      ["Подтвердить", "Отмена"],
+      ["Подтвердить", "← Назад", "Главное меню"],
     );
     return true;
   }
@@ -608,16 +808,16 @@ export async function ordersFlow(
         "Заказ принят № " +
           (order.order_number ?? "") +
           ".\nСумма: " +
-          moneyLabel(order.total, order.currency) +
+          formatMoney(order.total, order.currency) +
           ".\nМы свяжемся с вами для подтверждения.",
       );
     } catch (error) {
       if (!(error instanceof AppError) || error.status >= 500) throw error;
-      await queue(error.message, ["Корзина", "Каталог", "Отмена"]);
+      await queue(error.message, ["Корзина", "Каталог", "Главное меню"]);
     }
     return true;
   }
 
-  await queue("Выберите действие кнопкой или напишите /cancel.", shopNav);
+  await queue("Выберите действие кнопкой или напишите /cancel.", NAV_CATALOG);
   return true;
 }

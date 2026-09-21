@@ -244,6 +244,7 @@ export class TelegramService {
             from?: { id?: number; is_bot?: boolean; username?: string };
             text?: string;
             caption?: string;
+            contact?: { phone_number?: string; user_id?: number };
           }
         | undefined;
       if (
@@ -253,6 +254,17 @@ export class TelegramService {
         m.from?.is_bot
       )
         return { ok: true };
+      let text = m.text ?? m.caption ?? "";
+      const contact = m.contact;
+      if (
+        contact?.phone_number &&
+        Number.isSafeInteger(contact.user_id) &&
+        contact.user_id === m.from?.id
+      ) {
+        let phone = contact.phone_number.replace(/[\s().-]/g, "");
+        if (phone && !phone.startsWith("+")) phone = "+" + phone;
+        text = phone;
+      }
       await limit(tx, this.secret, "bot:" + id + ":" + m.chat.id, 30, 60);
       await routeBot(tx, {
         businessId: business.id,
@@ -261,7 +273,7 @@ export class TelegramService {
         userId: String(m.chat.id),
         username: m.from?.username,
         eventId: updateId,
-        text: m.text ?? m.caption ?? "",
+        text,
         attachments: telegramAttachments(body.message),
       });
       return { ok: true };
@@ -429,7 +441,23 @@ export class TelegramService {
             ? (row.api_payload as Record<string, unknown>)
             : {
                 reply_markup: {
-                  keyboard: (row.buttons as string[]).map((text) => [{ text }]),
+                  keyboard: (
+                    (Array.isArray(row.buttons)
+                      ? row.buttons
+                      : []) as Array<
+                      string | { text?: string; request_contact?: boolean }
+                    >
+                  ).map((btn) => {
+                    if (typeof btn === "string") return [{ text: btn }];
+                    const text =
+                      typeof btn?.text === "string" ? btn.text : "";
+                    const key: {
+                      text: string;
+                      request_contact?: boolean;
+                    } = { text };
+                    if (btn?.request_contact) key.request_contact = true;
+                    return [key];
+                  }),
                   resize_keyboard: true,
                 },
               },
