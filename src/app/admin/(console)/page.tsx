@@ -185,7 +185,11 @@ function DashboardInner() {
                   <div className="admin-stat-row" key={key}>
                     <span>{label}</span>
                     <strong>
-                      {formatNumber(data.activationFunnel7d?.[key] ?? 0)}
+                      {formatNumber(
+                        data.activationFunnel7d
+                          ? (data.activationFunnel7d[key] ?? 0)
+                          : 0,
+                      )}
                     </strong>
                   </div>
                 ))}
