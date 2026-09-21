@@ -20,8 +20,8 @@ SaaS для малого бизнеса: готовые решения в мес
 
 Каналы: **Telegram**, **VK**, код **WhatsApp / Instagram** (Meta Graph API). Тип `max` есть в UI-типах, адаптера нет — не блокер Closed Beta.
 
-Последняя миграция: `052_product_variant_prices_enabled.sql`.  
-В main влит PR **#53**: ProductEditor, BookingSetupWizard, bot UX, customer profile, money formatter.
+Последняя миграция: `058_self_service_policies.sql` (после `052`–`057`: variants, low-stock, search/merge, billing domain, AI usage, product events).  
+Closed Beta v1.0: PR **#53** (каталог/запись/бот) + PR **#54** (hardening). `FINAL_MAIN_SHA` и отчёт: [docs/CLOSED-BETA-V1-REPORT.md](docs/CLOSED-BETA-V1-REPORT.md).
 
 Staging: проект **Sreda-staging** (Railway). Production deploy из этого документа не описывается и не предполагается.
 
@@ -118,6 +118,7 @@ User → Business → Solutions + Channels + Business Data
 | [RELEASE.md](docs/RELEASE.md) | Чеклист релиза |
 | [E2E.md](docs/E2E.md) | Сквозные проверки |
 | [ROADMAP.md](docs/ROADMAP.md) | Отложенные пункты |
-| [BETA-STATE-2026-09-21.md](docs/BETA-STATE-2026-09-21.md) | Снимок SHA / PR #53 |
+| [CLOSED-BETA-V1-REPORT.md](docs/CLOSED-BETA-V1-REPORT.md) | Финальный отчёт Closed Beta v1.0 (§79) |
+| [BETA-STATE-2026-09-21.md](docs/BETA-STATE-2026-09-21.md) | Снимок SHA на старте hardening |
 
 Исторические заметки этапов: `docs/architecture/`, `docs/design/`, `docs/testing/` — не заменяют этот индекс для Closed Beta.
