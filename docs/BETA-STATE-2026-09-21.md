@@ -1,45 +1,19 @@
-# Closed Beta — pre-hardening state
+# Closed Beta — state snapshot
 
-## CURRENT_MAIN_SHA
-`429e21d60090671b541f41d1eb72d3a8ac503e2a` (PR #53 merged)
+## At hardening start (after PR #53)
 
-## HARDENING_BRANCH
-`cursor/soty-beta-v1-hardening-258e`
+**CURRENT_MAIN_SHA:** `429e21d60090671b541f41d1eb72d3a8ac503e2a`
 
-## OPEN_PRS
-Draft legacy only (#6–#13, Sep 12–13). Not merge candidates for Beta.
+**HARDENING_BRANCH:** `cursor/soty-beta-v1-hardening-258e`
 
-## LATEST_MIGRATION (hardening)
-`057_notification_types_product_events.sql` (after 056 AI usage)
+**PR #53:** MERGED (ProductEditor, BookingSetupWizard, bot nav, request_contact, customer profile, money formatter, migration 052).
 
-## CURRENT_TEST_COUNT
-~43 test files; 318+ passing on last full run (11 skip).
+## After Closed Beta merge (PR #54)
 
-## CURRENT_SERVICES (Sreda-staging)
-web, telegram-worker, vk-worker, Postgres, S3 bucket.
+**FINAL_MAIN_SHA:** `45e1694603485b71bc63eee4e94ea6cba4a161ce`
 
-## CURRENT_SOLUTIONS
-leads, orders, booking, admin_messages, autopost (+ moderation catalog-only).
+**LATEST_MIGRATION:** `058_self_service_policies.sql`
 
-## CURRENT_CHANNELS
-telegram, vk, whatsapp/instagram (Meta code), max (typed only).
+**STAGING:** web + telegram-worker + vk-worker all SUCCESS on `45e1694`.
 
-## PR #53 RESULT
-MERGED. Includes ProductEditor, BookingSetupWizard, bot nav, request_contact, customer profile, money formatter, order modal contrast, migration 052.
-
-## HARDENING PROGRESS
-- Docs + design tokens
-- Request IDs, health, rate limits
-- Search, client merge, settings IA, setup checklist
-- Billing domain (no fake payments)
-- AI usage accounting + daily limits
-- Low-stock notifications (deduped)
-- Inbox waiting_since + internal notes
-- Entity import (clients/products)
-- Reply templates
-- Session management UI
-- Product analytics events
-- Playwright smoke scaffold
-
-## GATE
-Continue Closed Beta hardening → green CI → merge → Railway deploy matching SHA.
+Полный отчёт §79: [CLOSED-BETA-V1-REPORT.md](./CLOSED-BETA-V1-REPORT.md).
