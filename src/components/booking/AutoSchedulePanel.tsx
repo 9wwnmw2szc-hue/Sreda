@@ -343,7 +343,7 @@ export function AutoSchedulePanel({
     <section className="panel crm-panel auto-schedule" id="auto-schedule">
       <h2>Автоматическое расписание</h2>
       <p className="account-footnote">
-        Рекомендуемый способ: задайте рабочие дни и часы — слоты рассчитаются
+        Основной способ: задайте рабочие дни и часы — слоты рассчитаются
         автоматически.
       </p>
       <FieldHint>{FIELD_HINTS.scheduleModeAuto}</FieldHint>
