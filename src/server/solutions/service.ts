@@ -13,6 +13,7 @@ import {
   SOLUTIONS,
   normalizeSolutionCode,
 } from "./catalog.ts";
+import { assertCanGrantEntitlement } from "../billing/entitlement.ts";
 import type { SolutionStatus } from "../../types/index.ts";
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
@@ -157,25 +158,31 @@ export class SolutionService {
         )
         .execute();
       if (draft.step === 3)
-        await tx
-          .insertInto("business_solution")
-          .values({
-            business_id: id,
-            solution_code: "leads",
-            status: "active",
-            starts_at: new Date(),
-            expires_at: null,
-          })
-          .onConflict((oc) =>
-            oc
-              .columns(["business_id", "solution_code"])
-              .doUpdateSet({
-                status: "active",
-                expires_at: null,
-                updated_at: new Date(),
-              }),
-          )
-          .execute();
+        await (async () => {
+          await assertCanGrantEntitlement({
+            businessId: id,
+            solutionCode: "leads",
+          });
+          await tx
+            .insertInto("business_solution")
+            .values({
+              business_id: id,
+              solution_code: "leads",
+              status: "active",
+              starts_at: new Date(),
+              expires_at: null,
+            })
+            .onConflict((oc) =>
+              oc
+                .columns(["business_id", "solution_code"])
+                .doUpdateSet({
+                  status: "active",
+                  expires_at: null,
+                  updated_at: new Date(),
+                }),
+            )
+            .execute();
+        })();
       if (body.syncFields !== false) await syncLeadFormFields(tx, id, draft);
       await audit(tx, id, userId, "settings_changed", id, {
         solution: "leads",
@@ -205,6 +212,14 @@ export class SolutionService {
         .execute();
       await new SolutionService(tx).business(userId, publicId, true);
       const status = raw.enabled ? "active" : "disabled";
+      // Entitlement grant path: Closed Beta allows manual grant without payment.
+      // Future providers must confirm payment before assertCanGrantEntitlement passes.
+      if (raw.enabled) {
+        await assertCanGrantEntitlement({
+          businessId: id,
+          solutionCode: code,
+        });
+      }
       await tx
         .insertInto("business_solution")
         .values({

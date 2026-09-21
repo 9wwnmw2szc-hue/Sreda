@@ -27,15 +27,21 @@ const secret = "beta-hardening-rate-limit-secret!!";
 before(() => migrate(db, new URL("../migrations", import.meta.url).pathname));
 after(() => db.destroy());
 
+function isRateLimited(error) {
+  return (
+    error &&
+    typeof error === "object" &&
+    error.status === 429 &&
+    error.code === "RATE_LIMITED"
+  );
+}
+
 test("request_limit rejects after max attempts in the window", async () => {
   const subject = "test:auth:login:" + crypto.randomUUID();
   for (let i = 0; i < 3; i++) await limit(db, secret, subject, 3, 600);
   await assert.rejects(
     () => limit(db, secret, subject, 3, 600),
-    (error) =>
-      error instanceof AppError &&
-      error.status === 429 &&
-      error.code === "RATE_LIMITED",
+    isRateLimited,
   );
 });
 
@@ -43,7 +49,7 @@ test("request_limit subjects are isolated", async () => {
   const a = "test:auth:login:a-" + crypto.randomUUID();
   const b = "test:auth:login:b-" + crypto.randomUUID();
   for (let i = 0; i < 5; i++) await limit(db, secret, a, 5, 600);
-  await assert.rejects(() => limit(db, secret, a, 5, 600), AppError);
+  await assert.rejects(() => limit(db, secret, a, 5, 600), isRateLimited);
   await limit(db, secret, b, 5, 600);
 });
 

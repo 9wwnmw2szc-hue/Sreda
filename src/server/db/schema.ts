@@ -51,6 +51,44 @@ export interface Database
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };
+  /** Payment catalog — documentation / future checkout; not entitlement SoT. */
+  billing_plan: {
+    code: string;
+    name: string;
+    description: string;
+    currency: string;
+    unit_price_minor: number;
+    interval: "month" | "year" | "one_time";
+    solution_code: string | null;
+    active: boolean;
+    created_at: Generated<Date>;
+  };
+  /** Provider subscription ledger; entitlement remains business_solution. */
+  business_subscription: {
+    id: string;
+    business_id: string;
+    status: "trialing" | "active" | "past_due" | "cancelled" | "expired";
+    provider: "none" | "noop" | "mock" | "yookassa" | "stripe";
+    provider_customer_id: string | null;
+    provider_subscription_id: string | null;
+    current_period_start: Date | null;
+    current_period_end: Date | null;
+    cancel_at_period_end: boolean;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+  };
+  business_subscription_item: {
+    id: string;
+    subscription_id: string;
+    business_id: string;
+    solution_code: string;
+    plan_code: string | null;
+    unit_price_minor: number;
+    currency: string;
+    quantity: number;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+  };
   solution_config: {
     business_id: string;
     solution_code: string;
