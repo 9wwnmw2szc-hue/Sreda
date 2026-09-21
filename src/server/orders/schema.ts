@@ -44,6 +44,7 @@ export interface OrderTables {
     active: Generated<boolean>;
     position: Generated<number>;
     use_variants: Generated<boolean>;
+    variant_prices_enabled: Generated<boolean>;
     track_inventory: Generated<boolean>;
     availability: Generated<ProductAvailability>;
     stock_quantity: number | null;

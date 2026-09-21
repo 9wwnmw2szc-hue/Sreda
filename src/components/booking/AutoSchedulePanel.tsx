@@ -342,6 +342,10 @@ export function AutoSchedulePanel({
   return (
     <section className="panel crm-panel auto-schedule" id="auto-schedule">
       <h2>Автоматическое расписание</h2>
+      <p className="account-footnote">
+        Основной способ: задайте рабочие дни и часы — слоты рассчитаются
+        автоматически.
+      </p>
       <FieldHint>{FIELD_HINTS.scheduleModeAuto}</FieldHint>
 
       <fieldset className="auto-schedule__mode">
@@ -355,7 +359,7 @@ export function AutoSchedulePanel({
               setDirty(true);
             }}
           />{" "}
-          Автоматически
+          Автоматическое расписание (по умолчанию)
         </label>
         <label>
           <input
@@ -366,7 +370,7 @@ export function AutoSchedulePanel({
               setDirty(true);
             }}
           />{" "}
-          Вручную
+          Вручную (расширенный режим)
         </label>
         {mode === "manual" ? (
           <FieldHint>{FIELD_HINTS.scheduleModeManual}</FieldHint>

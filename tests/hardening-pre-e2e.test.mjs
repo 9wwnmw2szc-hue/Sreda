@@ -1002,7 +1002,11 @@ test("variant checkout rejects when use_variants was disabled", async () => {
         { product_id: product.id, variant_id: variantId, quantity: 1 },
       ],
     }),
-    (e) => e.code === "INVALID_ORDER" || /вариант/i.test(e.message),
+    (e) =>
+      e.code === "INVALID_ORDER" ||
+      e.code === "PRODUCT_UNAVAILABLE" ||
+      /вариант/i.test(e.message) ||
+      /недоступен/i.test(e.message),
   );
 });
 

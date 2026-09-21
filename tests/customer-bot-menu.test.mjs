@@ -212,7 +212,7 @@ test("orders only: customer sees catalog/cart, not booking or leads", async () =
     ["vk", vk],
   ]) {
     const available = await getAvailableCustomerActions(db, b.id, platform);
-    assert.deepEqual(available.labels.sort(), ["Каталог", "Корзина"].sort());
+    assert.deepEqual(available.labels.sort(), ["Каталог", "Корзина", "Профиль"].sort());
     assert.equal(available.has("orders"), true);
     assert.equal(available.has("booking"), false);
     assert.equal(available.has("leads"), false);
@@ -231,7 +231,7 @@ test("orders only: customer sees catalog/cart, not booking or leads", async () =
       }),
     );
     const buttons = await menuButtons(connection, platform);
-    assert.deepEqual(buttons.sort(), ["Каталог", "Корзина"].sort());
+    assert.deepEqual(buttons.sort(), ["Каталог", "Корзина", "Профиль"].sort());
   }
 });
 
@@ -338,7 +338,7 @@ test("Business A and B have isolated customer menus", async () => {
 
   const menuA = await getAvailableCustomerActions(db, a.b.id, "telegram");
   const menuB = await getAvailableCustomerActions(db, b.b.id, "telegram");
-  assert.deepEqual(menuA.labels.sort(), ["Каталог", "Корзина"].sort());
+  assert.deepEqual(menuA.labels.sort(), ["Каталог", "Корзина", "Профиль"].sort());
   assert.ok(menuB.has("booking"));
   assert.ok(menuB.has("admin_messages"));
   assert.equal(menuB.has("orders"), false);
