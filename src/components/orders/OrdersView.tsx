@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
+import { formatMoney } from "@/lib/money";
 import { DetailDialog } from "@/components/dashboard/DetailDialog";
 import {
   EmptyStateCta,
   SolutionSetupBanner,
 } from "@/components/solutions/SolutionSetupBanner";
+import { ProductEditor } from "@/components/orders/ProductEditor";
 
 type OrderRow = {
   id: string;
@@ -67,6 +69,7 @@ type Product = {
   active: boolean;
   category_id: string | null;
   use_variants: boolean;
+  variant_prices_enabled?: boolean;
   track_inventory: boolean;
   availability: string;
   stock_quantity: number | null;
@@ -335,7 +338,7 @@ function OrdersPanel({
                     {o.customer_name} · {STATUS_LABEL[o.status] ?? o.status}
                   </strong>
                   <span>
-                    {o.total} {o.currency} ·{" "}
+                    {formatMoney(o.total, o.currency)} ·{" "}
                     {o.fulfillment === "delivery" ? "Доставка" : "Самовывоз"}
                   </span>
                   <small>
@@ -385,9 +388,7 @@ function OrdersPanel({
           </div>
           <div className="detail-facts">
             <span>Сумма</span>
-            <strong>
-              {detail.total} {detail.currency}
-            </strong>
+            <strong>{formatMoney(detail.total, detail.currency)}</strong>
           </div>
           <div className="detail-facts">
             <span>Получение</span>
@@ -428,7 +429,9 @@ function OrdersPanel({
                       {item.variant_label ? " · " + item.variant_label : ""}
                     </strong>
                     <span>
-                      {item.quantity} × {item.unit_price} = {item.line_total}
+                      {item.quantity} ×{" "}
+                      {formatMoney(item.unit_price, detail.currency)} ={" "}
+                      {formatMoney(item.line_total, detail.currency)}
                     </span>
                   </li>
                 ))}
@@ -501,23 +504,11 @@ function CatalogPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showCategory, setShowCategory] = useState(false);
-  const [showProduct, setShowProduct] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(
+    null,
+  );
+  const [creatingProduct, setCreatingProduct] = useState(false);
   const [categoryName, setCategoryName] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    price: "",
-    compare_at_price: "",
-    description: "",
-    category_id: "",
-    sku: "",
-    stock_quantity: "",
-    track_inventory: false,
-    use_variants: false,
-    variant_label: "",
-    variant_price: "",
-    variant_stock: "",
-    active: true,
-  });
   const categoriesBase = `/api/v1/businesses/${businessId}/categories`;
   const productsBase = `/api/v1/businesses/${businessId}/products`;
 
@@ -584,70 +575,6 @@ function CatalogPanel({
     }
   }
 
-  async function createProduct(e: FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    onError("");
-    onNotice("");
-    try {
-      const payload: Record<string, unknown> = {
-        name: form.name,
-        price: form.price,
-        description: form.description,
-        category_id: form.category_id || null,
-        sku: form.sku || null,
-        compare_at_price: form.compare_at_price || null,
-        active: form.active,
-        use_variants: form.use_variants,
-        track_inventory: form.track_inventory,
-      };
-      if (form.track_inventory && form.stock_quantity !== "") {
-        payload.availability = "quantity";
-        payload.stock_quantity = Number(form.stock_quantity);
-      }
-      if (form.use_variants && form.variant_label.trim()) {
-        payload.variants = [
-          {
-            label: form.variant_label.trim(),
-            price: form.variant_price || form.price,
-            availability: form.track_inventory ? "quantity" : "in_stock",
-            stock_quantity: form.track_inventory
-              ? Number(form.variant_stock || 0)
-              : null,
-            active: true,
-          },
-        ];
-      }
-      await apiRequest(productsBase, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setForm({
-        name: "",
-        price: "",
-        compare_at_price: "",
-        description: "",
-        category_id: "",
-        sku: "",
-        stock_quantity: "",
-        track_inventory: false,
-        use_variants: false,
-        variant_label: "",
-        variant_price: "",
-        variant_stock: "",
-        active: true,
-      });
-      await reload();
-      setShowProduct(false);
-      onNotice("Товар создан.");
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Не удалось создать товар.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function toggleActive(product: Product) {
     if (busy) return;
     setBusy(true);
@@ -664,6 +591,7 @@ function CatalogPanel({
           currency: product.currency,
           sku: product.sku,
           use_variants: product.use_variants,
+          variant_prices_enabled: product.variant_prices_enabled ?? false,
           track_inventory: product.track_inventory,
           availability: product.availability,
           stock_quantity: product.stock_quantity,
@@ -683,6 +611,8 @@ function CatalogPanel({
 
   const categoryNameOf = (id: string | null) =>
     categories.find((c) => c.id === id)?.name ?? "Без категории";
+
+  const editorOpen = creatingProduct || editingProductId != null;
 
   return (
     <div className="crm-columns">
@@ -709,23 +639,44 @@ function CatalogPanel({
         ) : !products.length ? (
           <p className="account-footnote">Товаров пока нет.</p>
         ) : (
-          <ul className="crm-list">
+          <ul className="crm-list product-card-list">
             {products.map((p) => (
-              <li key={p.id}>
-                <strong>
-                  {p.name} · {p.price} {p.currency || "RUB"}
-                </strong>
-                <span>{categoryNameOf(p.category_id)}</span>
-                <span>{p.active ? "Активен" : "Скрыт"}</span>
-                {p.description ? <small>{p.description}</small> : null}
-                <button
-                  type="button"
-                  className="button button--outline"
-                  disabled={busy}
-                  onClick={() => void toggleActive(p)}
-                >
-                  {p.active ? "Скрыть" : "Активировать"}
-                </button>
+              <li key={p.id} className="product-card">
+                <div className="product-card__title">{p.name}</div>
+                <div className="product-card__price">
+                  {formatMoney(p.price, p.currency || "RUB")}
+                </div>
+                <div className="product-card__meta">
+                  <span>{categoryNameOf(p.category_id)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{p.active ? "Активен" : "Скрыт"}</span>
+                </div>
+                {p.description ? (
+                  <p className="product-card__desc">{p.description}</p>
+                ) : null}
+                <div className="product-card__actions">
+                  <button
+                    type="button"
+                    className="button button--outline"
+                    disabled={busy || editorOpen}
+                    onClick={() => {
+                      setCreatingProduct(false);
+                      setEditingProductId(p.id);
+                      onError("");
+                      onNotice("");
+                    }}
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--outline"
+                    disabled={busy || editorOpen}
+                    onClick={() => void toggleActive(p)}
+                  >
+                    {p.active ? "Скрыть" : "Активировать"}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -767,175 +718,36 @@ function CatalogPanel({
             </fieldset>
           </form>
         )}
-        {!showProduct ? (
+        {!editorOpen ? (
           <button
             className="button button--primary"
             type="button"
-            onClick={() => setShowProduct(true)}
+            onClick={() => {
+              setEditingProductId(null);
+              setCreatingProduct(true);
+              onError("");
+              onNotice("");
+            }}
           >
             + Добавить товар
           </button>
         ) : (
-          <form id="new-product" onSubmit={(e) => void createProduct(e)}>
-            <h2>Новый товар</h2>
-            <fieldset disabled={busy}>
-              <legend>Основное</legend>
-              <label>
-                Название
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </label>
-              <label>
-                Описание
-                <textarea
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Артикул (SKU)
-                <input
-                  value={form.sku}
-                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                />
-              </label>
-            </fieldset>
-            <fieldset disabled={busy}>
-              <legend>Цена</legend>
-              <label>
-                Цена
-                <input
-                  required
-                  inputMode="decimal"
-                  value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
-                />
-              </label>
-              <label>
-                Старая цена / скидка
-                <input
-                  inputMode="decimal"
-                  value={form.compare_at_price}
-                  onChange={(e) =>
-                    setForm({ ...form, compare_at_price: e.target.value })
-                  }
-                />
-              </label>
-            </fieldset>
-            <fieldset disabled={busy}>
-              <legend>Категория</legend>
-              <label>
-                Категория
-                <select
-                  value={form.category_id}
-                  onChange={(e) =>
-                    setForm({ ...form, category_id: e.target.value })
-                  }
-                >
-                  <option value="">Без категории</option>
-                  {categories
-                    .filter((c) => c.active)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </fieldset>
-            <fieldset disabled={busy}>
-              <legend>Остаток</legend>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.track_inventory}
-                  onChange={(e) =>
-                    setForm({ ...form, track_inventory: e.target.checked })
-                  }
-                />{" "}
-                Учитывать остаток
-              </label>
-              {form.track_inventory && !form.use_variants ? (
-                <label>
-                  Количество
-                  <input
-                    inputMode="numeric"
-                    value={form.stock_quantity}
-                    onChange={(e) =>
-                      setForm({ ...form, stock_quantity: e.target.value })
-                    }
-                  />
-                </label>
-              ) : null}
-            </fieldset>
-            <fieldset disabled={busy}>
-              <legend>Варианты</legend>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={form.use_variants}
-                  onChange={(e) =>
-                    setForm({ ...form, use_variants: e.target.checked })
-                  }
-                />{" "}
-                Есть варианты (размер / цвет)
-              </label>
-              {form.use_variants ? (
-                <>
-                  <label>
-                    Вариант
-                    <input
-                      required={form.use_variants}
-                      placeholder="Например: M / красный"
-                      value={form.variant_label}
-                      onChange={(e) =>
-                        setForm({ ...form, variant_label: e.target.value })
-                      }
-                    />
-                  </label>
-                  <label>
-                    Цена варианта
-                    <input
-                      inputMode="decimal"
-                      value={form.variant_price}
-                      onChange={(e) =>
-                        setForm({ ...form, variant_price: e.target.value })
-                      }
-                    />
-                  </label>
-                  {form.track_inventory ? (
-                    <label>
-                      Остаток варианта
-                      <input
-                        inputMode="numeric"
-                        value={form.variant_stock}
-                        onChange={(e) =>
-                          setForm({ ...form, variant_stock: e.target.value })
-                        }
-                      />
-                    </label>
-                  ) : null}
-                </>
-              ) : null}
-            </fieldset>
-            <div className="catalog-create__actions">
-              <button className="button button--primary" type="submit">
-                Создать товар
-              </button>
-              <button
-                className="button button--ghost"
-                type="button"
-                onClick={() => setShowProduct(false)}
-              >
-                Закрыть
-              </button>
-            </div>
-          </form>
+          <ProductEditor
+            businessId={businessId}
+            categories={categories}
+            productId={editingProductId}
+            onCancel={() => {
+              setCreatingProduct(false);
+              setEditingProductId(null);
+            }}
+            onSaved={async () => {
+              await reload();
+              setCreatingProduct(false);
+              setEditingProductId(null);
+            }}
+            onError={onError}
+            onNotice={onNotice}
+          />
         )}
       </section>
     </div>
