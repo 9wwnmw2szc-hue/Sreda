@@ -8,6 +8,7 @@ import { SolutionSetupBanner } from "@/components/solutions/SolutionSetupBanner"
 import { Pagination } from "@/components/ui/Pagination";
 import { Disclosure } from "@/components/ui/Disclosure";
 import { AutoSchedulePanel } from "@/components/booking/AutoSchedulePanel";
+import { BookingSetupWizard } from "@/components/booking/BookingSetupWizard";
 import { FIELD_HINTS } from "@/lib/setupUx";
 import { useBusinessTerminology } from "@/hooks/useBusinessTerminology";
 import type { Terminology } from "@/lib/industryPresets";
@@ -85,11 +86,12 @@ const shiftIso = (iso: string, days: number) => {
   const [year = 1970, month = 1, day = 1] = iso.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 };
-const labelIso = (iso: string) => {
+const labelIso = (iso: string, style: "full" | "compact" = "full") => {
   const [year = 1970, month = 1, day = 1] = iso.split("-").map(Number);
   return new Intl.DateTimeFormat("ru", {
     day: "numeric",
-    month: "long",
+    month: style === "compact" ? "short" : "long",
+    ...(style === "full" ? { year: "numeric" as const } : {}),
     timeZone: "UTC",
   }).format(new Date(Date.UTC(year, month - 1, day)));
 };
@@ -107,6 +109,7 @@ export function BookingsView() {
     <Calendar
       key={currentBusiness.id}
       businessId={currentBusiness.id}
+      businessName={currentBusiness.name}
       timezone={currentBusiness.timezone ?? "UTC"}
       canConfigure={currentBusiness.role !== "operator"}
       terms={terms}
@@ -117,11 +120,13 @@ export function BookingsView() {
 }
 function Calendar({
   businessId,
+  businessName,
   timezone,
   canConfigure,
   terms,
 }: {
   businessId: string;
+  businessName: string;
   timezone: string;
   canConfigure: boolean;
   terms: Terminology;
@@ -342,7 +347,12 @@ function Calendar({
           >
             ←
           </button>
-          <strong className="booking-date-label">{labelIso(date)}</strong>
+          <strong className="booking-date-label">
+            <span className="booking-date-label__full">{labelIso(date, "full")}</span>
+            <span className="booking-date-label__compact">
+              {labelIso(date, "compact")}
+            </span>
+          </strong>
           <button
             type="button"
             className="button button--outline"
@@ -400,7 +410,8 @@ function Calendar({
       </div>
       {catalog && !catalog.services.length ? (
         <p className="account-footnote">
-          Добавьте услугу и расписание в настройках записи.
+          Пройдите мастер настройки записи ниже — или откройте расширенные
+          настройки.
         </p>
       ) : null}
       {error && (
@@ -642,6 +653,8 @@ function Calendar({
           {canConfigure && (
             <Configuration
               base={base}
+              businessId={businessId}
+              businessName={businessName}
               timezone={timezone}
               catalog={catalog}
               onChange={refresh}
@@ -696,6 +709,8 @@ function Calendar({
 }
 function Configuration({
   base,
+  businessId,
+  businessName,
   timezone,
   catalog,
   onChange,
@@ -703,12 +718,16 @@ function Configuration({
   terms,
 }: {
   base: string;
+  businessId: string;
+  businessName: string;
   timezone: string;
   catalog: Catalog;
   onChange: () => Promise<void>;
   openDetails?: boolean;
   terms: Terminology;
 }) {
+  const needsWizard = catalog.services.length === 0;
+  const [showAdvanced, setShowAdvanced] = useState(!needsWizard || openDetails);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -788,12 +807,9 @@ function Configuration({
       };
     });
   }
-  return (
-    <section className="panel crm-panel" id="booking-config">
-      <h2>Настройка записи</h2>
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
-      <Disclosure title="Услуги" defaultOpen={openDetails}>
+  const advancedBlock = (
+    <>
+      <Disclosure title="Услуги" defaultOpen={openDetails && !needsWizard}>
         <select
           value={service.id}
           onChange={(e) => {
@@ -979,22 +995,6 @@ function Configuration({
           <button disabled={busy}>Сохранить</button>
         </form>
       </Disclosure>
-      <AutoSchedulePanel
-        businessId={base.replace("/api/v1/businesses/", "")}
-        timezone={timezone}
-        specialists={catalog.specialists.map((s) => ({
-          id: s.id,
-          name: s.name,
-        }))}
-        services={catalog.services.map((s) => ({
-          id: s.id,
-          name: s.name,
-          duration_minutes: s.duration_minutes,
-        }))}
-        schedules={catalog.schedules}
-        settings={catalog.settings}
-        onSaved={onChange}
-      />
       <Disclosure
         title={`Услуги и исключения (${terms.specialist.toLowerCase()})`}
       >
@@ -1195,7 +1195,7 @@ function Configuration({
               })
             }
           >
-            <option value="automatic">Недельное расписание</option>
+            <option value="automatic">Автоматическое расписание</option>
             <option value="manual">Ручные окна</option>
           </select>
         </label>
@@ -1271,6 +1271,71 @@ function Configuration({
           </div>
         )}
       </Disclosure>
+    </>
+  );
+
+  return (
+    <section className="panel crm-panel" id="booking-config">
+      <h2>Настройка записи</h2>
+      {error && <p role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      {needsWizard ? (
+        <BookingSetupWizard
+          businessId={businessId}
+          businessName={businessName}
+          timezone={timezone}
+          catalog={catalog}
+          onComplete={async () => {
+            await onChange();
+            setShowAdvanced(true);
+          }}
+          onSkipToAdvanced={() => setShowAdvanced(true)}
+        />
+      ) : null}
+      {!needsWizard || showAdvanced ? (
+        <div className="booking-config-primary">
+          {!needsWizard ? (
+            <p className="account-footnote">
+              Основной путь —{" "}
+              <strong>Автоматическое расписание</strong>: рабочие дни и часы,
+              остальное Соты рассчитают сами.
+            </p>
+          ) : null}
+          <AutoSchedulePanel
+            businessId={businessId}
+            timezone={timezone}
+            specialists={catalog.specialists.map((s) => ({
+              id: s.id,
+              name: s.name,
+            }))}
+            services={catalog.services.map((s) => ({
+              id: s.id,
+              name: s.name,
+              duration_minutes: s.duration_minutes,
+            }))}
+            schedules={catalog.schedules}
+            settings={catalog.settings}
+            onSaved={onChange}
+          />
+          <Disclosure
+            title="Расширенные настройки"
+            hint="Услуги, специалисты, исключения и правила вручную"
+            defaultOpen={openDetails && !needsWizard}
+          >
+            {advancedBlock}
+          </Disclosure>
+        </div>
+      ) : (
+        <div className="booking-config-advanced-toggle">
+          <button
+            type="button"
+            className="button button--outline"
+            onClick={() => setShowAdvanced(true)}
+          >
+            Расширенные настройки
+          </button>
+        </div>
+      )}
     </section>
   );
 }

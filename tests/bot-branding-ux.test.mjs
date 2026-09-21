@@ -35,5 +35,22 @@ test("auto-schedule panel is wired into BookingsView", async () => {
     "utf8",
   );
   assert.match(view, /AutoSchedulePanel/);
+  assert.match(view, /BookingSetupWizard/);
   assert.match(view, /Перерыв между клиентами/);
+  assert.match(view, /Расширенные настройки/);
+});
+
+test("booking setup wizard exposes guided steps", async () => {
+  const wizard = await readFile(
+    new URL("../src/components/booking/BookingSetupWizard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(wizard, /Шаг \{step\} из \{stepCount\}|SetupWizardShell/);
+  assert.match(wizard, /Услуги/);
+  assert.match(wizard, /Кто оказывает/);
+  assert.match(wizard, /Расписание/);
+  assert.match(wizard, /Правила/);
+  assert.match(wizard, /Проверка/);
+  assert.match(wizard, /Запустить/);
+  assert.match(wizard, /TOTAL_STEPS/);
 });

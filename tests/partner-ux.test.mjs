@@ -259,6 +259,17 @@ test("pagination hides a single page and disclosures expose ARIA", async () => {
   assert.doesNotMatch(posts, /<summary>Текст для площадок/);
   assert.match(bookings, /Настройки записи/);
   assert.match(bookings, /booking-toolbar/);
+  assert.match(bookings, /BookingSetupWizard/);
+  assert.match(bookings, /booking-date-label__compact/);
+});
+
+test("booking setup wizard progress copy is present", async () => {
+  const wizard = await read("../src/components/booking/BookingSetupWizard.tsx");
+  const chrome = await read("../src/components/ui/SetupChrome.tsx");
+  assert.match(wizard, /SetupWizardShell/);
+  assert.match(wizard, /Настройка онлайн-записи/);
+  assert.match(chrome, /Шаг \{step\} из \{stepCount\}/);
+  assert.match(wizard, /Автоматическое расписание/);
 });
 
 test("settings sections and sidebar order match the product map", async () => {
