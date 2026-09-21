@@ -307,11 +307,119 @@ async function replaceProductImages(
   }
 }
 
+async function replaceProductOptionGroups(
+  tx: Transaction<Database>,
+  businessId: string,
+  productId: string,
+  groups: unknown,
+) {
+  if (groups == null) return;
+  if (!Array.isArray(groups) || groups.length > 5)
+    throw fail("Не больше 5 групп опций.");
+  const existingGroups = await tx
+    .selectFrom("product_option_group")
+    .select("id")
+    .where("business_id", "=", businessId)
+    .where("product_id", "=", productId)
+    .execute();
+  const existingOptions = await tx
+    .selectFrom("product_option as o")
+    .innerJoin("product_option_group as g", "g.id", "o.group_id")
+    .select(["o.id", "o.group_id"])
+    .where("o.business_id", "=", businessId)
+    .where("g.business_id", "=", businessId)
+    .where("g.product_id", "=", productId)
+    .execute();
+  const keepGroups = new Set<string>();
+  const keepOptions = new Set<string>();
+  let groupPos = 0;
+  for (const raw of groups) {
+    if (!raw || typeof raw !== "object") throw fail();
+    const body = raw as Record<string, unknown>;
+    const groupId = body.id ? id(body.id) : randomUUID();
+    keepGroups.add(groupId);
+    const groupValue = {
+      id: groupId,
+      business_id: businessId,
+      product_id: productId,
+      name: text(body.name, 1, 80, "Укажите название группы опций."),
+      position:
+        body.position == null
+          ? groupPos
+          : integer(body.position, 0, 100000),
+    };
+    groupPos += 1;
+    if (existingGroups.some((row) => row.id === groupId)) {
+      await tx
+        .updateTable("product_option_group")
+        .set(groupValue)
+        .where("business_id", "=", businessId)
+        .where("id", "=", groupId)
+        .execute();
+    } else {
+      await tx.insertInto("product_option_group").values(groupValue).execute();
+    }
+    if (!Array.isArray(body.options) || body.options.length > 20)
+      throw fail("Не больше 20 опций в группе.");
+    let optionPos = 0;
+    for (const rawOption of body.options) {
+      if (!rawOption || typeof rawOption !== "object") throw fail();
+      const optionBody = rawOption as Record<string, unknown>;
+      const optionId = optionBody.id ? id(optionBody.id) : randomUUID();
+      keepOptions.add(optionId);
+      const optionValue = {
+        id: optionId,
+        business_id: businessId,
+        group_id: groupId,
+        name: text(optionBody.name, 1, 80, "Укажите название опции."),
+        position:
+          optionBody.position == null
+            ? optionPos
+            : integer(optionBody.position, 0, 100000),
+      };
+      optionPos += 1;
+      const existingOption = existingOptions.find((row) => row.id === optionId);
+      if (existingOption) {
+        await tx
+          .updateTable("product_option")
+          .set(optionValue)
+          .where("business_id", "=", businessId)
+          .where("id", "=", optionId)
+          .execute();
+      } else {
+        await tx.insertInto("product_option").values(optionValue).execute();
+      }
+    }
+  }
+  for (const row of existingOptions) {
+    if (keepOptions.has(row.id)) continue;
+    await tx
+      .deleteFrom("product_option")
+      .where("business_id", "=", businessId)
+      .where("id", "=", row.id)
+      .execute();
+  }
+  for (const row of existingGroups) {
+    if (keepGroups.has(row.id)) continue;
+    await tx
+      .deleteFrom("product_option")
+      .where("business_id", "=", businessId)
+      .where("group_id", "=", row.id)
+      .execute();
+    await tx
+      .deleteFrom("product_option_group")
+      .where("business_id", "=", businessId)
+      .where("id", "=", row.id)
+      .execute();
+  }
+}
+
 async function replaceProductVariants(
   tx: Transaction<Database>,
   businessId: string,
   productId: string,
   variants: unknown,
+  opts?: { forceNullPrices?: boolean },
 ) {
   if (variants == null) return;
   if (!Array.isArray(variants) || variants.length > 100) throw fail();
@@ -372,7 +480,7 @@ async function replaceProductVariants(
         body.sku == null || body.sku === ""
           ? null
           : text(body.sku, 1, 64, "Проверьте артикул."),
-      price: optionalMoney(body.price),
+      price: opts?.forceNullPrices ? null : optionalMoney(body.price),
       availability: mode,
       stock_quantity: stock,
       active: body.active === false ? false : true,
@@ -929,6 +1037,9 @@ export class CatalogService {
         use_variants: has("use_variants")
           ? body.use_variants === true
           : (existing?.use_variants ?? false),
+        variant_prices_enabled: has("variant_prices_enabled")
+          ? body.variant_prices_enabled === true
+          : (existing?.variant_prices_enabled ?? false),
         track_inventory: trackInventory,
         availability: mode,
         stock_quantity: stock,
@@ -947,7 +1058,16 @@ export class CatalogService {
         await audit(tx, b.id, userId, "product_created", key);
       }
       await replaceProductImages(tx, b.id, key, body.images);
-      await replaceProductVariants(tx, b.id, key, body.variants);
+      if (!value.use_variants) {
+        await replaceProductOptionGroups(tx, b.id, key, []);
+        await replaceProductVariants(tx, b.id, key, []);
+      } else {
+        if (has("option_groups"))
+          await replaceProductOptionGroups(tx, b.id, key, body.option_groups);
+        await replaceProductVariants(tx, b.id, key, body.variants, {
+          forceNullPrices: !value.variant_prices_enabled,
+        });
+      }
       return { id: key };
     });
   }
