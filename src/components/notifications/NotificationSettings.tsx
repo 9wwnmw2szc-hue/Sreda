@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<string, string> = {
   "order.created": "Новый заказ",
   "post.failed": "Ошибка публикации",
   "calendar.reminder": "Напоминание календаря",
+  "inventory.low_stock": "Низкий остаток",
 };
 
 function typeLabel(type: string) {

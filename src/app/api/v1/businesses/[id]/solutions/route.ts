@@ -6,7 +6,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return respond(async () =>
+  return respond(request, async () =>
     createSolutionHandler(getRuntime())(
       request,
       (await params).id,

@@ -5,6 +5,10 @@ import { requireBusiness } from "../../access/permissions.ts";
 import { AppError } from "../../http/errors.ts";
 import { audit } from "../../audit/service.ts";
 import { completeAiDraft } from "../../ai/posts.ts";
+import {
+  assertAiUsageAllowed,
+  recordAiUsage,
+} from "../../ai/usage.ts";
 import { AnalyticsFileService } from "../files/service.ts";
 import { AnalyticsService } from "../service.ts";
 import {
@@ -114,6 +118,8 @@ export class AnalyticsAiService {
       ? `Проведи полный анализ. Источник: ${body.source}. Данные (агрегаты/схема, без PII):\n${JSON.stringify(contextPayload)}`
       : `Вопрос владельца: ${question}\nИсточник: ${body.source}\nДанные (агрегаты/схема, без PII):\n${JSON.stringify(contextPayload)}`;
 
+    await assertAiUsageAllowed(this.db, b.id);
+
     let draft: { text: string };
     try {
       draft = await completeAiDraft(SYSTEM, userPrompt);
@@ -121,6 +127,11 @@ export class AnalyticsAiService {
       if (error instanceof AppError) throw error;
       throw new AppError(503, "AI_UNAVAILABLE", "AI временно недоступен.");
     }
+    await recordAiUsage(this.db, {
+      businessId: b.id,
+      feature: body.full ? "analytics.full" : "analytics.ask",
+      model: process.env.AI_MODEL,
+    });
 
     const parsed = parseAiJson(draft.text);
     const toolResults: unknown[] = [];

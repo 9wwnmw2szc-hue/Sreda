@@ -10,12 +10,37 @@ import {
   normalizeIdentity,
 } from "../clients/service.ts";
 import { notify } from "../notifications/service.ts";
+import { evaluateLowStockCrossing } from "./low-stock.ts";
 import type {
   CartPlatform,
   OrderFulfillment,
   OrderStatus,
   ProductAvailability,
 } from "./schema.ts";
+
+async function maybeEmitLowStock(
+  tx: Transaction<Database>,
+  businessId: string,
+  input: {
+    productId: string;
+    productName: string;
+    variantId?: string | null;
+    previousStock: number;
+    nextStock: number;
+    threshold: number | null | undefined;
+  },
+) {
+  const crossing = evaluateLowStockCrossing(input);
+  if (!crossing.crossed || !crossing.eventKey) return;
+  await notify(
+    tx,
+    businessId,
+    "inventory.low_stock",
+    crossing.eventKey,
+    `Низкий остаток: ${input.productName} (${input.nextStock})`,
+    "/orders",
+  );
+}
 
 const fail = (message = "Проверьте параметры заказа.") =>
   new AppError(400, "INVALID_ORDER", message);
@@ -529,7 +554,13 @@ async function decrementStock(
       throw new AppError(404, "VARIANT_NOT_FOUND", "Вариант не найден.");
     const product = await tx
       .selectFrom("product")
-      .select(["track_inventory", "active", "use_variants"])
+      .select([
+        "track_inventory",
+        "active",
+        "use_variants",
+        "name",
+        "low_stock_threshold",
+      ])
       .where("business_id", "=", businessId)
       .where("id", "=", productId)
       .forUpdate()
@@ -552,12 +583,13 @@ async function decrementStock(
           "OUT_OF_STOCK",
           "Недостаточно товара на складе.",
         );
+      const remaining = stock - quantity;
       await tx
         .updateTable("product_variant")
         .set({
-          stock_quantity: stock - quantity,
+          stock_quantity: remaining,
           updated_at: new Date(),
-          ...(stock - quantity === 0 ? { availability: "out_of_stock" } : {}),
+          ...(remaining === 0 ? { availability: "out_of_stock" } : {}),
         })
         .where("business_id", "=", businessId)
         .where("id", "=", variantId)
@@ -571,10 +603,18 @@ async function decrementStock(
         {
           product_id: productId,
           delta: -quantity,
-          remaining: stock - quantity,
+          remaining,
         },
         "system",
       );
+      await maybeEmitLowStock(tx, businessId, {
+        productId,
+        productName: product.name,
+        variantId,
+        previousStock: stock,
+        nextStock: remaining,
+        threshold: product.low_stock_threshold,
+      });
       return true;
     }
     return false;
@@ -597,12 +637,13 @@ async function decrementStock(
     const stock = product.stock_quantity ?? 0;
     if (stock < quantity)
       throw new AppError(409, "OUT_OF_STOCK", "Недостаточно товара на складе.");
+    const remaining = stock - quantity;
     await tx
       .updateTable("product")
       .set({
-        stock_quantity: stock - quantity,
+        stock_quantity: remaining,
         updated_at: new Date(),
-        ...(stock - quantity === 0 ? { availability: "out_of_stock" } : {}),
+        ...(remaining === 0 ? { availability: "out_of_stock" } : {}),
       })
       .where("business_id", "=", businessId)
       .where("id", "=", productId)
@@ -613,9 +654,16 @@ async function decrementStock(
       null,
       "inventory_adjusted",
       productId,
-      { delta: -quantity, remaining: stock - quantity },
+      { delta: -quantity, remaining },
       "system",
     );
+    await maybeEmitLowStock(tx, businessId, {
+      productId,
+      productName: product.name,
+      previousStock: stock,
+      nextStock: remaining,
+      threshold: product.low_stock_threshold,
+    });
     return true;
   }
   return false;
@@ -2024,6 +2072,208 @@ export class OrderService {
           : {}),
       });
       return { id: current.id, status: to };
+    });
+  }
+
+  async getOrderSettings(userId: string, publicId: string) {
+    const b = await requireBusiness(this.db, userId, publicId, "orders.write");
+    const row = await this.db
+      .selectFrom("order_settings")
+      .selectAll()
+      .where("business_id", "=", b.id)
+      .executeTakeFirst();
+    const statuses = Array.isArray(row?.customer_cancel_statuses)
+      ? (row!.customer_cancel_statuses as string[])
+      : typeof row?.customer_cancel_statuses === "string"
+        ? (JSON.parse(row.customer_cancel_statuses as string) as string[])
+        : ["new", "accepted"];
+    return {
+      customer_cancel_statuses: statuses.filter((s) =>
+        ORDER_STATUSES.includes(s as OrderStatus),
+      ),
+    };
+  }
+
+  async saveOrderSettings(
+    userId: string,
+    publicId: string,
+    body: Record<string, unknown>,
+  ) {
+    const b = await requireBusiness(this.db, userId, publicId, "orders.write");
+    const raw = Array.isArray(body.customer_cancel_statuses)
+      ? body.customer_cancel_statuses.map(String)
+      : ["new", "accepted"];
+    const statuses = [
+      ...new Set(
+        raw.filter((s) =>
+          ["new", "accepted", "assembling", "ready"].includes(s),
+        ),
+      ),
+    ];
+    await this.db
+      .insertInto("order_settings")
+      .values({
+        business_id: b.id,
+        customer_cancel_statuses: statuses,
+        updated_at: new Date(),
+      })
+      .onConflict((oc) =>
+        oc.column("business_id").doUpdateSet({
+          customer_cancel_statuses: statuses,
+          updated_at: new Date(),
+        }),
+      )
+      .execute();
+    return { customer_cancel_statuses: statuses };
+  }
+
+  async listForCustomer(
+    businessId: string,
+    platform: CartPlatform,
+    externalUserId: string,
+  ) {
+    const identity = normalizeIdentity({
+      kind: platform === "web" ? "phone" : platform,
+      value: externalUserId,
+    });
+    const link = await this.db
+      .selectFrom("client_identity")
+      .select("client_id")
+      .where("business_id", "=", businessId)
+      .where("kind", "=", identity.kind)
+      .where("value", "=", identity.value)
+      .executeTakeFirst();
+    if (!link) return [];
+    return this.db
+      .selectFrom("order")
+      .select([
+        "id",
+        "order_number",
+        "status",
+        "total",
+        "currency",
+        "items_snapshot",
+        "created_at",
+      ])
+      .where("business_id", "=", businessId)
+      .where("client_id", "=", link.client_id)
+      .orderBy("created_at", "desc")
+      .limit(20)
+      .execute();
+  }
+
+  async cancelForCustomer(
+    businessId: string,
+    platform: CartPlatform,
+    externalUserId: string,
+    orderId: string,
+  ) {
+    return runInTx(this.db, async (tx) => {
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", businessId)
+        .forUpdate()
+        .executeTakeFirstOrThrow();
+      const identity = normalizeIdentity({
+        kind: platform === "web" ? "phone" : platform,
+        value: externalUserId,
+      });
+      const link = await tx
+        .selectFrom("client_identity")
+        .select("client_id")
+        .where("business_id", "=", businessId)
+        .where("kind", "=", identity.kind)
+        .where("value", "=", identity.value)
+        .executeTakeFirst();
+      if (!link)
+        throw new AppError(404, "ORDER_NOT_FOUND", "Заказ не найден.");
+      const current = await tx
+        .selectFrom("order")
+        .selectAll()
+        .where("business_id", "=", businessId)
+        .where("id", "=", id(orderId))
+        .where("client_id", "=", link.client_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current)
+        throw new AppError(404, "ORDER_NOT_FOUND", "Заказ не найден.");
+      const settings = await tx
+        .selectFrom("order_settings")
+        .select("customer_cancel_statuses")
+        .where("business_id", "=", businessId)
+        .executeTakeFirst();
+      let allowed = ["new", "accepted"];
+      if (Array.isArray(settings?.customer_cancel_statuses))
+        allowed = settings!.customer_cancel_statuses as string[];
+      else if (typeof settings?.customer_cancel_statuses === "string") {
+        try {
+          allowed = JSON.parse(settings.customer_cancel_statuses) as string[];
+        } catch {
+          allowed = ["new", "accepted"];
+        }
+      }
+      if (!allowed.includes(current.status))
+        throw new AppError(
+          403,
+          "ORDER_CANCEL_DENIED",
+          "Этот заказ уже нельзя отменить.",
+        );
+      if (current.status === "cancelled")
+        return { id: current.id, status: "cancelled" as const };
+      let inventoryRestoredAt = current.inventory_restored_at;
+      if (!current.inventory_restored_at) {
+        await restoreOrderInventory(tx, businessId, current.id);
+        inventoryRestoredAt = new Date();
+      }
+      await tx
+        .updateTable("order")
+        .set({
+          status: "cancelled",
+          updated_at: new Date(),
+          ...(inventoryRestoredAt && !current.inventory_restored_at
+            ? { inventory_restored_at: inventoryRestoredAt }
+            : {}),
+        })
+        .where("business_id", "=", businessId)
+        .where("id", "=", current.id)
+        .execute();
+      await writeStatusHistory(
+        tx,
+        businessId,
+        current.id,
+        current.status,
+        "cancelled",
+        null,
+        "Отмена клиентом",
+      );
+      await clientActivity(
+        tx,
+        businessId,
+        current.client_id,
+        "order.status",
+        "order:" + current.id + ":cancelled:customer:" + randomUUID(),
+        current.id,
+        null,
+      );
+      await audit(
+        tx,
+        businessId,
+        null,
+        "order_status_changed",
+        current.id,
+        {
+          from: current.status,
+          to: "cancelled",
+          channel: platform,
+          by: "customer",
+          inventory_restored: !!(
+            inventoryRestoredAt && !current.inventory_restored_at
+          ),
+        },
+        "client",
+      );
+      return { id: current.id, status: "cancelled" as const };
     });
   }
 }

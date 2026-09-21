@@ -48,6 +48,7 @@ export interface OrderTables {
     track_inventory: Generated<boolean>;
     availability: Generated<ProductAvailability>;
     stock_quantity: number | null;
+    low_stock_threshold: number | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };
@@ -130,6 +131,11 @@ export interface OrderTables {
   business_order_seq: {
     business_id: string;
     next_number: Generated<number>;
+  };
+  order_settings: {
+    business_id: string;
+    customer_cancel_statuses: Generated<unknown>;
+    updated_at: Generated<Date>;
   };
   order_item: {
     id: string;

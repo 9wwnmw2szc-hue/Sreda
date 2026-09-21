@@ -11,7 +11,7 @@ async function handle(
   publicId: string,
   fieldId: string,
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const runtime = getRuntime();
     const user = await createApplication(runtime).requireUser(request.headers);
     const service = new LeadFormService(runtime.db);

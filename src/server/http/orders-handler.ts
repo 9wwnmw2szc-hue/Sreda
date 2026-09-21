@@ -25,7 +25,7 @@ export function ordersHandler(
   resource: "products" | "categories" | "orders" | "cart",
   resourceId?: string,
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const runtime = getRuntime();
     const user = await createApplication(runtime).requireUser(request.headers);
     const catalog = new CatalogService(runtime.db);

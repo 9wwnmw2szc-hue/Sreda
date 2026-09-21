@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = (await params).id;
-  return respond(() =>
+  return respond(request, () =>
     createBusinessDeletionHandler(getRuntime())(request, id),
   );
 }
@@ -19,7 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = (await params).id;
-  return respond(() =>
+  return respond(request, () =>
     createBusinessDeletionHandler(getRuntime())(request, id),
   );
 }

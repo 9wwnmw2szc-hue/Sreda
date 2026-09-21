@@ -59,6 +59,10 @@ type Catalog = {
     slot_interval: number;
     choose_specialist?: boolean;
     schedule_mode?: "automatic" | "manual";
+    allow_customer_cancel?: boolean;
+    cancel_before_minutes?: number;
+    allow_reschedule?: boolean;
+    reschedule_before_minutes?: number;
   };
 };
 type Booking = {
@@ -1183,6 +1187,60 @@ function Configuration({
             }
           />{" "}
           Клиент выбирает: {terms.specialist.toLowerCase()}
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.allow_customer_cancel !== false}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                allow_customer_cancel: e.target.checked,
+              })
+            }
+          />{" "}
+          Клиент может отменить запись
+        </label>
+        <label>
+          Отмена не позднее чем за, мин
+          <input
+            type="number"
+            min={0}
+            value={settings.cancel_before_minutes ?? 0}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                cancel_before_minutes: Number(e.target.value),
+              })
+            }
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.allow_reschedule !== false}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                allow_reschedule: e.target.checked,
+              })
+            }
+          />{" "}
+          Клиент может перенести запись
+        </label>
+        <label>
+          Перенос не позднее чем за, мин
+          <input
+            type="number"
+            min={0}
+            value={settings.reschedule_before_minutes ?? 0}
+            onChange={(e) =>
+              setSettings({
+                ...settings,
+                reschedule_before_minutes: Number(e.target.value),
+              })
+            }
+          />
         </label>
         <label>
           Режим расписания

@@ -51,6 +51,74 @@ export interface Database
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };
+  /** Payment catalog — documentation / future checkout; not entitlement SoT. */
+  billing_plan: {
+    code: string;
+    name: string;
+    description: string;
+    currency: string;
+    unit_price_minor: number;
+    interval: "month" | "year" | "one_time";
+    solution_code: string | null;
+    active: boolean;
+    created_at: Generated<Date>;
+  };
+  /** Provider subscription ledger; entitlement remains business_solution. */
+  business_subscription: {
+    id: string;
+    business_id: string;
+    status: "trialing" | "active" | "past_due" | "cancelled" | "expired";
+    provider: "none" | "noop" | "mock" | "yookassa" | "stripe";
+    provider_customer_id: string | null;
+    provider_subscription_id: string | null;
+    current_period_start: Date | null;
+    current_period_end: Date | null;
+    cancel_at_period_end: boolean;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+  };
+  business_subscription_item: {
+    id: string;
+    subscription_id: string;
+    business_id: string;
+    solution_code: string;
+    plan_code: string | null;
+    unit_price_minor: number;
+    currency: string;
+    quantity: number;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+  };
+  ai_usage_event: {
+    id: Generated<string>;
+    business_id: string;
+    feature: string;
+    model: Generated<string>;
+    request_count: Generated<number>;
+    input_tokens: number | null;
+    output_tokens: number | null;
+    estimated_cost_minor: number | null;
+    currency: Generated<string>;
+    created_at: Generated<Date>;
+  };
+  product_event: {
+    id: string;
+    business_id: string | null;
+    user_id: string | null;
+    event: string;
+    meta: Generated<unknown>;
+    created_at: Generated<Date>;
+  };
+  reply_template: {
+    id: string;
+    business_id: string;
+    title: string;
+    body: string;
+    created_by: string | null;
+    created_at: Generated<Date>;
+    updated_at: Generated<Date>;
+    archived_at: Date | null;
+  };
   solution_config: {
     business_id: string;
     solution_code: string;
@@ -413,7 +481,10 @@ export interface Database
       | "analytics_file_deleted"
       | "analytics_export_created"
       | "analytics_ai_created"
-      | "analytics_import_confirmed";
+      | "analytics_import_confirmed"
+      | "client_merged"
+      | "conversation_internal_note"
+      | "data_import_committed";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

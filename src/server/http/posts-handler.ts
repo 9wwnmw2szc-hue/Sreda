@@ -9,7 +9,7 @@ export function postsHandler(
   resource: "posts" | "post-targets",
   id?: string,
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const user = await createApplication(r).requireUser(request.headers);
     const service = new PostService(r.db, r.secret);

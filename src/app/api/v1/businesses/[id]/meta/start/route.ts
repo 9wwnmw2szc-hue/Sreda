@@ -10,7 +10,7 @@ import { readMetaConfig } from "@/server/meta/config";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     await createApplication(r).requireUser(request.headers);
     const platform = new URL(request.url).searchParams.get("platform");
@@ -28,7 +28,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     requireOrigin(request, r.origin);
     const user = await createApplication(r).requireUser(request.headers);

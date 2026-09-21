@@ -37,25 +37,25 @@ export function createAdminHandler(runtime: AdminRuntime) {
 
   return {
     me: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         const actor = await gate(request, "admin.search");
         return json(admin.sessionInfo(actor));
       }),
 
     dashboard: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.system.read");
         return json(await admin.dashboard());
       }),
 
     search: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.search");
         return json(await admin.search(qs(request.url).get("q") || ""));
       }),
 
     users: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.users.read");
         const params = qs(request.url);
         return json(
@@ -69,7 +69,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     user: (request: Request, publicId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (request.method === "GET") {
           await gate(request, "admin.users.read");
           return json(await admin.getUser(publicId));
@@ -118,7 +118,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     businesses: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.businesses.read");
         const params = qs(request.url);
         return json(
@@ -147,7 +147,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     business: (request: Request, publicId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (request.method === "GET") {
           await gate(request, "admin.businesses.read");
           return json(await admin.getBusiness(publicId));
@@ -200,7 +200,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     subscriptions: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.subscriptions.read");
         const params = qs(request.url);
         return json(
@@ -218,7 +218,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     integrations: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.integrations.read");
         const params = qs(request.url);
         return json(
@@ -237,7 +237,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     integration: (request: Request, connectionId: string) =>
-      respond(async () => {
+      respond(request, async () => {
         if (request.method === "GET") {
           await gate(request, "admin.support.read");
           return json(await admin.integrationDiagnostics(connectionId));
@@ -260,7 +260,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     audit: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.audit.read");
         const params = qs(request.url);
         return json(
@@ -277,7 +277,7 @@ export function createAdminHandler(runtime: AdminRuntime) {
       }),
 
     system: (request: Request) =>
-      respond(async () => {
+      respond(request, async () => {
         await gate(request, "admin.system.read");
         const dash = await admin.dashboard();
         return json({

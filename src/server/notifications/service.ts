@@ -12,7 +12,8 @@ export type NotificationType =
   | "booking.upcoming"
   | "order.created"
   | "post.failed"
-  | "calendar.reminder";
+  | "calendar.reminder"
+  | "inventory.low_stock";
 export async function notify(
   tx: Transaction<Database>,
   businessId: string,

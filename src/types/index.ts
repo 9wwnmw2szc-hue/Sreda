@@ -98,6 +98,11 @@ export interface BillingInfo {
   planName: string;
   pricePerMonth: number;
   activeSolutionsCount: number;
-  status: "active" | "paused" | "overdue";
-  nextChargeAt: string;
+  /** Entitlement-derived workspace status — not a payment receipt. */
+  status: "active" | "paused" | "overdue" | "unpaid";
+  /** Null until a real payment provider schedules charges. */
+  nextChargeAt: string | null;
+  paymentConnected: boolean;
+  statusLabel?: string;
+  nextStep?: string;
 }

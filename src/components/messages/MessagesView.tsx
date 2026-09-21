@@ -29,6 +29,18 @@ function platformChip(platform: string) {
       return platform.slice(0, 2).toUpperCase();
   }
 }
+
+function waitingLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "Ждёт ответа меньше минуты";
+  if (mins < 60) return `Ждёт ответа ${mins} мин`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `Ждёт ответа ${hours} ч`;
+  return `Ждёт ответа ${Math.floor(hours / 24)} д`;
+}
 type Conversation = {
   id: string;
   platform: string;
@@ -41,6 +53,7 @@ type Conversation = {
   lastMessage: string;
   unread: number;
   assignedName?: string;
+  waitingSince?: string | null;
 };
 type Message = {
   attachments?: FileItem[];
@@ -181,6 +194,27 @@ function Inbox({
       setBusy(false);
     }
   }
+  async function sendInternalNote() {
+    if (!text.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(base + "/" + selected, {
+        method: "POST",
+        body: JSON.stringify({ text, internal: true }),
+      });
+      setText("");
+      requestKey.current = "";
+      setMessagePage(0);
+      setMessages(await apiRequest<Message[]>(base + "/" + selected));
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Не удалось сохранить заметку.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="messages-page page-container">
       <header className="page-header">
@@ -293,6 +327,9 @@ function Inbox({
                         timeZone: timezone,
                       })}
                       {c.unread > 0 ? " · Новых: " + c.unread : ""}
+                      {waitingLabel(c.waitingSince)
+                        ? " · " + waitingLabel(c.waitingSince)
+                        : ""}
                     </small>
                     {c.assignedName && (
                       <small>В работе · {c.assignedName}</small>
@@ -370,15 +407,17 @@ function Inbox({
                       {new Date(m.createdAt).toLocaleString("ru", {
                         timeZone: timezone,
                       })}{" "}
-                      {m.direction === "outbound" &&
-                        (
-                          {
-                            queued: "В очереди",
-                            sent: "Отправлено",
-                            failed: "Ошибка отправки",
-                            uncertain: "Доставка не подтверждена",
-                          } as Record<string, string>
-                        )[m.deliveryStatus]}
+                      {m.direction === "internal"
+                        ? "Внутренняя заметка"
+                        : m.direction === "outbound" &&
+                          (
+                            {
+                              queued: "В очереди",
+                              sent: "Отправлено",
+                              failed: "Ошибка отправки",
+                              uncertain: "Доставка не подтверждена",
+                            } as Record<string, string>
+                          )[m.deliveryStatus]}
                     </small>
                   </article>
                 ))}
@@ -422,6 +461,14 @@ function Inbox({
                     }
                   >
                     Отправить
+                  </button>
+                  <button
+                    type="button"
+                    className="button button--ghost"
+                    disabled={busy || !text.trim()}
+                    onClick={() => void sendInternalNote()}
+                  >
+                    Внутренняя заметка
                   </button>
                 </div>
               </form>

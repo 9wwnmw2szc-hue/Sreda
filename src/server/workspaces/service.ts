@@ -3,6 +3,7 @@ import { sql, type Kysely } from "kysely";
 import type { Database, Role } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { parseBusiness, requireIdempotencyKey } from "./validation.ts";
+import { trackProductEvent } from "../analytics/product-events.ts";
 
 export class WorkspaceService {
   constructor(private db: Kysely<Database>) {}
@@ -152,6 +153,11 @@ export class WorkspaceService {
       .select("public_id")
       .where("id", "=", businessId)
       .executeTakeFirstOrThrow();
+    await trackProductEvent(this.db, {
+      event: "business_created",
+      businessId,
+      userId,
+    });
     return this.require(userId, publicId.public_id);
   }
 }

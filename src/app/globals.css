@@ -67,6 +67,15 @@
   --font-size-label: 0.9375rem;
   --font-size-caption: 0.8125rem;
   --font-size-badge: 0.75rem;
+  /* Absolute scale aliases (prefer semantic tokens above in components) */
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 20px;
+  --font-2xl: 24px;
+  --font-3xl: 30px;
+  --font-4xl: 36px;
   --line-height-tight: 1.2;
   --line-height-snug: 1.35;
   --line-height-body: 1.5;
@@ -81,6 +90,12 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 
   /* Form field tokens */
   --field-bg: var(--bg-surface);
@@ -1110,6 +1125,52 @@ ul {
 .tariff-card > .tone-warning {
   font-size: 13px;
   margin-bottom: 12px;
+}
+.billing-page {
+  display: grid;
+  gap: 16px;
+}
+.billing-page__header h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+  letter-spacing: -0.03em;
+}
+.billing-summary__status {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.billing-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.billing-lines__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+.billing-lines__item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.billing-lines__meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.billing-lines__price {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .empty-copy {
   color: var(--text-secondary);
@@ -7993,3 +8054,24 @@ a.soty-activity__row {
   background: transparent;
 }
 
+
+.message-bubble--internal {
+  align-self: stretch;
+  background: color-mix(in srgb, var(--warning, #d6a34a) 12%, var(--bg-elevated));
+  border-style: dashed;
+}
+.session-list {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.session-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}

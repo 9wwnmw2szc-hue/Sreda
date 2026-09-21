@@ -13,7 +13,7 @@ export function createBusinessDeletionHandler(options: {
 }) {
   const service = new BusinessDeletionService(options.db);
   return (request: Request, businessId: string) =>
-    respond(async () => {
+    respond(request, async () => {
       const session = await options.auth.api.getSession({
         headers: request.headers,
       });

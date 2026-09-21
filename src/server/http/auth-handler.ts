@@ -6,7 +6,7 @@ import { limit } from "./limits.ts";
 import { acceptLogin, loginCredential } from "../identity/login-guard.ts";
 
 export function createAuthHandler(options: { db: Kysely<Database>; auth: Identity; origin: string; secret: string }) {
-  return (request: Request) => respond(async () => {
+  return (request: Request) => respond(request, async () => {
     requireOrigin(request, options.origin);
     const path = new URL(request.url).pathname.replace("/api/auth", "");
     if (request.method !== "POST" || !["/sign-up/username", "/sign-in/username", "/sign-out"].includes(path)) {

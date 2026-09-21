@@ -47,6 +47,10 @@ export interface BookingTables {
     client_reminder_offsets: Generated<unknown>;
     client_reminder_template: Generated<string>;
     staff_reminder_offsets: Generated<unknown>;
+    allow_customer_cancel: Generated<boolean>;
+    cancel_before_minutes: Generated<number>;
+    allow_reschedule: Generated<boolean>;
+    reschedule_before_minutes: Generated<number>;
   };
   booking_schedule: {
     business_id: string;

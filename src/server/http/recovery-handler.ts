@@ -7,7 +7,7 @@ import { limit } from "./limits.ts";
 
 export function createRecoveryHandler(options: { db: Kysely<Database>; auth: Identity; origin: string; secret: string }) {
   const service = new RecoveryService(options.db);
-  return (request: Request, operation: "codes" | "recover") => respond(async () => {
+  return (request: Request, operation: "codes" | "recover") => respond(request, async () => {
     if (request.method !== "GET" && request.method !== "POST") throw new AppError(405, "METHOD_NOT_ALLOWED", "Метод недоступен.");
     if (request.method === "POST") requireOrigin(request, options.origin);
     if (operation === "recover") {

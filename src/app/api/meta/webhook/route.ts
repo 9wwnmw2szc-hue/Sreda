@@ -6,7 +6,7 @@ import { readMetaConfig } from "@/server/meta/config";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  return respond(async () => {
+  return respond(request, async () => {
     const url = new URL(request.url);
     const r = getRuntime();
     const enabled =
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const enabled =
       process.env.META_WEBHOOKS_ENABLED === "true" ||

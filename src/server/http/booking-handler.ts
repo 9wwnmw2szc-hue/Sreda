@@ -9,7 +9,7 @@ export function bookingHandler(
   resource: "bookings" | "booking-config" | "booking-slots",
   bookingId?: string,
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const runtime = getRuntime();
     const user = await createApplication(runtime).requireUser(request.headers);
     const service = new BookingService(runtime.db);

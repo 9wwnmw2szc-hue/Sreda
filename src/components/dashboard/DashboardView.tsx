@@ -16,6 +16,7 @@ import { LoadingPanel } from "./LoadingPanel";
 import { DetailDialog } from "./DetailDialog";
 import { SolutionModule, solutionState } from "./SolutionModule";
 import { PlatformBadge } from "@/components/ui/PlatformBadge";
+import { SetupChecklist } from "@/components/onboarding/SetupChecklist";
 import {
   useDashboardData,
   type WorkspaceSolutionItem,
@@ -332,6 +333,27 @@ export function DashboardView() {
               {nextSetupHint ? ` ${nextSetupHint}` : ""}{" "}
               <Link href="/onboarding">Продолжить</Link>
             </p>
+          ) : null}
+          {!isDemoMode &&
+          data.businessId &&
+          industryHint?.id === data.businessId &&
+          !industryHint.onboardingDone ? (
+            <SetupChecklist
+              businessId={data.businessId}
+              progress={industryHint.progress}
+              industry={industryHint.industry}
+              variant="compact"
+              readiness={{
+                hasIndustry: !!industryHint.industry,
+                hasActiveSolution: data.workspaceItems.some(
+                  (item) =>
+                    item.status === "active" || item.status === "setup_required",
+                ),
+                hasConnection: data.connections.some(
+                  (c) => c.status === "connected",
+                ),
+              }}
+            />
           ) : null}
           {recommendHint ? (
             <p className="account-notice" role="status">

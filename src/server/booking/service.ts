@@ -323,6 +323,10 @@ export class BookingService {
         client_reminder_offsets: [1440, 120],
         client_reminder_template: "",
         staff_reminder_offsets: [1440, 30],
+        allow_customer_cancel: true,
+        cancel_before_minutes: 0,
+        allow_reschedule: true,
+        reschedule_before_minutes: 0,
       },
     };
   }
@@ -352,6 +356,16 @@ export class BookingService {
           typeof body.client_reminders_enabled !== "boolean"
         )
           throw fail();
+        if (
+          body.allow_customer_cancel != null &&
+          typeof body.allow_customer_cancel !== "boolean"
+        )
+          throw fail();
+        if (
+          body.allow_reschedule != null &&
+          typeof body.allow_reschedule !== "boolean"
+        )
+          throw fail();
         const choose =
           body.choose_specialist == null ? true : body.choose_specialist;
         const scheduleMode = String(body.schedule_mode ?? "automatic");
@@ -360,6 +374,12 @@ export class BookingService {
           body.client_reminders_enabled == null
             ? true
             : body.client_reminders_enabled;
+        const allowCustomerCancel =
+          body.allow_customer_cancel == null
+            ? true
+            : body.allow_customer_cancel;
+        const allowReschedule =
+          body.allow_reschedule == null ? true : body.allow_reschedule;
         const clientOffsets = parseOffsets(
           body.client_reminder_offsets ?? [1440, 120],
           [1440, 120],
@@ -392,6 +412,18 @@ export class BookingService {
           client_reminder_offsets: JSON.stringify(clientOffsets),
           client_reminder_template: clientTemplate,
           staff_reminder_offsets: JSON.stringify(staffOffsets),
+          allow_customer_cancel: allowCustomerCancel,
+          cancel_before_minutes: integer(
+            body.cancel_before_minutes ?? 0,
+            0,
+            10080,
+          ),
+          allow_reschedule: allowReschedule,
+          reschedule_before_minutes: integer(
+            body.reschedule_before_minutes ?? 0,
+            0,
+            10080,
+          ),
         };
         await tx
           .insertInto("booking_settings")
@@ -1027,6 +1059,45 @@ export class BookingService {
       (clientId && !["reschedule", "cancel"].includes(String(action)))
     )
       throw fail();
+    if (clientId && (action === "cancel" || action === "reschedule")) {
+      const policy = await tx
+        .selectFrom("booking_settings")
+        .select([
+          "allow_customer_cancel",
+          "cancel_before_minutes",
+          "allow_reschedule",
+          "reschedule_before_minutes",
+        ])
+        .where("business_id", "=", businessId)
+        .executeTakeFirst();
+      const allowCancel = policy?.allow_customer_cancel ?? true;
+      const allowReschedule = policy?.allow_reschedule ?? true;
+      const cancelBefore = policy?.cancel_before_minutes ?? 0;
+      const rescheduleBefore = policy?.reschedule_before_minutes ?? 0;
+      if (action === "cancel" && !allowCancel)
+        throw new AppError(
+          403,
+          "BOOKING_SELF_SERVICE_DENIED",
+          "Отмена записи клиентом отключена.",
+        );
+      if (action === "reschedule" && !allowReschedule)
+        throw new AppError(
+          403,
+          "BOOKING_SELF_SERVICE_DENIED",
+          "Перенос записи клиентом отключён.",
+        );
+      const minutesBefore =
+        action === "cancel" ? cancelBefore : rescheduleBefore;
+      const earliest = current.starts_at.getTime() - minutesBefore * 60_000;
+      if (Date.now() > earliest)
+        throw new AppError(
+          403,
+          "BOOKING_SELF_SERVICE_DENIED",
+          minutesBefore > 0
+            ? `Изменить запись можно не позднее чем за ${minutesBefore} мин.`
+            : "Время записи уже наступило.",
+        );
+    }
     const revision = current.revision + 1;
     let newStart: Date | null = null;
     if (action === "reschedule") {

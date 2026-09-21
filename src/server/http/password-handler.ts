@@ -6,7 +6,7 @@ import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 import { limit } from "./limits.ts";
 
 export function createPasswordHandler(options: { db: Kysely<Database>; auth: Identity; origin: string; secret: string }) {
-  return (request: Request) => respond(async () => {
+  return (request: Request) => respond(request, async () => {
     if (request.method !== "POST") throw new AppError(405, "METHOD_NOT_ALLOWED", "Метод недоступен.");
     requireOrigin(request, options.origin);
     const session = await options.auth.api.getSession({ headers: request.headers });

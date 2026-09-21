@@ -45,7 +45,7 @@ export async function ordersFlow(
     .where("chat_id", "=", userId)
     .executeTakeFirst();
   if (
-    !["Каталог", "Корзина"].includes(text) &&
+    !["Каталог", "Корзина", "Мои заказы"].includes(text) &&
     !state?.mode.startsWith("orders:")
   )
     return false;
@@ -89,8 +89,59 @@ export async function ordersFlow(
       "Главное меню",
       "Каталог",
       "Корзина",
+      "Мои заказы",
       "Профиль",
     ]);
+  };
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case "new":
+        return "новый";
+      case "accepted":
+        return "принят";
+      case "assembling":
+        return "собирается";
+      case "ready":
+        return "готов";
+      case "handed_over":
+        return "выдан";
+      case "delivered":
+        return "доставлен";
+      case "completed":
+        return "завершён";
+      case "cancelled":
+        return "отменён";
+      default:
+        return status;
+    }
+  };
+
+  const showMyOrders = async () => {
+    const list = await orders.listForCustomer(businessId, platform, userId);
+    if (!list.length) {
+      await save("my_orders", []);
+      await queue("У вас пока нет заказов.", [
+        "Каталог",
+        "← Назад",
+        "Главное меню",
+      ]);
+      return;
+    }
+    const choices = list.map((o) => ({
+      label: `№${o.order_number ?? "—"} · ${statusLabel(o.status)} · ${formatMoney(o.total, o.currency)}`.slice(
+        0,
+        100,
+      ),
+      value: o.id,
+    }));
+    await showChoices(
+      "my_orders",
+      "Ваши заказы:",
+      choices,
+      0,
+      ["← Назад", "Главное меню"],
+    );
   };
 
   const showChoices = async (
@@ -352,6 +403,11 @@ export async function ordersFlow(
     return true;
   }
 
+  if (text === "Мои заказы") {
+    await showMyOrders();
+    return true;
+  }
+
   const choices = state
     ? (JSON.parse(state.fields) as { label: string; value: string }[])
     : [];
@@ -360,8 +416,89 @@ export async function ordersFlow(
   )?.value;
   const mode = state?.mode.slice(7);
 
+  if (mode === "my_orders" && picked) {
+    const list = await orders.listForCustomer(businessId, platform, userId);
+    const order = list.find((o) => o.id === picked);
+    if (!order) {
+      await showMyOrders();
+      return true;
+    }
+    const items = Array.isArray(order.items_snapshot)
+      ? (order.items_snapshot as { name?: string; quantity?: number; line_total?: string }[])
+      : [];
+    const lines = items
+      .map(
+        (it, i) =>
+          `${i + 1}. ${it.name ?? "Товар"} × ${it.quantity ?? 1}` +
+          (it.line_total
+            ? ` = ${formatMoney(it.line_total, order.currency)}`
+            : ""),
+      )
+      .join("\n");
+    answers.orderId = order.id;
+    await save("order_detail", []);
+    const canCancel = ["new", "accepted", "assembling", "ready"].includes(
+      order.status,
+    );
+    await queue(
+      `Заказ №${order.order_number ?? "—"}\nСтатус: ${statusLabel(order.status)}\nСумма: ${formatMoney(order.total, order.currency)}\n\n${lines || "Состав недоступен."}`,
+      [
+        ...(canCancel ? (["Отменить заказ"] as const) : []),
+        "Мои заказы",
+        "← Назад",
+        "Главное меню",
+      ],
+    );
+    return true;
+  }
+
+  if (mode === "order_detail") {
+    if (text === "Мои заказы" || isBack(text)) {
+      await showMyOrders();
+      return true;
+    }
+    if (text === "Отменить заказ" && answers.orderId) {
+      await save("order_cancel_confirm", []);
+      await queue("Отменить заказ? Это нельзя отменить.", [
+        "Да, отменить заказ",
+        "Нет",
+        "Мои заказы",
+      ]);
+      return true;
+    }
+  }
+
+  if (mode === "order_cancel_confirm") {
+    if (text === "Да, отменить заказ" && answers.orderId) {
+      try {
+        const result = await orders.cancelForCustomer(
+          businessId,
+          platform,
+          userId,
+          answers.orderId,
+        );
+        await menu(
+          result.status === "cancelled"
+            ? "Заказ отменён."
+            : "Статус заказа обновлён.",
+        );
+      } catch (error) {
+        await menu(
+          error instanceof AppError
+            ? error.message
+            : "Не удалось отменить заказ.",
+        );
+      }
+      return true;
+    }
+    if (text === "Нет" || text === "Мои заказы" || isBack(text)) {
+      await showMyOrders();
+      return true;
+    }
+  }
+
   if (
-    ["categories", "products", "variant", "cart", "cart_pick"].includes(
+    ["categories", "products", "variant", "cart", "cart_pick", "my_orders"].includes(
       mode ?? "",
     ) &&
     ["Далее →", "← Назад по списку"].includes(text)

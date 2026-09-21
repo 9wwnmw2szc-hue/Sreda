@@ -11,7 +11,7 @@ import { limit } from "@/server/http/limits";
 import { ChannelAdminBindingService } from "@/server/channel-admin/binding";
 
 async function handle(request: Request, id: string) {
-  return respond(async () => {
+  return respond(request, async () => {
     const r = getRuntime();
     const u = await createApplication(r).requireUser(request.headers);
     const service = new ChannelAdminBindingService(r.db);

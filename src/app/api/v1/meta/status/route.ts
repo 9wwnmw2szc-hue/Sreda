@@ -6,7 +6,7 @@ import { metaPublicStatus } from "@/server/meta/config";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  return respond(async () => {
+  return respond(request, async () => {
     await createApplication(getRuntime()).requireUser(request.headers);
     return json(metaPublicStatus());
   });

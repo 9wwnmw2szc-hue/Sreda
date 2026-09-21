@@ -13,7 +13,7 @@ export function createAccountDeletionHandler(options: {
 }) {
   const service = new AccountDeletionService(options.db);
   return (request: Request) =>
-    respond(async () => {
+    respond(request, async () => {
       const session = await options.auth.api.getSession({
         headers: request.headers,
       });

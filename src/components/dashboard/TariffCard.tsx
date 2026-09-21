@@ -7,6 +7,8 @@ export function TariffCard({
   billing: BillingInfo | null;
   activeSolutionsCount: number;
 }) {
+  const estimate = billing?.pricePerMonth ?? 0;
+  const paymentConnected = billing?.paymentConnected === true;
   return (
     <section className="panel tariff-card">
       <h2>Ваши решения</h2>
@@ -23,24 +25,30 @@ export function TariffCard({
             ? "активных решения"
             : "активных решений"}
       </p>
-      {billing ? (
+      {activeSolutionsCount > 0 ? (
         <>
           <p className="tariff-card__price">
-            {billing.pricePerMonth.toLocaleString("ru-RU")} ₽<span>/мес.</span>
+            {estimate.toLocaleString("ru-RU")} ₽
+            <span>{paymentConnected ? "/мес." : "/мес. по каталогу"}</span>
           </p>
-          {billing.status !== "active" && (
-            <p className="tone-warning">
-              {billing.status === "overdue"
-                ? "Оплата просрочена"
-                : "Подписка на паузе"}
+          {!paymentConnected && (
+            <p className="empty-copy">
+              {billing?.statusLabel ??
+                "Оплата не подключена · списаний нет"}
             </p>
+          )}
+          {paymentConnected && billing?.status === "overdue" && (
+            <p className="tone-warning">Оплата просрочена</p>
+          )}
+          {paymentConnected && billing?.status === "paused" && (
+            <p className="tone-warning">Подписка на паузе</p>
           )}
         </>
       ) : (
-        <p className="empty-copy">Подписка пока не оформлена</p>
+        <p className="empty-copy">Подключите решения в каталоге</p>
       )}
       <Link href="/billing" className="button button--outline button--full">
-        Управлять подпиской
+        Тариф и оплата
       </Link>
     </section>
   );

@@ -63,6 +63,8 @@ function Clients({
     [filter, setFilter] = useState("all"),
     [more, setMore] = useState(false),
     [selected, setSelected] = useState(""),
+    [mergeTarget, setMergeTarget] = useState(""),
+    [mergeOpen, setMergeOpen] = useState(false),
     [detail, setDetail] = useState<Detail | null>(null),
     [historyPage, setHistoryPage] = useState(0),
     [error, setError] = useState(""),
@@ -207,6 +209,38 @@ function Clients({
       setBusy(false);
     }
   }
+  async function mergeClients() {
+    if (!selected || !mergeTarget || selected === mergeTarget || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await apiRequest<{ target_client_id: string }>(
+        base + "/merge",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            source_client_id: selected,
+            target_client_id: mergeTarget,
+          }),
+        },
+      );
+      setClients(await apiRequest<Client[]>(base));
+      setSelected(result.target_client_id);
+      setDetail(
+        await apiRequest<Detail>(base + "/" + result.target_client_id),
+      );
+      setHistoryPage(0);
+      setMergeOpen(false);
+      setMergeTarget("");
+      setNotice("Клиенты объединены. История перенесена в выбранную карточку.");
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Не удалось объединить клиентов.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="crm-page">
       <header>
@@ -343,6 +377,55 @@ function Clients({
               Сохранить
             </button>
           </form>
+          {selected && detail ? (
+            <div className="crm-merge">
+              <button
+                type="button"
+                className="button button--outline"
+                disabled={busy || clients.length < 2}
+                onClick={() => {
+                  setMergeOpen((v) => !v);
+                  setMergeTarget("");
+                }}
+              >
+                Объединить
+              </button>
+              {mergeOpen ? (
+                <div className="crm-merge__dialog" role="group" aria-label="Объединение клиентов">
+                  <p className="account-footnote">
+                    Текущая карточка будет объединена с выбранной. История
+                    перейдёт в целевого клиента.
+                  </p>
+                  <label>
+                    Оставить карточку
+                    <select
+                      disabled={busy}
+                      value={mergeTarget}
+                      onChange={(e) => setMergeTarget(e.target.value)}
+                    >
+                      <option value="">Выберите клиента</option>
+                      {clients
+                        .filter((c) => c.id !== selected)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {c.phone ? ` · ${c.phone}` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    disabled={busy || !mergeTarget}
+                    onClick={() => void mergeClients()}
+                  >
+                    Подтвердить объединение
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {detail && (
             <>
               <p>

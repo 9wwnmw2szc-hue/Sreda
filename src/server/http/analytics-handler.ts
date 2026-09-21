@@ -39,7 +39,7 @@ export function analyticsHandler(
   resourceId?: string,
   section?: string,
 ) {
-  return respond(async () => {
+  return respond(request, async () => {
     const runtime = getRuntime();
     const user = await createApplication(runtime).requireUser(request.headers);
     const analytics = new AnalyticsService(runtime.db);

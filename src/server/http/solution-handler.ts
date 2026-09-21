@@ -24,7 +24,7 @@ export function createSolutionHandler(options: {
     id: string,
     action: "setup" | "solutions" | "start",
   ) =>
-    respond(async () => {
+    respond(request, async () => {
       if (
         !["GET", "POST"].includes(request.method) ||
         (action === "start" && request.method !== "POST")
