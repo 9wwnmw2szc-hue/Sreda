@@ -171,25 +171,23 @@ function DashboardInner() {
                 Активация (7 дней) — доходят ли до первого результата?
               </h2>
               <div className="admin-panel__grid">
-                {[
-                  ["registration_completed", "Регистрация"],
-                  ["business_created", "Бизнес создан"],
-                  ["solution_activated", "Решение включено"],
-                  ["channel_connected", "Канал подключён"],
-                  ["first_order", "Первый заказ"],
-                  ["first_lead", "Первая заявка"],
-                  ["first_booking", "Первая запись"],
-                  ["first_reply", "Первый ответ"],
-                  ["setup_completed", "Настройка завершена"],
-                ].map(([key, label]) => (
+                {(
+                  [
+                    ["registration_completed", "Регистрация"],
+                    ["business_created", "Бизнес создан"],
+                    ["solution_activated", "Решение включено"],
+                    ["channel_connected", "Канал подключён"],
+                    ["first_order", "Первый заказ"],
+                    ["first_lead", "Первая заявка"],
+                    ["first_booking", "Первая запись"],
+                    ["first_reply", "Первый ответ"],
+                    ["setup_completed", "Настройка завершена"],
+                  ] as const
+                ).map(([key, label]) => (
                   <div className="admin-stat-row" key={key}>
                     <span>{label}</span>
                     <strong>
-                      {formatNumber(
-                        data.activationFunnel7d
-                          ? (data.activationFunnel7d[key] ?? 0)
-                          : 0,
-                      )}
+                      {formatNumber(data.activationFunnel7d?.[key] ?? 0)}
                     </strong>
                   </div>
                 ))}
