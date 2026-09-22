@@ -47,14 +47,15 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(settings, /AccountDeletionPanel/);
   const accountIdx = settings.indexOf('section === "account"');
   const signOutIdx = settings.indexOf("settings-sign-out-panel");
-  const securityIdx = settings.indexOf('aria-label="Безопасность"');
+  const securityIdx = settings.indexOf('settings-security-heading');
+  const accountDangerMount = settings.indexOf('id="account-danger"');
   const dangerIdx = settings.indexOf('section === "danger"');
   const bizDangerIdx = settings.indexOf("<BusinessDeletionPanel");
-  const accountDangerIdx = settings.indexOf("<AccountDeletionPanel");
   assert.ok(accountIdx > 0 && signOutIdx > accountIdx);
   assert.ok(securityIdx > signOutIdx);
+  assert.ok(accountDangerMount > securityIdx && accountDangerMount < dangerIdx);
   assert.ok(dangerIdx > accountIdx && bizDangerIdx > dangerIdx);
-  assert.ok(accountDangerIdx > bizDangerIdx);
+  assert.ok(settings.indexOf("<AccountDeletionPanel", dangerIdx) > bizDangerIdx);
 
   assert.match(
     await read("./src/components/account/AccountDeletionPanel.tsx"),
@@ -62,7 +63,7 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   );
   assert.match(
     await read("./src/components/account/AccountDeletionPanel.tsx"),
-    /Опасная зона аккаунта/,
+    /Удаление аккаунта/,
   );
   assert.match(
     await read("./src/components/account/BusinessDeletionPanel.tsx"),

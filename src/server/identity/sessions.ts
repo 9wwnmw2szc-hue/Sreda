@@ -8,7 +8,31 @@ export type SessionListItem = {
   createdAt: string;
   expiresAt: string;
   updatedAt: string;
+  userAgent: string | null;
+  deviceLabel: string;
 };
+
+/** Best-effort UA summary — never invent a specific phone model. */
+export function summarizeUserAgent(ua: string | null | undefined): string {
+  if (!ua || !ua.trim()) return "Неизвестное устройство";
+  const raw = ua.trim();
+  let browser = "Браузер";
+  if (/Edg\//i.test(raw)) browser = "Edge";
+  else if (/OPR\/|Opera/i.test(raw)) browser = "Opera";
+  else if (/Chrome\//i.test(raw) && !/Chromium/i.test(raw)) browser = "Chrome";
+  else if (/Firefox\//i.test(raw)) browser = "Firefox";
+  else if (/Safari\//i.test(raw) && !/Chrome\//i.test(raw)) browser = "Safari";
+
+  let os = "";
+  if (/iPhone/i.test(raw)) os = "iPhone";
+  else if (/iPad/i.test(raw)) os = "iPad";
+  else if (/Android/i.test(raw)) os = "Android";
+  else if (/Windows NT/i.test(raw)) os = "Windows";
+  else if (/Mac OS X|Macintosh/i.test(raw)) os = "macOS";
+  else if (/Linux/i.test(raw)) os = "Linux";
+
+  return os ? `${browser} · ${os}` : browser;
+}
 
 export async function listSessions(
   db: Kysely<Database>,
@@ -17,7 +41,7 @@ export async function listSessions(
 ): Promise<SessionListItem[]> {
   const rows = await db
     .selectFrom("session")
-    .select(["id", "createdAt", "expiresAt", "updatedAt"])
+    .select(["id", "createdAt", "expiresAt", "updatedAt", "userAgent"])
     .where("userId", "=", userId)
     .where("expiresAt", ">", new Date())
     .orderBy("updatedAt", "desc")
@@ -29,6 +53,8 @@ export async function listSessions(
     createdAt: row.createdAt.toISOString(),
     expiresAt: row.expiresAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    userAgent: row.userAgent ?? null,
+    deviceLabel: summarizeUserAgent(row.userAgent),
   }));
 }
 
