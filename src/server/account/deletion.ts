@@ -3,6 +3,7 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import { verifyPassword } from "better-auth/crypto";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
+import { archiveBusinessFully } from "../business/deletion.ts";
 
 export const ACCOUNT_DELETION_PHRASE = "УДАЛИТЬ";
 
@@ -290,7 +291,9 @@ export class AccountDeletionService {
         if (decision.action === "transfer") {
           await transferOwnership(tx, biz.id, userId, decision.transferToUserId);
         } else {
-          await archiveBusiness(tx, biz.id, userId);
+          // Full teardown: revoke members, disable solutions, clear TG/VK/Meta
+          // credentials and release unique (platform, external_account_id).
+          await archiveBusinessFully(tx, biz.id, userId);
         }
       }
 
@@ -492,28 +495,3 @@ async function transferOwnership(
     .execute();
 }
 
-async function archiveBusiness(
-  tx: Transaction<Database>,
-  businessId: string,
-  actorUserId: string,
-) {
-  await tx
-    .selectFrom("business")
-    .select("id")
-    .where("id", "=", businessId)
-    .forUpdate()
-    .executeTakeFirstOrThrow();
-  await tx
-    .updateTable("business")
-    .set({ archived_at: new Date() })
-    .where("id", "=", businessId)
-    .where("archived_at", "is", null)
-    .execute();
-  await tx
-    .updateTable("business_member")
-    .set({ status: "revoked" })
-    .where("business_id", "=", businessId)
-    .where("status", "=", "active")
-    .execute();
-  void actorUserId;
-}

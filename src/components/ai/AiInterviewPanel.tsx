@@ -21,6 +21,8 @@ type InterviewState = {
   clarifying: { id: string; question: string; answer: string }[];
   summary: InterviewSummary | null;
   confirmed: boolean;
+  aiFallback?: boolean;
+  lastAiError?: string | null;
 };
 
 type InterviewResponse = {
@@ -38,6 +40,10 @@ const TEXT_KINDS: { id: string; label: string }[] = [
   { id: "after_booking", label: "После записи" },
   { id: "admin_button", label: "Кнопка администратора" },
 ];
+
+function summaryField(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
 
 export function AiInterviewPanel({ businessId }: { businessId: string }) {
   const url = `/api/v1/businesses/${businessId}/ai/interview`;
@@ -85,9 +91,19 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
           body: JSON.stringify(body),
         },
       );
-      if (body.action !== "suggest_text") await refresh();
+      if (body.action !== "suggest_text") {
+        // Prefer response state when present; refresh for currentQuestion.
+        if (data?.state) setPayload((prev) => ({ ...(prev ?? data), ...data }));
+        await refresh();
+      }
       return data;
     } catch (e) {
+      // Reload so answers survive recoverable errors.
+      try {
+        await refresh();
+      } catch {
+        /* keep prior local state */
+      }
       setError(e instanceof Error ? e.message : "Не удалось отправить.");
       return null;
     } finally {
@@ -101,14 +117,36 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
       setError("Введите ответ на вопрос.");
       return;
     }
+    const pending = answer.trim();
     const data = await post({
       action: "answer",
       questionId: q.id,
-      answer: answer.trim(),
+      answer: pending,
     });
     if (data) {
       setAnswer("");
-      setNotice("Ответ сохранён.");
+      if (data.state?.aiFallback) {
+        setNotice(
+          "Ответы сохранены. AI временно недоступен — показано резюме из ваших ответов. Можно повторить анализ или подтвердить.",
+        );
+      } else {
+        setNotice("Ответ сохранён.");
+      }
+    } else {
+      // Keep typed answer on failure so the user can retry.
+      setAnswer(pending);
+    }
+  }
+
+  async function regenerate() {
+    const data = await post({ action: "regenerate_summary" });
+    if (!data) return;
+    if (data.state?.aiFallback) {
+      setNotice(
+        "AI всё ещё недоступен. Резюме построено из ваших ответов — можно подтвердить или повторить позже.",
+      );
+    } else {
+      setNotice("AI-анализ обновлён.");
     }
   }
 
@@ -198,6 +236,12 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
       ) : showSummary && summary ? (
         <div className="stack-md">
           <h4>Вот как Соты поняли ваш бизнес</h4>
+          {state?.aiFallback ? (
+            <p className="account-notice" role="status">
+              AI временно недоступен или вернул неполный ответ. Резюме собрано из
+              ваших ответов — можно подтвердить или повторить анализ.
+            </p>
+          ) : null}
           {holdApply ? (
             <p className="text-body-sm">
               Профиль не перезаписан автоматически. Исправьте поля AI выше и
@@ -207,27 +251,27 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
           <dl className="stack-sm">
             <div>
               <dt>Название</dt>
-              <dd>{summary.name || "—"}</dd>
+              <dd>{summaryField(summary.name) || "—"}</dd>
             </div>
             <div>
               <dt>О бизнесе</dt>
-              <dd>{summary.about || "—"}</dd>
+              <dd>{summaryField(summary.about) || "—"}</dd>
             </div>
             <div>
               <dt>Тон</dt>
-              <dd>{summary.tone || "—"}</dd>
+              <dd>{summaryField(summary.tone) || "—"}</dd>
             </div>
             <div>
               <dt>Важно рассказать</dt>
-              <dd>{summary.strengths || "—"}</dd>
+              <dd>{summaryField(summary.strengths) || "—"}</dd>
             </div>
             <div>
               <dt>FAQ</dt>
-              <dd>{summary.faq || "—"}</dd>
+              <dd>{summaryField(summary.faq) || "—"}</dd>
             </div>
             <div>
               <dt>Ограничения</dt>
-              <dd>{summary.restrictions || "—"}</dd>
+              <dd>{summaryField(summary.restrictions) || "—"}</dd>
             </div>
           </dl>
           {!state?.confirmed ? (
@@ -252,6 +296,14 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
                 }}
               >
                 Изменить
+              </button>
+              <button
+                type="button"
+                className="button button--outline"
+                disabled={busy}
+                onClick={() => void regenerate()}
+              >
+                {busy ? "Повторяем…" : "Повторить AI-анализ"}
               </button>
             </div>
           ) : (
@@ -356,7 +408,19 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
           </button>
         </div>
       ) : (
-        <p className="text-body-sm">Интервью завершено.</p>
+        <div className="stack-md">
+          <p className="text-body-sm">
+            Ответы сохранены. Резюме ещё не готово — повторите AI-анализ.
+          </p>
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={busy}
+            onClick={() => void regenerate()}
+          >
+            {busy ? "Повторяем…" : "Повторить AI-анализ"}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -47,15 +47,24 @@ test("desktop profile menu and mobile sidebar expose logout action", async () =>
   assert.match(settings, /AccountDeletionPanel/);
   const accountIdx = settings.indexOf('section === "account"');
   const signOutIdx = settings.indexOf("settings-sign-out-panel");
-  const securityIdx = settings.indexOf('settings-security-heading');
-  const accountDangerMount = settings.indexOf('id="account-danger"');
+  const securityIdx = settings.indexOf("settings-security-heading");
   const dangerIdx = settings.indexOf('section === "danger"');
   const bizDangerIdx = settings.indexOf("<BusinessDeletionPanel");
+  const accountDangerMount = settings.indexOf('id="account-danger"');
   assert.ok(accountIdx > 0 && signOutIdx > accountIdx);
   assert.ok(securityIdx > signOutIdx);
-  assert.ok(accountDangerMount > securityIdx && accountDangerMount < dangerIdx);
+  // Delete account lives only in Danger zone; Account links there.
+  assert.match(
+    settings.slice(accountIdx, dangerIdx),
+    /settings\?section=danger/,
+  );
   assert.ok(dangerIdx > accountIdx && bizDangerIdx > dangerIdx);
+  assert.ok(accountDangerMount > dangerIdx);
   assert.ok(settings.indexOf("<AccountDeletionPanel", dangerIdx) > bizDangerIdx);
+  assert.equal(
+    settings.slice(accountIdx, dangerIdx).includes("<AccountDeletionPanel"),
+    false,
+  );
 
   assert.match(
     await read("./src/components/account/AccountDeletionPanel.tsx"),

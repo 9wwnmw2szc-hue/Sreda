@@ -35,6 +35,8 @@ export async function POST(
       return json(
         await service.confirm(user.id, id, body.apply !== false),
       );
+    if (action === "regenerate_summary")
+      return json(await service.regenerateSummary(user.id, id));
     if (action === "suggest_text")
       return json(
         await service.suggestTexts(user.id, id, String(body.kind ?? "")),

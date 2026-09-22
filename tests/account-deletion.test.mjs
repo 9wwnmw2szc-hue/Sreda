@@ -450,3 +450,208 @@ test("audit events recorded without secrets", async () => {
   assert.ok(actions.includes("account_deletion_requested"));
   assert.ok(actions.includes("account_deletion_completed"));
 });
+
+async function attachTelegram(businessId, botId = "999001") {
+  const connectionId = randomUUID();
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: connectionId,
+      business_id: businessId,
+      platform: "telegram",
+      external_account_id: botId,
+      display_name: "@old_bot",
+      status: "connected",
+    })
+    .execute();
+  await db
+    .insertInto("connection_secret")
+    .values({
+      connection_id: connectionId,
+      encrypted_token: "enc-token-not-a-real-secret",
+      key_version: 1,
+    })
+    .execute();
+  await db
+    .insertInto("telegram_runtime")
+    .values({
+      connection_id: connectionId,
+      status: "running",
+      generation: 1,
+    })
+    .execute()
+    .catch(async () => {
+      // Older schemas may differ — insert minimal if columns vary.
+      await db
+        .insertInto("telegram_runtime")
+        .values({ connection_id: connectionId, status: "running" })
+        .execute()
+        .catch(() => undefined);
+    });
+  return { connectionId, botId };
+}
+
+async function attachVk(businessId, groupId = "888001") {
+  const connectionId = randomUUID();
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: connectionId,
+      business_id: businessId,
+      platform: "vk",
+      external_account_id: groupId,
+      display_name: "VK Group",
+      status: "connected",
+    })
+    .execute();
+  await db
+    .insertInto("connection_secret")
+    .values({
+      connection_id: connectionId,
+      encrypted_token: "enc-vk-token",
+      key_version: 1,
+    })
+    .execute();
+  return { connectionId, groupId };
+}
+
+test("account deletion clears Telegram connection claim for new accounts", async () => {
+  const userA = await makeUser("OwnerTG");
+  const bizA = await makeBusiness(userA.id, "Old TG Biz");
+  const { connectionId, botId } = await attachTelegram(bizA.id, "42424242");
+
+  const service = new AccountDeletionService(db);
+  const req = await service.request(userA.id);
+  await service.confirm(userA.id, {
+    token: req.token,
+    password: PASSWORD,
+    confirmation: ACCOUNT_DELETION_PHRASE,
+    decisions: [{ businessId: bizA.publicId, action: "archive" }],
+  });
+
+  const conn = await db
+    .selectFrom("business_connection")
+    .select(["status", "external_account_id"])
+    .where("id", "=", connectionId)
+    .executeTakeFirstOrThrow();
+  assert.equal(conn.status, "disconnected");
+  assert.equal(conn.external_account_id, null);
+
+  const secrets = await db
+    .selectFrom("connection_secret")
+    .select("connection_id")
+    .where("connection_id", "=", connectionId)
+    .execute();
+  assert.equal(secrets.length, 0);
+
+  // New independent account/business can claim the same bot id.
+  const userB = await makeUser("OwnerNew");
+  const bizB = await makeBusiness(userB.id, "New TG Biz");
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: randomUUID(),
+      business_id: bizB.id,
+      platform: "telegram",
+      external_account_id: botId,
+      display_name: "@reclaimed",
+      status: "connected",
+    })
+    .execute();
+
+  const claimed = await db
+    .selectFrom("business_connection")
+    .select("external_account_id")
+    .where("business_id", "=", bizB.id)
+    .where("platform", "=", "telegram")
+    .executeTakeFirstOrThrow();
+  assert.equal(claimed.external_account_id, botId);
+});
+
+test("account deletion clears VK connection claim", async () => {
+  const user = await makeUser("OwnerVK");
+  const biz = await makeBusiness(user.id, "VK Biz");
+  const { connectionId, groupId } = await attachVk(biz.id, "777777");
+
+  const service = new AccountDeletionService(db);
+  const req = await service.request(user.id);
+  await service.confirm(user.id, {
+    token: req.token,
+    password: PASSWORD,
+    confirmation: ACCOUNT_DELETION_PHRASE,
+    decisions: [{ businessId: biz.publicId, action: "archive" }],
+  });
+
+  const conn = await db
+    .selectFrom("business_connection")
+    .select(["status", "external_account_id"])
+    .where("id", "=", connectionId)
+    .executeTakeFirstOrThrow();
+  assert.equal(conn.status, "disconnected");
+  assert.equal(conn.external_account_id, null);
+
+  const userB = await makeUser("OwnerVK2");
+  const bizB = await makeBusiness(userB.id, "VK Biz 2");
+  await db
+    .insertInto("business_connection")
+    .values({
+      id: randomUUID(),
+      business_id: bizB.id,
+      platform: "vk",
+      external_account_id: groupId,
+      display_name: "Reclaimed VK",
+      status: "connected",
+    })
+    .execute();
+});
+
+test("deleting one business does not wipe another business connection", async () => {
+  const user = await makeUser("MultiConn");
+  const bizKeep = await makeBusiness(user.id, "Keep Biz");
+  const bizDrop = await makeBusiness(user.id, "Drop Biz");
+  const keep = await attachTelegram(bizKeep.id, "111000");
+  const drop = await attachTelegram(bizDrop.id, "222000");
+
+  const service = new AccountDeletionService(db);
+  // Transfer keep, archive drop — simulate via archive only drop by transferring keep
+  const admin = await makeUser("KeepAdmin");
+  await addMember(bizKeep.id, admin.id, "admin");
+
+  const req = await service.request(user.id);
+  await service.confirm(user.id, {
+    token: req.token,
+    password: PASSWORD,
+    confirmation: ACCOUNT_DELETION_PHRASE,
+    decisions: [
+      {
+        businessId: bizKeep.publicId,
+        action: "transfer",
+        transferToUserId: admin.publicId,
+      },
+      { businessId: bizDrop.publicId, action: "archive" },
+    ],
+  });
+
+  const kept = await db
+    .selectFrom("business_connection")
+    .select(["status", "external_account_id"])
+    .where("id", "=", keep.connectionId)
+    .executeTakeFirstOrThrow();
+  assert.equal(kept.status, "connected");
+  assert.equal(kept.external_account_id, "111000");
+
+  const dropped = await db
+    .selectFrom("business_connection")
+    .select(["status", "external_account_id"])
+    .where("id", "=", drop.connectionId)
+    .executeTakeFirstOrThrow();
+  assert.equal(dropped.status, "disconnected");
+  assert.equal(dropped.external_account_id, null);
+
+  const keepBiz = await db
+    .selectFrom("business")
+    .select("archived_at")
+    .where("id", "=", bizKeep.id)
+    .executeTakeFirstOrThrow();
+  assert.equal(keepBiz.archived_at, null);
+});

@@ -215,10 +215,11 @@ test("owner can delete business with impact and confirmation", async () => {
 
   const connection = await db
     .selectFrom("business_connection")
-    .select("status")
+    .select(["status", "external_account_id"])
     .where("business_id", "=", biz.id)
     .executeTakeFirstOrThrow();
   assert.equal(connection.status, "disconnected");
+  assert.equal(connection.external_account_id, null);
 
   const secrets = await db
     .selectFrom("connection_secret")
