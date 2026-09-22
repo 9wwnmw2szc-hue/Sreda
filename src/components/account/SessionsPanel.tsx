@@ -152,7 +152,7 @@ export function SessionsPanel() {
                   disabled={busyId === s.id || busyAll}
                   onClick={() => void revokeOne(s.id)}
                 >
-                  {busyId === s.id ? "Завершаем…" : "Завершить сессию"}
+                  {busyId === s.id ? "…" : "Завершить"}
                 </button>
               ) : null}
             </li>

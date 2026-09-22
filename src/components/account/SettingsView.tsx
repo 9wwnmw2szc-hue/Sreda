@@ -169,9 +169,6 @@ export function SettingsView() {
             )}
             {!isDemoMode && (
               <>
-                <h2 className="settings-group-title text-section-title">
-                  Сотрудники
-                </h2>
                 <MembersPanel
                   key={`${currentBusiness?.id ?? "none"}:${currentBusiness?.role ?? "none"}`}
                   business={currentBusiness ?? undefined}
@@ -301,19 +298,28 @@ export function SettingsView() {
               </section>
             )}
             {!isDemoMode && (
-              <div id="account-danger" className="settings-account-danger">
-                <AccountDeletionPanel />
-              </div>
+              <p className="account-footnote">
+                Удаление аккаунта — в разделе{" "}
+                <Link href="/settings?section=danger" className="text-link">
+                  Опасная зона
+                </Link>
+                .
+              </p>
             )}
           </>
         )}
 
         {section === "danger" && !isDemoMode && (
           <>
-            <p className="account-footnote">
-              Удаление бизнеса и удаление аккаунта — разные действия. Бизнес
-              удаляет только владелец; аккаунт — только текущий пользователь.
-            </p>
+            <section className="panel settings-panel">
+              <h2 className="text-section-title">Опасная зона</h2>
+              <p className="account-footnote">
+                Удаление бизнеса и удаление аккаунта — разные действия. Бизнес
+                удаляет только владелец; аккаунт — только текущий пользователь.
+                После удаления аккаунта сессии, интеграции и привязки каналов
+                отзываются.
+              </p>
+            </section>
             {currentBusiness && currentBusiness.role === "owner" && (
               <div id="business-danger">
                 <BusinessDeletionPanel
@@ -324,7 +330,9 @@ export function SettingsView() {
                 />
               </div>
             )}
-            <AccountDeletionPanel />
+            <div id="account-danger">
+              <AccountDeletionPanel />
+            </div>
           </>
         )}
       </div>

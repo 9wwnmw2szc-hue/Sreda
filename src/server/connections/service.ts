@@ -1,7 +1,7 @@
 import { cancelConnectionDeliveries } from "../outbox/cancel-connection.ts";
 import { vkCall } from "../vk/api.ts";
 import { randomUUID } from "node:crypto";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { encryptSecret } from "./crypto.ts";
@@ -238,6 +238,18 @@ export class ConnectionService {
           this.secret,
           this.fetchTelegram,
         ).business(userId, publicId);
+
+        // Reclaim stale/orphaned unique claims before insert.
+        if (externalAccountId) {
+          await this.reclaimStaleExternalClaim(
+            tx,
+            userId,
+            businessId,
+            platform,
+            externalAccountId,
+          );
+        }
+
         const previous = await tx
           .selectFrom("business_connection")
           .select(["id", "external_account_id"])
@@ -318,15 +330,158 @@ export class ConnectionService {
         await this.audit(tx, businessId, userId, "connection_connected");
       });
     } catch (error) {
-      if ((error as { code?: string }).code === "23505")
-        throw new AppError(
-          409,
-          "CONNECTION_EXISTS",
-          "Подключение уже существует.",
+      if (error instanceof AppError) throw error;
+      if ((error as { code?: string }).code === "23505") {
+        throw await this.connectionConflictError(
+          userId,
+          businessId,
+          platform,
+          externalAccountId,
         );
+      }
       throw error;
     }
     return { ok: true, status };
+  }
+
+  /**
+   * Release unique (platform, external_account_id) held by archived/disconnected
+   * rows so a new tenant can reconnect the same bot after account deletion.
+   */
+  private async reclaimStaleExternalClaim(
+    tx: Transaction<Database>,
+    userId: string,
+    businessId: string,
+    platform: "telegram" | "vk",
+    externalAccountId: string,
+  ) {
+    const holders = await tx
+      .selectFrom("business_connection as c")
+      .innerJoin("business as b", "b.id", "c.business_id")
+      .select([
+        "c.id",
+        "c.business_id",
+        "c.status",
+        "b.archived_at",
+        "b.public_id",
+        "b.name",
+      ])
+      .where("c.platform", "=", platform)
+      .where("c.external_account_id", "=", externalAccountId)
+      .execute();
+
+    for (const holder of holders) {
+      if (holder.business_id === businessId) continue;
+      const stale =
+        holder.archived_at != null || holder.status === "disconnected";
+      if (stale) {
+        await cancelConnectionDeliveries(tx, holder.id);
+        await tx
+          .deleteFrom("telegram_runtime")
+          .where("connection_id", "=", holder.id)
+          .execute();
+        await tx
+          .deleteFrom("vk_runtime")
+          .where("connection_id", "=", holder.id)
+          .execute();
+        await tx
+          .deleteFrom("meta_runtime")
+          .where("connection_id", "=", holder.id)
+          .execute();
+        await tx
+          .deleteFrom("connection_secret")
+          .where("connection_id", "=", holder.id)
+          .execute();
+        await tx
+          .updateTable("business_connection")
+          .set({
+            status: "disconnected",
+            external_account_id: null,
+            updated_at: new Date(),
+          })
+          .where("id", "=", holder.id)
+          .execute();
+        continue;
+      }
+      // Live claim elsewhere — resolve structured conflict (no cross-tenant leak).
+      throw await this.connectionConflictFromHolder(tx, userId, holder);
+    }
+  }
+
+  private async connectionConflictError(
+    userId: string,
+    businessId: string,
+    platform: "telegram" | "vk",
+    externalAccountId: string | null,
+  ) {
+    if (!externalAccountId) {
+      return new AppError(
+        409,
+        "CONNECTION_EXISTS",
+        "Подключение для этого канала уже сохранено.",
+      );
+    }
+    const holder = await this.db
+      .selectFrom("business_connection as c")
+      .innerJoin("business as b", "b.id", "c.business_id")
+      .select([
+        "c.id",
+        "c.business_id",
+        "c.status",
+        "b.archived_at",
+        "b.public_id",
+        "b.name",
+      ])
+      .where("c.platform", "=", platform)
+      .where("c.external_account_id", "=", externalAccountId)
+      .executeTakeFirst();
+    if (!holder) {
+      return new AppError(
+        409,
+        "CONNECTION_EXISTS",
+        "Подключение уже существует. Обновите страницу и попробуйте снова.",
+      );
+    }
+    if (holder.business_id === businessId) {
+      return new AppError(
+        409,
+        "CONNECTION_EXISTS",
+        "Этот канал уже подключён к текущему бизнесу.",
+      );
+    }
+    return this.connectionConflictFromHolder(this.db, userId, holder);
+  }
+
+  private async connectionConflictFromHolder(
+    db: Kysely<Database>,
+    userId: string,
+    holder: {
+      business_id: string;
+      public_id: string;
+      name: string;
+      status: string;
+      archived_at: Date | null;
+    },
+  ) {
+    const membership = await db
+      .selectFrom("business_member")
+      .select(["role", "status"])
+      .where("business_id", "=", holder.business_id)
+      .where("user_id", "=", userId)
+      .where("status", "=", "active")
+      .executeTakeFirst();
+    if (membership) {
+      return new AppError(
+        409,
+        "CONNECTION_IN_OTHER_BUSINESS",
+        `Этот бот уже подключён к вашему бизнесу «${holder.name}». Отключите его там или выберите другой токен.`,
+      );
+    }
+    return new AppError(
+      409,
+      "CONNECTION_IN_USE",
+      "Этот бот уже используется другим пространством. Подключите другого бота или обратитесь в поддержку.",
+    );
   }
 
   async disconnect(userId: string, publicId: string, platform: unknown) {

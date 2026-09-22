@@ -32,14 +32,116 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
   }
   async function revoke(userId: string) { if (!business) return; setBusy(true); setError(""); try { await apiRequest(`/api/v1/businesses/${business.id}/members`, { method: "POST", body: JSON.stringify({ action: "revoke", userId }) }); setMembers((items) => items.filter((item) => item.userId !== userId)); setNotice("Доступ отозван."); } catch (e) { setError(e instanceof Error ? e.message : "Не удалось отозвать доступ."); } finally { setBusy(false); } }
   async function changeRole(userId: string, nextRole: "admin" | "operator") { if (!business) return; setBusy(true); setError(""); try { await apiRequest(`/api/v1/businesses/${business.id}/members`, { method: "POST", body: JSON.stringify({ action: "change_role", userId, role: nextRole }) }); setMembers((items) => items.map((item) => item.userId === userId ? { ...item, role: nextRole } : item)); setNotice("Роль обновлена."); } catch (e) { setError(e instanceof Error ? e.message : "Не удалось изменить роль."); } finally { setBusy(false); } }
-  return <section className="panel"><h2>Участники</h2>
-    {business?.role === "owner" && <><p className="account-footnote">Добавьте пользователя по его публичному ID `usr_...`.</p><div className="settings-business">
-      <input aria-label="ID пользователя" placeholder="usr_..." value={userId} onChange={(e) => setUserId(e.target.value)} />
-      <select aria-label="Роль участника" value={role} onChange={(e) => setRole(e.target.value as typeof role)}><option value="operator">Оператор</option><option value="admin">Администратор</option></select>
-      <button className="button button--outline" type="button" disabled={busy || !userId.trim()} onClick={() => void invite()}><UserPlus size={18} />Пригласить</button>
-    </div></>}
-    {members.length > 0 && <div className="account-invitations"><strong>Активные участники</strong>{members.map((item) => <div key={item.userId} className="settings-business"><span>{item.name} · {item.role === "owner" ? "Владелец" : item.role === "admin" ? "Администратор" : "Оператор"}</span>{item.role !== "owner" && <><select aria-label={`Роль ${item.name}`} value={item.role} disabled={busy} onChange={(e) => void changeRole(item.userId, e.target.value as "admin" | "operator")}><option value="operator">Оператор</option><option value="admin">Администратор</option></select><button className="button button--outline" type="button" disabled={busy} onClick={() => void revoke(item.userId)}>Отозвать</button></>}</div>)}</div>}
-    {incoming.length > 0 && <div className="account-invitations"><strong>Входящие приглашения</strong>{incoming.map((item) => <div key={item.id} className="settings-business"><span>{item.businessName} · {item.role === "admin" ? "Администратор" : "Оператор"}</span><button className="button button--outline" type="button" disabled={busy} onClick={() => void accept(item.id)}><Check size={16} />Принять</button></div>)}</div>}
-    {notice && <p className="account-notice" role="status">{notice}</p>}{error && <p className="account-error" role="alert">{error}</p>}
-  </section>;
+  return (
+    <section className="panel settings-panel members-panel">
+      <h2 className="text-section-title">Участники</h2>
+      {business?.role === "owner" && (
+        <>
+          <p className="account-footnote">
+            Добавьте пользователя по его публичному ID `usr_...`.
+          </p>
+          <div className="members-panel__invite settings-business">
+            <input
+              aria-label="ID пользователя"
+              placeholder="usr_..."
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+            />
+            <select
+              aria-label="Роль участника"
+              value={role}
+              onChange={(e) => setRole(e.target.value as typeof role)}
+            >
+              <option value="operator">Оператор</option>
+              <option value="admin">Администратор</option>
+            </select>
+            <button
+              className="button button--outline"
+              type="button"
+              disabled={busy || !userId.trim()}
+              onClick={() => void invite()}
+            >
+              <UserPlus size={18} />
+              Пригласить
+            </button>
+          </div>
+        </>
+      )}
+      {members.length > 0 && (
+        <div className="account-invitations">
+          <strong>Активные участники</strong>
+          {members.map((item) => (
+            <div key={item.userId} className="settings-business">
+              <span>
+                {item.name} ·{" "}
+                {item.role === "owner"
+                  ? "Владелец"
+                  : item.role === "admin"
+                    ? "Администратор"
+                    : "Оператор"}
+              </span>
+              {item.role !== "owner" && (
+                <>
+                  <select
+                    aria-label={`Роль ${item.name}`}
+                    value={item.role}
+                    disabled={busy}
+                    onChange={(e) =>
+                      void changeRole(
+                        item.userId,
+                        e.target.value as "admin" | "operator",
+                      )
+                    }
+                  >
+                    <option value="operator">Оператор</option>
+                    <option value="admin">Администратор</option>
+                  </select>
+                  <button
+                    className="button button--outline"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void revoke(item.userId)}
+                  >
+                    Отозвать
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {incoming.length > 0 && (
+        <div className="account-invitations">
+          <strong>Входящие приглашения</strong>
+          {incoming.map((item) => (
+            <div key={item.id} className="settings-business">
+              <span>
+                {item.businessName} ·{" "}
+                {item.role === "admin" ? "Администратор" : "Оператор"}
+              </span>
+              <button
+                className="button button--outline"
+                type="button"
+                disabled={busy}
+                onClick={() => void accept(item.id)}
+              >
+                <Check size={16} />
+                Принять
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {notice && (
+        <p className="account-notice" role="status">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="account-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
 }

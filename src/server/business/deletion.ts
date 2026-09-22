@@ -388,8 +388,16 @@ export async function archiveBusinessFully(
       .where("connection_id", "=", connection.id)
       .execute();
     await tx
+      .deleteFrom("meta_runtime")
+      .where("connection_id", "=", connection.id)
+      .execute();
+    await tx
       .updateTable("business_connection")
-      .set({ status: "disconnected", updated_at: new Date() })
+      .set({
+        status: "disconnected",
+        external_account_id: null,
+        updated_at: new Date(),
+      })
       .where("id", "=", connection.id)
       .execute();
   }

@@ -9,20 +9,26 @@ import { industryPreset } from "../../lib/industryPresets.ts";
 
 export type InterviewAnswer = { id: string; question: string; answer: string };
 
+export type InterviewSummary = {
+  name: string;
+  about: string;
+  tone: string;
+  strengths: string;
+  faq: string;
+  restrictions: string;
+};
+
 export type InterviewState = {
   version: 1;
   step: number;
   answers: InterviewAnswer[];
   clarifying: InterviewAnswer[];
-  summary: null | {
-    name: string;
-    about: string;
-    tone: string;
-    strengths: string;
-    faq: string;
-    restrictions: string;
-  };
+  summary: InterviewSummary | null;
   confirmed: boolean;
+  /** True when summary was built without a live AI response. */
+  aiFallback?: boolean;
+  /** Last recoverable AI error code, if any. */
+  lastAiError?: string | null;
 };
 
 const BASE_QUESTIONS: { id: string; question: string }[] = [
@@ -55,21 +61,73 @@ function emptyState(): InterviewState {
     clarifying: [],
     summary: null,
     confirmed: false,
+    aiFallback: false,
+    lastAiError: null,
   };
+}
+
+function asString(value: unknown, max = 8000): string {
+  if (typeof value === "string") return value.trim().slice(0, max);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value).slice(0, max);
+  return "";
+}
+
+export function normalizeSummary(
+  raw: unknown,
+  answers: InterviewAnswer[] = [],
+): InterviewSummary {
+  const byId = Object.fromEntries(answers.map((a) => [a.id, a.answer]));
+  const obj =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  return {
+    name: asString(obj.name, 200) || asString(byId.name, 200),
+    about:
+      asString(obj.about, 8000) ||
+      asString(byId.about, 8000) ||
+      asString(byId.freeform, 8000),
+    tone: asString(obj.tone, 1000) || asString(byId.tone, 1000) || "дружелюбный",
+    strengths:
+      asString(obj.strengths, 4000) || asString(byId.important, 4000),
+    faq: asString(obj.faq, 4000) || asString(byId.faq, 4000),
+    restrictions:
+      asString(obj.restrictions, 4000) || asString(byId.restrictions, 4000),
+  };
+}
+
+/** Strip markdown fences / leading prose before JSON parse. */
+export function extractJsonPayload(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) return fence[1].trim();
+  const start = trimmed.indexOf("{");
+  const end = trimmed.lastIndexOf("}");
+  if (start >= 0 && end > start) return trimmed.slice(start, end + 1);
+  return trimmed;
 }
 
 function parseState(raw: unknown): InterviewState {
   if (!raw || typeof raw !== "object") return emptyState();
   const o = raw as InterviewState;
   if (o.version !== 1) return emptyState();
+  const answers = Array.isArray(o.answers) ? o.answers : [];
   return {
     version: 1,
     step: Number.isInteger(o.step) ? Math.max(0, Math.min(o.step, 20)) : 0,
-    answers: Array.isArray(o.answers) ? o.answers : [],
+    answers,
     clarifying: Array.isArray(o.clarifying) ? o.clarifying : [],
-    summary: o.summary ?? null,
+    summary: o.summary ? normalizeSummary(o.summary, answers) : null,
     confirmed: o.confirmed === true,
+    aiFallback: o.aiFallback === true,
+    lastAiError: typeof o.lastAiError === "string" ? o.lastAiError : null,
   };
+}
+
+function fallbackSummary(answers: InterviewAnswer[]): InterviewSummary {
+  return normalizeSummary({}, answers);
 }
 
 function questionsForBusiness(
@@ -111,7 +169,11 @@ function questionsForBusiness(
 export class AiInterviewService {
   constructor(
     private db: Kysely<Database>,
-    private options: { token?: string; model?: string } = {},
+    private options: {
+      token?: string;
+      model?: string;
+      transport?: typeof fetch;
+    } = {},
   ) {}
 
   async get(userId: string, publicId: string) {
@@ -156,7 +218,9 @@ export class AiInterviewService {
     const questionId = String(body.questionId ?? "");
     if (!questionId || !answer || answer.length > 4000)
       throw new AppError(400, "INVALID_INTERVIEW", "Введите ответ на вопрос.");
-    return this.db.transaction().execute(async (tx) => {
+
+    // Persist answers first in a short lock — never hold FOR UPDATE across AI I/O.
+    const saved = await this.db.transaction().execute(async (tx) => {
       const b = await requireBusiness(tx, userId, publicId, "settings.manage");
       await tx
         .selectFrom("business")
@@ -179,22 +243,102 @@ export class AiInterviewService {
         { id: questionId, question: q.question, answer },
       ];
       const step = Math.min(state.step + 1, questions.length);
-      let next: InterviewState = {
+      const needsSummary = step >= questions.length && !state.summary;
+      const next: InterviewState = {
         ...state,
         answers: nextAnswers,
         step,
         confirmed: false,
+        // Keep existing summary unless regenerating later.
+        summary: needsSummary ? null : state.summary,
+        lastAiError: needsSummary ? null : state.lastAiError,
       };
-      if (step >= questions.length && !next.summary) {
-        next = await this.buildSummary(tx, b.id, next);
-      }
       await tx
         .updateTable("business")
         .set({ ai_interview: JSON.stringify(next) } as never)
         .where("id", "=", b.id)
         .execute();
-      return { state: next, questions };
+      return {
+        businessId: b.id,
+        state: next,
+        questions,
+        needsSummary,
+      };
     });
+
+    if (!saved.needsSummary) {
+      return { state: saved.state, questions: saved.questions };
+    }
+
+    const summarized = await this.buildAndPersistSummary(
+      saved.businessId,
+      saved.state,
+    );
+    return { state: summarized, questions: saved.questions };
+  }
+
+  /** Rebuild summary from saved answers (retry after AI outage). Idempotent. */
+  async regenerateSummary(userId: string, publicId: string) {
+    const prepared = await this.db.transaction().execute(async (tx) => {
+      const b = await requireBusiness(tx, userId, publicId, "settings.manage");
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", b.id)
+        .forUpdate()
+        .execute();
+      const row = await tx
+        .selectFrom("business")
+        .select(["business_type", "industry", "ai_interview"])
+        .where("id", "=", b.id)
+        .executeTakeFirstOrThrow();
+      const state = parseState(row.ai_interview);
+      const questions = questionsForBusiness(row.industry, row.business_type);
+      if (state.step < questions.length)
+        throw new AppError(
+          400,
+          "INVALID_INTERVIEW",
+          "Сначала ответьте на все вопросы.",
+        );
+      if (state.confirmed)
+        throw new AppError(
+          409,
+          "INTERVIEW_CONFIRMED",
+          "Интервью уже подтверждено.",
+        );
+      // Clear summary so rebuild replaces it; answers stay intact.
+      const next: InterviewState = {
+        ...state,
+        summary: null,
+        confirmed: false,
+        lastAiError: null,
+      };
+      await tx
+        .updateTable("business")
+        .set({ ai_interview: JSON.stringify(next) } as never)
+        .where("id", "=", b.id)
+        .execute();
+      return { businessId: b.id, state: next, questions };
+    });
+
+    const summarized = await this.buildAndPersistSummary(
+      prepared.businessId,
+      prepared.state,
+    );
+    return { state: summarized, questions: prepared.questions };
+  }
+
+  private async buildAndPersistSummary(
+    businessId: string,
+    state: InterviewState,
+  ): Promise<InterviewState> {
+    const built = await this.buildSummary(this.db, businessId, state);
+    await this.db
+      .updateTable("business")
+      .set({ ai_interview: JSON.stringify(built) } as never)
+      .where("id", "=", businessId)
+      .execute();
+    return built;
   }
 
   private async buildSummary(
@@ -206,6 +350,7 @@ export class AiInterviewService {
       .map((a) => `Q: ${a.question}\nA: ${a.answer}`)
       .join("\n\n");
     let text = "";
+    let aiError: string | null = null;
     try {
       const ctx = await buildAiContext(db, businessId);
       const draft = await completeAiDraft(
@@ -219,27 +364,42 @@ export class AiInterviewService {
         this.options,
       );
       text = draft.text;
-    } catch {
+    } catch (error) {
+      aiError =
+        error instanceof AppError ? error.code : "AI_UNAVAILABLE";
       text = "";
     }
-    let summary = state.summary;
-    try {
-      const parsed = JSON.parse(text) as InterviewState["summary"];
-      if (parsed && typeof parsed === "object") summary = parsed;
-    } catch {
-      const byId = Object.fromEntries(
-        state.answers.map((a) => [a.id, a.answer]),
-      );
-      summary = {
-        name: byId.name || "",
-        about: byId.about || byId.freeform || "",
-        tone: byId.tone || "дружелюбный",
-        strengths: byId.important || "",
-        faq: byId.faq || "",
-        restrictions: byId.restrictions || "",
-      };
+
+    let summary: InterviewSummary;
+    let aiFallback = false;
+    if (text) {
+      try {
+        const parsed = JSON.parse(extractJsonPayload(text)) as unknown;
+        summary = normalizeSummary(parsed, state.answers);
+        // If AI returned empty object / all blanks, treat as fallback.
+        if (!summary.name && !summary.about) {
+          summary = fallbackSummary(state.answers);
+          aiFallback = true;
+          aiError = aiError ?? "AI_MALFORMED_RESPONSE";
+        }
+      } catch {
+        summary = fallbackSummary(state.answers);
+        aiFallback = true;
+        aiError = "AI_MALFORMED_RESPONSE";
+      }
+    } else {
+      summary = fallbackSummary(state.answers);
+      aiFallback = true;
+      aiError = aiError ?? "AI_UNAVAILABLE";
     }
-    return { ...state, summary };
+
+    return {
+      ...state,
+      summary,
+      aiFallback,
+      lastAiError: aiFallback ? aiError : null,
+      confirmed: false,
+    };
   }
 
   async confirm(userId: string, publicId: string, apply: boolean) {
@@ -263,22 +423,31 @@ export class AiInterviewService {
           "INVALID_INTERVIEW",
           "Сначала завершите ответы, чтобы получить резюме.",
         );
-      const next = { ...state, confirmed: true };
+      // Idempotent: already confirmed — return current state without re-applying.
+      if (state.confirmed) {
+        return { state, applied: false, alreadyConfirmed: true as const };
+      }
+      const summary = normalizeSummary(state.summary, state.answers);
+      const next: InterviewState = {
+        ...state,
+        summary,
+        confirmed: true,
+      };
       const patch: Record<string, unknown> = {
         ai_interview: JSON.stringify(next),
         ai_summary_confirmed_at: new Date(),
       };
       if (apply) {
-        patch.ai_about = state.summary.about.slice(0, 8000);
-        patch.ai_tone = state.summary.tone.slice(0, 1000);
-        patch.ai_important_facts = state.summary.strengths.slice(0, 4000);
-        patch.ai_restrictions = state.summary.restrictions.slice(0, 4000);
-        if (state.summary.name.trim()) {
-          patch.public_name = state.summary.name.trim().slice(0, 100);
+        patch.ai_about = summary.about.slice(0, 8000);
+        patch.ai_tone = summary.tone.slice(0, 1000);
+        patch.ai_important_facts = summary.strengths.slice(0, 4000);
+        patch.ai_restrictions = summary.restrictions.slice(0, 4000);
+        if (summary.name.trim()) {
+          patch.public_name = summary.name.trim().slice(0, 100);
         }
         const greetingBits = [
-          `Добро пожаловать в ${state.summary.name || row.name}!`,
-          state.summary.about ? state.summary.about.slice(0, 400) : "",
+          `Добро пожаловать в ${summary.name || row.name}!`,
+          summary.about ? summary.about.slice(0, 400) : "",
         ].filter(Boolean);
         patch.greeting = greetingBits.join("\n\n").slice(0, 2000);
       }
@@ -291,7 +460,7 @@ export class AiInterviewService {
         ai_interview_confirmed: true,
         applied: apply,
       });
-      return { state: next, applied: apply };
+      return { state: next, applied: apply, alreadyConfirmed: false as const };
     });
   }
 
@@ -348,7 +517,7 @@ export class AiInterviewService {
     );
     let proposal: unknown = null;
     try {
-      proposal = JSON.parse(draft.text);
+      proposal = JSON.parse(extractJsonPayload(draft.text));
     } catch {
       proposal = null;
     }
