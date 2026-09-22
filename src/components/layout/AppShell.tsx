@@ -197,9 +197,11 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         </header>
 
         <header className="mobile-header">
-          <Brand compact showTagline={false} />
+          <div className="mobile-header__brand">
+            <Brand compact showTagline={false} />
+          </div>
           <div className="mobile-header__actions">
-            <CommandSearch compact />
+            <CommandSearch mobile />
             <NotificationBell />
           </div>
         </header>

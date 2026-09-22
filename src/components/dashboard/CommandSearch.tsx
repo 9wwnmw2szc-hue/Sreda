@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Users,
   Package,
+  X,
 } from "lucide-react";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
@@ -51,38 +52,67 @@ const HIT_TONE: Record<SearchHit["type"], string> = {
   booking: "booking",
 };
 
-export function CommandSearch({ compact = false }: { compact?: boolean }) {
+export function CommandSearch({
+  compact = false,
+  mobile = false,
+}: {
+  compact?: boolean;
+  /** Icon trigger + expandable field (mobile header). */
+  mobile?: boolean;
+}) {
   const router = useRouter();
   const { currentBusiness } = useBusinessContext();
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  function closeAll() {
+    setOpen(false);
+    setExpanded(false);
+    setQ("");
+    setHits([]);
+    setError("");
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen(true);
-        rootRef.current?.querySelector("input")?.focus();
+        if (mobile) {
+          setExpanded(true);
+          setOpen(true);
+          window.setTimeout(() => inputRef.current?.focus(), 0);
+        } else {
+          setOpen(true);
+          rootRef.current?.querySelector("input")?.focus();
+        }
       }
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") closeAll();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [mobile]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !expanded) return;
     function onPointer(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) closeAll();
     }
     document.addEventListener("mousedown", onPointer);
     return () => document.removeEventListener("mousedown", onPointer);
-  }, [open]);
+  }, [open, expanded]);
+
+  useEffect(() => {
+    if (expanded && mobile) {
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [expanded, mobile]);
 
   useEffect(() => {
     const term = q.trim();
@@ -135,94 +165,141 @@ export function CommandSearch({ compact = false }: { compact?: boolean }) {
     : COMMANDS;
 
   function go(href: string) {
-    setOpen(false);
-    setQ("");
-    setHits([]);
+    closeAll();
     router.push(href);
   }
 
-  return (
-    <div className={`soty-command${compact ? " soty-command--compact" : ""}`} ref={rootRef}>
-      <label className="soty-command__field">
-        <Search size={18} strokeWidth={1.7} aria-hidden />
-        <input
-          type="search"
-          placeholder={
-            compact
-              ? "Поиск…"
-              : "Найти клиента, заказ, товар…"
-          }
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          autoComplete="off"
-        />
-        {!compact ? <kbd aria-hidden>⌘K</kbd> : null}
-      </label>
-      {open ? (
-        <ul id={listId} className="soty-command__list" role="listbox">
-          {loading ? (
-            <li className="soty-command__empty">Ищем…</li>
-          ) : null}
-          {error ? (
-            <li className="soty-command__empty" role="alert">
-              {error}
-            </li>
-          ) : null}
-          {hits.map((hit) => (
-            <li key={`${hit.type}:${hit.id}`}>
-              <button
-                type="button"
-                className={`soty-command__item soty-command__item--${HIT_TONE[hit.type]}`}
-                onClick={() => go(hit.href)}
-              >
-                <span className="soty-command__icon" aria-hidden>
-                  {hit.type === "product" ? (
-                    <Package size={16} strokeWidth={1.7} />
-                  ) : hit.type === "client" ? (
-                    <Users size={16} strokeWidth={1.7} />
-                  ) : hit.type === "booking" ? (
-                    <CalendarDays size={16} strokeWidth={1.7} />
-                  ) : hit.type === "lead" ? (
-                    <Inbox size={16} strokeWidth={1.7} />
-                  ) : (
-                    <ShoppingBag size={16} strokeWidth={1.7} />
-                  )}
-                </span>
-                <span className="soty-command__meta">
-                  <strong>{hit.label}</strong>
-                  <small>
-                    {HIT_LABEL[hit.type]}
-                    {hit.subtitle ? ` · ${hit.subtitle}` : ""}
-                  </small>
-                </span>
-              </button>
-            </li>
-          ))}
-          {commands.map(({ href, label, Icon, tone }) => (
-            <li key={href}>
-              <button
-                type="button"
-                className={`soty-command__item soty-command__item--${tone}`}
-                onClick={() => go(href)}
-              >
-                <span className="soty-command__icon" aria-hidden>
-                  <Icon size={16} strokeWidth={1.7} />
-                </span>
-                <span>{label}</span>
-              </button>
-            </li>
-          ))}
-          {!loading && !error && !hits.length && !commands.length ? (
-            <li className="soty-command__empty">Ничего не найдено</li>
-          ) : null}
-        </ul>
+  const field = (
+    <label className="soty-command__field">
+      <Search size={18} strokeWidth={1.7} aria-hidden />
+      <input
+        ref={inputRef}
+        type="search"
+        placeholder={
+          mobile || compact
+            ? "Поиск…"
+            : "Найти клиента, заказ, товар…"
+        }
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        autoComplete="off"
+        enterKeyHint="search"
+      />
+      {!compact && !mobile ? <kbd aria-hidden>⌘K</kbd> : null}
+      {mobile && expanded ? (
+        <button
+          type="button"
+          className="soty-command__close"
+          aria-label="Закрыть поиск"
+          onClick={closeAll}
+        >
+          <X size={18} strokeWidth={1.8} aria-hidden />
+        </button>
       ) : null}
+    </label>
+  );
+
+  const results =
+    open || (mobile && expanded) ? (
+      <ul id={listId} className="soty-command__list" role="listbox">
+        {loading ? <li className="soty-command__empty">Ищем…</li> : null}
+        {error ? (
+          <li className="soty-command__empty" role="alert">
+            {error}
+          </li>
+        ) : null}
+        {hits.map((hit) => (
+          <li key={`${hit.type}:${hit.id}`}>
+            <button
+              type="button"
+              className={`soty-command__item soty-command__item--${HIT_TONE[hit.type]}`}
+              onClick={() => go(hit.href)}
+            >
+              <span className="soty-command__icon" aria-hidden>
+                {hit.type === "product" ? (
+                  <Package size={16} strokeWidth={1.7} />
+                ) : hit.type === "client" ? (
+                  <Users size={16} strokeWidth={1.7} />
+                ) : hit.type === "booking" ? (
+                  <CalendarDays size={16} strokeWidth={1.7} />
+                ) : hit.type === "lead" ? (
+                  <Inbox size={16} strokeWidth={1.7} />
+                ) : (
+                  <ShoppingBag size={16} strokeWidth={1.7} />
+                )}
+              </span>
+              <span className="soty-command__meta">
+                <strong>{hit.label}</strong>
+                <small>
+                  {HIT_LABEL[hit.type]}
+                  {hit.subtitle ? ` · ${hit.subtitle}` : ""}
+                </small>
+              </span>
+            </button>
+          </li>
+        ))}
+        {commands.map(({ href, label, Icon, tone }) => (
+          <li key={href}>
+            <button
+              type="button"
+              className={`soty-command__item soty-command__item--${tone}`}
+              onClick={() => go(href)}
+            >
+              <span className="soty-command__icon" aria-hidden>
+                <Icon size={16} strokeWidth={1.7} />
+              </span>
+              <span>{label}</span>
+            </button>
+          </li>
+        ))}
+        {!loading && !error && !hits.length && !commands.length ? (
+          <li className="soty-command__empty">Ничего не найдено</li>
+        ) : null}
+      </ul>
+    ) : null;
+
+  if (mobile) {
+    return (
+      <div
+        className={`soty-command soty-command--mobile${expanded ? " is-expanded" : ""}`}
+        ref={rootRef}
+      >
+        {!expanded ? (
+          <button
+            type="button"
+            className="icon-button soty-command__trigger"
+            aria-label="Поиск"
+            aria-expanded={false}
+            onClick={() => {
+              setExpanded(true);
+              setOpen(true);
+            }}
+          >
+            <Search size={20} strokeWidth={1.7} aria-hidden />
+          </button>
+        ) : (
+          <div className="soty-command__sheet" role="search">
+            {field}
+            {results}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`soty-command${compact ? " soty-command--compact" : ""}`}
+      ref={rootRef}
+    >
+      {field}
+      {results}
     </div>
   );
 }

@@ -304,6 +304,8 @@ export interface Database
     expiresAt: Date;
     updatedAt: Date;
     createdAt: Generated<Date>;
+    ipAddress: string | null;
+    userAgent: string | null;
   };
   platform_admin: {
     user_id: string;

@@ -114,11 +114,11 @@ export function AccountDeletionPanel() {
 
   return (
     <section className="panel settings-panel account-danger-zone">
-      <h2 className="text-section-title">Опасная зона аккаунта</h2>
+      <h2 className="text-section-title">Удаление аккаунта</h2>
       <p className="account-footnote">
-        Удаление аккаунта приведёт к потере доступа к «Соты». Это отдельное
-        действие от удаления бизнеса. Перед удалением мы покажем, какие бизнесы
-        и данные будут затронуты.
+        Удаление аккаунта необратимо. Перед удалением необходимо решить, что
+        произойдёт с бизнесами, которыми вы владеете. Это отдельное действие от
+        удаления бизнеса.
       </p>
       <button
         type="button"
