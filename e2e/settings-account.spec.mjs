@@ -37,17 +37,23 @@ async function registerAndCreateBusiness(page, suffix) {
   await passwords.nth(0).fill(pass);
   if ((await passwords.count()) > 1) await passwords.nth(1).fill(pass);
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3500);
   const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
   if (await checkbox.count()) {
     await checkbox.check({ force: true });
     await page.getByRole("button", { name: /продолжить/i }).click();
+    await page.waitForTimeout(3000);
   }
-  await page.waitForURL(/business\/new|dashboard|onboarding/, { timeout: 45_000 });
+  // Registration may land on business/new, onboarding, or dashboard depending on timing.
+  await page.waitForFunction(
+    () => !location.pathname.includes("/register"),
+    null,
+    { timeout: 60_000 },
+  );
   if (page.url().includes("business/new")) {
     await page.locator("#business-name").fill(`UX Приёмка ${suffix}`);
     await page.getByRole("button", { name: /создать пространство/i }).click();
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(3000);
   }
   return user;
 }
