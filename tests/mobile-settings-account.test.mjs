@@ -51,12 +51,14 @@ test("session cards keep revoke label intact", async () => {
   const panel = await read("./src/components/account/SessionsPanel.tsx");
   const css = await read("./src/app/globals.css");
   assert.match(panel, /session-card/);
-  assert.match(panel, /Завершить сессию/);
+  assert.match(panel, /Завершить/);
+  assert.doesNotMatch(panel, /Завершить\s*\n\s*ть/);
   assert.match(panel, /Выйти на всех других устройствах/);
   assert.match(panel, /Это устройство/);
   assert.match(css, /\.session-card__revoke/);
   assert.match(css, /white-space:\s*nowrap/);
   assert.match(css, /overflow-wrap:\s*normal/);
+  assert.match(css, /word-break:\s*keep-all/);
 });
 
 test("summarizeUserAgent never invents a phone model", () => {
@@ -98,10 +100,15 @@ test("account deletion is reachable from Account and Danger sections", async () 
   const settings = await read("./src/components/account/SettingsView.tsx");
   const accountIdx = settings.indexOf('section === "account"');
   const dangerIdx = settings.indexOf('section === "danger"');
-  const accountDanger = settings.indexOf('id="account-danger"', accountIdx);
-  const dangerDelete = settings.indexOf("<AccountDeletionPanel", dangerIdx);
-  assert.ok(accountDanger > accountIdx && accountDanger < dangerIdx);
-  assert.ok(dangerDelete > dangerIdx);
+  const accountSlice = settings.slice(accountIdx, dangerIdx);
+  const dangerSlice = settings.slice(dangerIdx);
+  // Account points to Danger zone; the destructive panel mounts only there.
+  assert.match(accountSlice, /settings\?section=danger/);
+  assert.match(accountSlice, /Опасная зона/);
+  assert.equal(accountSlice.includes("<AccountDeletionPanel"), false);
+  assert.ok(dangerSlice.includes('id="account-danger"'));
+  assert.ok(dangerSlice.includes("<AccountDeletionPanel"));
+  assert.ok(dangerSlice.includes("<BusinessDeletionPanel"));
 });
 
 test("bottom nav clearance uses safe-area token", async () => {

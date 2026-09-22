@@ -294,7 +294,8 @@ test("settings sections and sidebar order match the product map", async () => {
   assert.match(connections, /redirect\("\/settings\?section=connections"\)/);
   assert.match(settings, /Подключения/);
   assert.match(settings, /<ConnectionsView/);
-  assert.match(settings, /Сотрудники/);
+  assert.match(settings, /Участники/);
+  assert.match(settings, /MembersPanel/);
   assert.match(settings, /Уведомления/);
   assert.match(settings, /Опасная зона/);
   assert.match(settings, /\["solutions", "Решения"\]/);
