@@ -3635,7 +3635,8 @@ ul {
   .account-story::before { display:none; }
   .account-story .brand strong { font-size:28px; }
   .account-story__copy { margin-top:16px; }
-  .account-story__copy .eyebrow { font-size:11px; }
+  .account-story__copy .eyebrow { display:none; }
+  .account-story .brand small { display:none; }
   .account-story h1 {
     display:block;
     font-size:clamp(26px, 7vw, 32px);

@@ -44,27 +44,35 @@ export function LoginForm({ register = false }: { register?: boolean }) {
     <h2>{register ? "Создать аккаунт" : "Войти в Соты"}</h2>
     <p className={`account-intro${register ? "" : ` ${styles.intro}`}`}>{register ? "Придумайте логин и пароль — и можно начинать." : "Ваш бизнес — под рукой"}</p>
     <form onSubmit={(event) => { event.preventDefault(); if (!busy) void submit(); }}>
-      <fieldset disabled={busy}>
-        <label htmlFor="account-login">Логин</label>
-        <input id="account-login" placeholder="Введите логин" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30}
-          pattern="[a-zA-Z0-9_.]{3,30}" value={username} onChange={(event) => { setUsername(event.target.value); setNeedsPin(false); setPin(""); }} aria-describedby="login-hint" />
-        <p id="login-hint" className={register ? "account-footnote" : styles.hidden}>3–30 символов: латинские буквы, цифры, точка или подчёркивание.</p>
-        <label htmlFor="account-password">Пароль</label>
-        <div className={register ? undefined : styles.password}>
-        <input id="account-password" placeholder="Введите пароль" type={!register && showPassword ? "text" : "password"} autoComplete={register ? "new-password" : "current-password"} required minLength={10} maxLength={128}
-          value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby={register ? "password-hint" : undefined} />
-        {!register && <button type="button" className={styles.reveal} aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"} aria-controls="account-password" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>
-          {showPassword ? <EyeOff size={21} aria-hidden="true" /> : <Eye size={21} aria-hidden="true" />}
-        </button>}
+      <fieldset className={register ? "form-stack" : undefined} disabled={busy}>
+        <div className={register ? "field" : undefined}>
+          <label className={register ? "field__label" : undefined} htmlFor="account-login">Логин</label>
+          <input id="account-login" className={register ? "field__control" : undefined} placeholder="Введите логин" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30}
+            pattern="[a-zA-Z0-9_.]{3,30}" value={username} onChange={(event) => { setUsername(event.target.value); setNeedsPin(false); setPin(""); }} aria-describedby="login-hint" />
+          <p id="login-hint" className={register ? "field-hint" : styles.hidden}>3–30 символов: латинские буквы, цифры, точка или подчёркивание.</p>
         </div>
-        {register && <><p id="password-hint" className="account-footnote">От 10 символов.</p>
-          <label htmlFor="account-confirmation">Повторите пароль</label>
-          <input id="account-confirmation" type="password" autoComplete="new-password" required minLength={10} maxLength={128}
-            value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></>}
-        {!register && needsPin && <><label htmlFor="account-pin">PIN аккаунта</label>
+        <div className={register ? "field" : styles.password}>
+          <label className={register ? "field__label" : undefined} htmlFor="account-password">Пароль</label>
+          <input id="account-password" className={register ? "field__control" : undefined} placeholder="Введите пароль" type={!register && showPassword ? "text" : "password"} autoComplete={register ? "new-password" : "current-password"} required minLength={10} maxLength={128}
+            value={password} onChange={(event) => setPassword(event.target.value)} aria-describedby={register ? "password-hint" : undefined} />
+          {!register && <button type="button" className={styles.reveal} aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"} aria-controls="account-password" aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>
+            {showPassword ? <EyeOff size={21} aria-hidden="true" /> : <Eye size={21} aria-hidden="true" />}
+          </button>}
+          {register ? <p id="password-hint" className="field-hint">От 10 символов.</p> : null}
+        </div>
+        {register ? (
+          <div className="field">
+            <label className="field__label" htmlFor="account-confirmation">Повторите пароль</label>
+            <input id="account-confirmation" className="field__control" type="password" autoComplete="new-password" required minLength={10} maxLength={128} placeholder="Повторите пароль"
+              value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+          </div>
+        ) : null}
+        {!register && needsPin && <div>
+          <label htmlFor="account-pin">PIN аккаунта</label>
           <input id="account-pin" type="password" inputMode="numeric" autoComplete="off" autoFocus required pattern="[0-9]{4}" minLength={4} maxLength={4}
             value={pin} onChange={(event) => setPin(event.target.value.replace(/[^0-9]/g, ""))} aria-describedby="pin-hint" />
-          <p id="pin-hint" className="account-footnote">Четыре цифры, которые вы задали в настройках.</p></>}
+          <p id="pin-hint" className="account-footnote">Четыре цифры, которые вы задали в настройках.</p>
+        </div>}
         {error && <p className="account-error" role="alert">{error}</p>}
         {!register && <Link className={styles.recover} href="/recover">Забыли пароль или PIN?</Link>}
         <button className={`button button--primary button--full${register ? "" : ` ${styles.submit}`}`} type="submit">{busy ? "Подождите…" : register ? "Создать аккаунт" : "Войти"}<ArrowRight size={20} aria-hidden="true" /></button>
