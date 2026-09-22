@@ -69,11 +69,6 @@ jobs:
           E2E_BASE_URL: ${{ steps.base.outputs.url }}
           AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
         run: npx playwright test e2e/ui-system.spec.mjs --project=webkit
-      - name: Playwright contrast computed styles
-        env:
-          E2E_BASE_URL: ${{ steps.base.outputs.url }}
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
-        run: npx playwright test e2e/contrast-computed.spec.mjs --project=chromium
       - name: Prepare auth storage for responsive audit
         id: auth
         env:
@@ -141,6 +136,11 @@ jobs:
         run: |
           mkdir -p artifacts/responsive-audit
           npm run audit:responsive
+      - name: Playwright contrast computed styles
+        env:
+          E2E_BASE_URL: ${{ steps.base.outputs.url }}
+          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+        run: npx playwright test e2e/contrast-computed.spec.mjs --project=chromium
       - name: Upload UI gate artifacts
         if: always()
         uses: actions/upload-artifact@v4
