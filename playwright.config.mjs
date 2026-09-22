@@ -14,5 +14,12 @@ export default defineConfig({
     trace: "off",
     screenshot: "off",
   },
-  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+  projects: [
+    { name: "chromium", use: { browserName: "chromium" } },
+    {
+      name: "webkit",
+      use: { browserName: "webkit" },
+      testMatch: /ui-system\.spec\.mjs/,
+    },
+  ],
 });
