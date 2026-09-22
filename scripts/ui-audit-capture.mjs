@@ -133,7 +133,7 @@ async function createAuthStorage(browser) {
   const pass = "AcceptTest!2026ui";
 
   const reg = await page.goto(`${base}/register`, {
-    waitUntil: "domcontentloaded",
+    waitUntil: "networkidle",
     timeout: 90_000,
   });
   if (!reg || reg.status() >= 500) {
@@ -142,8 +142,16 @@ async function createAuthStorage(browser) {
     );
   }
 
-  await page.locator("#account-login").fill(user);
+  const loginInput = page.locator("#account-login");
+  await loginInput.waitFor({ state: "visible", timeout: 30_000 });
+  // Wait for React hydration (controlled inputs)
+  await page.waitForTimeout(1500);
+  await loginInput.click();
+  await loginInput.fill("");
+  await loginInput.pressSequentially(user, { delay: 15 });
+  await page.locator("#account-password").click();
   await page.locator("#account-password").fill(pass);
+  await page.locator("#account-confirmation").click();
   await page.locator("#account-confirmation").fill(pass);
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
 

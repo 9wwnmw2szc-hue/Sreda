@@ -91,11 +91,14 @@ jobs:
           const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
           const user = `uigat${suffix}`.slice(0, 28);
           const pass = "AcceptTest!2026ui";
-          const res = await page.goto(base + "/register", { waitUntil: "domcontentloaded", timeout: 90000 });
+          const res = await page.goto(base + "/register", { waitUntil: "networkidle", timeout: 90000 });
           if (!res || res.status() >= 500) {
             throw new Error(`NETWORK_UNAVAILABLE: register ${res?.status()}`);
           }
-          await page.locator("#account-login").fill(user);
+          await page.locator("#account-login").waitFor({ state: "visible", timeout: 30000 });
+          await page.waitForTimeout(1500);
+          await page.locator("#account-login").click();
+          await page.locator("#account-login").pressSequentially(user, { delay: 15 });
           await page.locator("#account-password").fill(pass);
           await page.locator("#account-confirmation").fill(pass);
           await page.getByRole("button", { name: /создать аккаунт/i }).click();
