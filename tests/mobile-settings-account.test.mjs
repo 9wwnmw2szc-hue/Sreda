@@ -40,7 +40,7 @@ test("settings business stack separates refresh, selector, add", async () => {
 
 test("settings typography tokens separate label and value", async () => {
   const css = await read("./src/app/globals.css");
-  assert.match(css, /--font-size-label:\s*0\.8125rem/);
+  assert.match(css, /--font-size-label:\s*0\.875rem/);
   assert.match(css, /--font-size-value:\s*1rem/);
   assert.match(css, /--text-disabled:/);
   assert.match(css, /\.settings-meta-list dt/);
