@@ -42,22 +42,46 @@ export function CreateBusinessForm({ userId, hasBusinesses }: { userId: string; 
     <h2>{hasBusinesses ? "Добавим ещё бизнес" : "Как называется ваш бизнес?"}</h2>
     <p className="account-intro">Создайте своё пространство. Здесь будут решения, подключения и заявки этого бизнеса.</p>
     <form onSubmit={(event) => { event.preventDefault(); if (!busy) void submit(); }}>
-      <fieldset disabled={busy}>
-        <label htmlFor="business-name">Название бизнеса</label>
-        <input id="business-name" autoComplete="organization" required maxLength={100}
-          value={name} onChange={(event) => setName(event.target.value)} placeholder="Например, кофейня «Зёрно»" />
-        <label htmlFor="business-type">Тип бизнеса</label>
-        <select id="business-type" value={businessType} onChange={(event) => setBusinessType(event.target.value as typeof businessType)}>
-          <option value="store">Магазин / товары</option>
-          <option value="service">Услуги</option>
-          <option value="hybrid">Товары и услуги</option>
-        </select>
-        <p className="field-hint">Помогает с рекомендациями. Позже можно изменить и подключить любые решения.</p>
-        <label htmlFor="business-timezone">Часовой пояс</label>
-        <select id="business-timezone" value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-          {ZONES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-        <p className="field-hint">Для расписания публикаций и напоминаний. Выберите время вашего бизнеса.</p>
+      <fieldset className="form-stack" disabled={busy}>
+        <div className="field">
+          <label className="field__label" htmlFor="business-name">Название бизнеса</label>
+          <input
+            id="business-name"
+            className="field__control"
+            autoComplete="organization"
+            required
+            maxLength={100}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Например, кофейня «Зёрно»"
+          />
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="business-type">Тип бизнеса</label>
+          <select
+            id="business-type"
+            className="field__control"
+            value={businessType}
+            onChange={(event) => setBusinessType(event.target.value as typeof businessType)}
+          >
+            <option value="store">Магазин / товары</option>
+            <option value="service">Услуги</option>
+            <option value="hybrid">Товары и услуги</option>
+          </select>
+          <p className="field-hint">Помогает с рекомендациями. Позже можно изменить и подключить любые решения.</p>
+        </div>
+        <div className="field">
+          <label className="field__label" htmlFor="business-timezone">Часовой пояс</label>
+          <select
+            id="business-timezone"
+            className="field__control"
+            value={timezone}
+            onChange={(event) => setTimezone(event.target.value)}
+          >
+            {ZONES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <p className="field-hint">Для расписания публикаций и напоминаний. Выберите время вашего бизнеса.</p>
+        </div>
         {error && <p className="account-error" role="alert">{error}</p>}
         <button type="submit" className="button button--primary button--full">
           {busy ? "Создаём…" : "Создать пространство"}<ArrowRight size={18} />

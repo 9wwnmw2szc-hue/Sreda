@@ -40,7 +40,7 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
           <p className="account-footnote">
             Добавьте пользователя по его публичному ID `usr_...`.
           </p>
-          <div className="members-panel__invite settings-business">
+          <div className="members-panel__invite">
             <input
               aria-label="ID пользователя"
               placeholder="usr_..."
@@ -56,7 +56,7 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
               <option value="admin">Администратор</option>
             </select>
             <button
-              className="button button--outline"
+              className="button button--outline button--nowrap"
               type="button"
               disabled={busy || !userId.trim()}
               onClick={() => void invite()}
@@ -71,7 +71,7 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
         <div className="account-invitations">
           <strong>Активные участники</strong>
           {members.map((item) => (
-            <div key={item.userId} className="settings-business">
+            <div key={item.userId} className="members-panel__row">
               <span>
                 {item.name} ·{" "}
                 {item.role === "owner"
@@ -97,7 +97,7 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
                     <option value="admin">Администратор</option>
                   </select>
                   <button
-                    className="button button--outline"
+                    className="button button--outline button--nowrap"
                     type="button"
                     disabled={busy}
                     onClick={() => void revoke(item.userId)}
@@ -114,13 +114,13 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
         <div className="account-invitations">
           <strong>Входящие приглашения</strong>
           {incoming.map((item) => (
-            <div key={item.id} className="settings-business">
+            <div key={item.id} className="members-panel__row">
               <span>
                 {item.businessName} ·{" "}
                 {item.role === "admin" ? "Администратор" : "Оператор"}
               </span>
               <button
-                className="button button--outline"
+                className="button button--outline button--nowrap"
                 type="button"
                 disabled={busy}
                 onClick={() => void accept(item.id)}

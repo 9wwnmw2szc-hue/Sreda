@@ -56,7 +56,7 @@ function CopyableId({ value }: { value: string }) {
       <dd className="copyable-id__value">{value}</dd>
       <button
         type="button"
-        className="button button--ghost button--sm copyable-id__btn"
+        className="button button--ghost button--sm button--nowrap copyable-id__btn"
         onClick={() => void copy()}
         aria-label="Скопировать ID"
       >
