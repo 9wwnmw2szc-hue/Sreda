@@ -233,8 +233,14 @@ test("recovery codes contrast after registration", async ({ page }, testInfo) =>
     testInfo.skip(true, `NETWORK_UNAVAILABLE: HTTP ${response?.status()}`);
     return;
   }
-  await page.locator("#account-login").fill(user);
+  await page.locator("#account-login").waitFor({ state: "visible", timeout: 30_000 });
+  await page.waitForTimeout(1500);
+  await page.locator("#account-login").click();
+  await page.locator("#account-login").fill("");
+  await page.locator("#account-login").pressSequentially(user, { delay: 15 });
+  await page.locator("#account-password").click();
   await page.locator("#account-password").fill(pass);
+  await page.locator("#account-confirmation").click();
   await page.locator("#account-confirmation").fill(pass);
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
   const code = page.locator(".recovery-codes code").first();
