@@ -3537,7 +3537,9 @@ ul {
 }
 .account-story { background: var(--auth-bg); padding:44px clamp(32px,5vw,88px); }
 .account-story::before { content:""; position:absolute; inset:auto -18% -22% 24%; height:58%; background:radial-gradient(circle, rgba(95,150,103,.24), transparent 68%); pointer-events:none; }
-.account-story .brand { position:relative; z-index:2; }
+.account-story .brand { position:relative; z-index:2; color: #f4f6f8; }
+.account-story .brand strong { color: #f4f6f8; }
+.account-story .brand small { color: #d2dacf; }
 .account-story__copy { margin-top:clamp(56px,10vh,120px); }
 .account-story__copy p { color:#d8e2d4; max-width:420px; }
 .account-story__art { width:125%; max-width:none; margin:10px -12% -8%; align-self:center; mix-blend-mode:screen; opacity:.92; }
@@ -3595,6 +3597,16 @@ ul {
 }
 .account-card .button { margin-top:22px; border-radius:13px; min-height:54px; font-size:16px; }
 .account-card .account-footnote { margin-top:20px; text-align:center; color: var(--auth-muted); }
+.account-card .field-hint,
+.account-card p.account-footnote[id$="-hint"],
+.account-card #login-hint,
+.account-card #password-hint,
+.account-card #pin-hint {
+  text-align: left;
+  margin-top: 6px;
+  margin-bottom: 0;
+  color: var(--auth-muted);
+}
 .account-card .text-link { color: var(--auth-link); }
 .account-form-shell .recovery-codes {
   background: var(--auth-field-bg);

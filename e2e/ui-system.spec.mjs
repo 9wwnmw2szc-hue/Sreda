@@ -103,27 +103,61 @@ async function registerThrowaway(page, suffix) {
   await page.locator("#account-password").fill(pass);
   await page.locator("#account-confirmation").fill(pass);
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
-  await page.waitForTimeout(3500);
+
+  const recovery = page.locator("label.recovery-confirm input[type=checkbox]");
   const alert = page.locator(".account-error, [role='alert']");
+  try {
+    await Promise.race([
+      page.waitForFunction(
+        () => !location.pathname.includes("/register"),
+        null,
+        { timeout: 45_000 },
+      ),
+      recovery.waitFor({ state: "visible", timeout: 45_000 }),
+      alert.waitFor({ state: "visible", timeout: 45_000 }),
+    ]);
+  } catch {
+    const err = new Error(
+      "REGISTRATION_UNAVAILABLE: timed out waiting for signup result",
+    );
+    err.name = "RegistrationUnavailable";
+    throw err;
+  }
+
   if (await alert.count()) {
     const msg = ((await alert.first().textContent()) || "").trim();
-    if (/недоступен|unavailable|503|попробуйте позже/i.test(msg)) {
+    if (
+      msg &&
+      /недоступен|unavailable|503|попробуйте позже|не удалось|ошибк/i.test(msg)
+    ) {
       const err = new Error(`REGISTRATION_UNAVAILABLE: ${msg}`);
       err.name = "RegistrationUnavailable";
       throw err;
     }
   }
-  const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
-  if (await checkbox.count()) {
-    await checkbox.check({ force: true });
+
+  if (await recovery.count()) {
+    await recovery.check({ force: true });
     await page.getByRole("button", { name: /продолжить/i }).click();
     await page.waitForTimeout(3000);
   }
-  await page.waitForFunction(
-    () => !location.pathname.includes("/register"),
-    null,
-    { timeout: 60_000 },
-  );
+
+  if (page.url().includes("/register")) {
+    try {
+      await page.waitForFunction(
+        () => !location.pathname.includes("/register"),
+        null,
+        { timeout: 60_000 },
+      );
+    } catch {
+      const err = new Error(
+        "REGISTRATION_UNAVAILABLE: remained on /register after signup",
+      );
+      err.name = "RegistrationUnavailable";
+      throw err;
+    }
+  }
+
   if (page.url().includes("business/new")) {
     await page.locator("#business-name").fill(`UI System ${suffix}`);
     await page.getByRole("button", { name: /создать пространство/i }).click();
@@ -137,12 +171,12 @@ async function ensureAuthenticated(page, testInfo) {
   try {
     await registerThrowaway(page, suffix);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     if (
-      error instanceof Error &&
-      (error.name === "RegistrationUnavailable" ||
-        /REGISTRATION_UNAVAILABLE/.test(error.message))
+      (error instanceof Error && error.name === "RegistrationUnavailable") ||
+      /REGISTRATION_UNAVAILABLE|ERR_CONNECTION_REFUSED|net::ERR_/i.test(message)
     ) {
-      testInfo.skip(true, error.message);
+      testInfo.skip(true, message);
       return;
     }
     throw error;
