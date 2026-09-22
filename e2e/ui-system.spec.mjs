@@ -93,69 +93,58 @@ async function authGeometryOk(page) {
 }
 
 async function registerThrowaway(page, suffix) {
-  const user = `uisys${suffix}`;
+  const user = `e2eux${suffix}`;
   const pass = "AcceptTest!2026ui";
   await page.goto(baseURL + "/register", {
     waitUntil: "domcontentloaded",
     timeout: 90_000,
   });
-  await page.locator("#account-login").fill(user);
-  await page.locator("#account-password").fill(pass);
-  await page.locator("#account-confirmation").fill(pass);
+  await page
+    .locator(
+      'input[name="username"], input[autocomplete="username"], #account-login',
+    )
+    .first()
+    .fill(user);
+  const passwords = page.locator('input[type="password"]');
+  await passwords.nth(0).fill(pass);
+  if ((await passwords.count()) > 1) await passwords.nth(1).fill(pass);
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
 
-  const recovery = page.locator("label.recovery-confirm input[type=checkbox]");
-  const alert = page.locator(".account-error, [role='alert']");
+  const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
   try {
-    await Promise.race([
-      page.waitForFunction(
-        () => !location.pathname.includes("/register"),
-        null,
-        { timeout: 45_000 },
-      ),
-      recovery.waitFor({ state: "visible", timeout: 45_000 }),
-      alert.waitFor({ state: "visible", timeout: 45_000 }),
-    ]);
+    await checkbox.waitFor({ state: "attached", timeout: 20_000 });
   } catch {
+    const msg = (
+      (await page
+        .locator(".account-error")
+        .first()
+        .textContent()
+        .catch(() => "")) || ""
+    ).trim();
     const err = new Error(
-      "REGISTRATION_UNAVAILABLE: timed out waiting for signup result",
+      `REGISTRATION_UNAVAILABLE: ${msg || "signup did not reach recovery step"}`,
     );
     err.name = "RegistrationUnavailable";
     throw err;
   }
 
-  if (await alert.count()) {
-    const msg = ((await alert.first().textContent()) || "").trim();
-    if (
-      msg &&
-      /недоступен|unavailable|503|попробуйте позже|не удалось|ошибк/i.test(msg)
-    ) {
-      const err = new Error(`REGISTRATION_UNAVAILABLE: ${msg}`);
-      err.name = "RegistrationUnavailable";
-      throw err;
-    }
-  }
-
-  if (await recovery.count()) {
-    await recovery.check({ force: true });
-    await page.getByRole("button", { name: /продолжить/i }).click();
-    await page.waitForTimeout(3000);
-  }
-
-  if (page.url().includes("/register")) {
-    try {
-      await page.waitForFunction(
-        () => !location.pathname.includes("/register"),
-        null,
-        { timeout: 60_000 },
-      );
-    } catch {
-      const err = new Error(
-        "REGISTRATION_UNAVAILABLE: remained on /register after signup",
-      );
-      err.name = "RegistrationUnavailable";
-      throw err;
-    }
+  // Click the label so React onChange updates `saved` (force check does not).
+  await page.locator("label.recovery-confirm").click();
+  const continueBtn = page.getByRole("button", { name: /продолжить/i });
+  await expect(continueBtn).toBeEnabled({ timeout: 5_000 });
+  await continueBtn.click();
+  try {
+    await page.waitForFunction(
+      () => !location.pathname.includes("/register"),
+      null,
+      { timeout: 30_000 },
+    );
+  } catch {
+    const err = new Error(
+      "REGISTRATION_UNAVAILABLE: remained on /register after signup",
+    );
+    err.name = "RegistrationUnavailable";
+    throw err;
   }
 
   if (page.url().includes("business/new")) {
@@ -174,7 +163,9 @@ async function ensureAuthenticated(page, testInfo) {
     const message = error instanceof Error ? error.message : String(error);
     if (
       (error instanceof Error && error.name === "RegistrationUnavailable") ||
-      /REGISTRATION_UNAVAILABLE|ERR_CONNECTION_REFUSED|net::ERR_/i.test(message)
+      /REGISTRATION_UNAVAILABLE|ERR_CONNECTION_REFUSED|net::ERR_/i.test(
+        message,
+      )
     ) {
       testInfo.skip(true, message);
       return;
@@ -198,7 +189,10 @@ test.describe("UI system — AUTH", () => {
           timeout: 60_000,
         });
         expect(response?.status(), `${route} status`).toBeLessThan(400);
-        expect(await bodyOverflowX(page), `${route}@${width} overflow-x`).toBeFalsy();
+        expect(
+          await bodyOverflowX(page),
+          `${route}@${width} overflow-x`,
+        ).toBeFalsy();
       }
     });
   }
@@ -257,7 +251,7 @@ test.describe("UI system — APP SHELL", () => {
   test("dashboard shell has no horizontal overflow at 390 after register", async ({
     page,
   }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await ensureAuthenticated(page, testInfo);
     await page.goto(baseURL + "/dashboard", {
@@ -274,7 +268,7 @@ test.describe("UI system — APP SHELL", () => {
 
 test.describe("UI system — SETTINGS", () => {
   test("settings business section basics at 390", async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await ensureAuthenticated(page, testInfo);
     await page.goto(baseURL + "/settings?section=business", {
@@ -290,7 +284,6 @@ test.describe("UI system — SETTINGS", () => {
   });
 });
 
-// Optional artifact dir for local debugging (no-op if unset)
 const shotDir = process.env.E2E_SCREENSHOT_DIR;
 if (shotDir) {
   fs.mkdirSync(path.resolve(shotDir), { recursive: true });
