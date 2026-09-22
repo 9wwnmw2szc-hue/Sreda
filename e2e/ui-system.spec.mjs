@@ -135,44 +135,43 @@ async function registerThrowaway(page, suffix) {
     );
   }
 
-  await page
-    .locator(
-      'input[name="username"], input[autocomplete="username"], #account-login',
-    )
-    .first()
-    .fill(user);
+  const loginInput = page.locator(
+    'input[name="username"], input[autocomplete="username"], #account-login',
+  ).first();
+  await loginInput.waitFor({ state: "visible", timeout: 30_000 });
+  // Controlled React inputs need hydration before values stick.
+  await page.waitForTimeout(1500);
+  await loginInput.click();
+  await loginInput.fill("");
+  await loginInput.pressSequentially(user, { delay: 15 });
   const passwords = page.locator('input[type="password"]');
+  await passwords.nth(0).click();
   await passwords.nth(0).fill(pass);
-  if ((await passwords.count()) > 1) await passwords.nth(1).fill(pass);
+  if ((await passwords.count()) > 1) {
+    await passwords.nth(1).click();
+    await passwords.nth(1).fill(pass);
+  }
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
 
   const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
-  const alert = page.locator(".account-error, [role='alert']");
   try {
-    await Promise.race([
-      checkbox.waitFor({ state: "attached", timeout: 45_000 }),
-      alert.waitFor({ state: "visible", timeout: 45_000 }),
-    ]);
+    await checkbox.waitFor({ state: "attached", timeout: 45_000 });
   } catch {
-    throw new Error(
-      "PRODUCT_REGRESSION: signup did not reach recovery step or error state",
-    );
-  }
-
-  if (await alert.count()) {
-    const msg = ((await alert.first().textContent()) || "").trim();
+    const msg = (
+      (await page
+        .locator(".account-error, [role='alert']")
+        .first()
+        .textContent()
+        .catch(() => "")) || ""
+    ).trim();
     if (/503|unavailable|недоступен|попробуйте позже/i.test(msg)) {
       const err = new Error(`NETWORK_UNAVAILABLE: ${msg}`);
       err.name = "NetworkUnavailable";
       throw err;
     }
-    if (msg) {
-      throw new Error(`PRODUCT_REGRESSION: signup error — ${msg}`);
-    }
-  }
-
-  if (!(await checkbox.count())) {
-    throw new Error("PRODUCT_REGRESSION: recovery checkbox missing after signup");
+    throw new Error(
+      `PRODUCT_REGRESSION: signup did not reach recovery step${msg ? `: ${msg}` : ""}`,
+    );
   }
 
   // Click the label so React onChange updates `saved` (force check does not).
@@ -193,9 +192,36 @@ async function registerThrowaway(page, suffix) {
   }
 
   if (page.url().includes("business/new")) {
-    await page.locator("#business-name").fill(`UI System ${suffix}`);
+    const name = page.locator("#business-name");
+    await name.waitFor({ state: "visible", timeout: 20_000 });
+    await page.waitForTimeout(800);
+    await name.click();
+    await name.fill("");
+    await name.pressSequentially(`UI System ${suffix}`, { delay: 15 });
+    const createPromise = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/v1/businesses") &&
+        r.request().method() === "POST",
+      { timeout: 60_000 },
+    );
     await page.getByRole("button", { name: /создать пространство/i }).click();
-    await page.waitForTimeout(3000);
+    const createRes = await createPromise.catch(() => null);
+    if (createRes && !createRes.ok()) {
+      throw new Error(
+        `PRODUCT_REGRESSION: create business HTTP ${createRes.status()}`,
+      );
+    }
+    try {
+      await page.waitForFunction(
+        () => !location.pathname.includes("/business/new"),
+        null,
+        { timeout: 60_000 },
+      );
+    } catch {
+      throw new Error(
+        "PRODUCT_REGRESSION: remained on /business/new after create",
+      );
+    }
   }
   return user;
 }

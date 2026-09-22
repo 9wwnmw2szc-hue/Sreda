@@ -190,18 +190,60 @@ async function createAuthStorage(browser) {
   }
 
   if (page.url().includes("business/new")) {
-    await page.locator("#business-name").fill(`Visual Audit ${suffix}`);
+    const name = page.locator("#business-name");
+    await name.waitFor({ state: "visible", timeout: 20_000 });
+    await page.waitForTimeout(800);
+    await name.click();
+    await name.fill("");
+    await name.pressSequentially(`Visual Audit ${suffix}`, { delay: 15 });
+    const createPromise = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/v1/businesses") &&
+        r.request().method() === "POST",
+      { timeout: 60_000 },
+    );
     await page.getByRole("button", { name: /создать пространство/i }).click();
-    await page.waitForTimeout(2500);
+    const createRes = await createPromise.catch(() => null);
+    if (createRes && !createRes.ok()) {
+      const body = (await createRes.text().catch(() => "")).slice(0, 200);
+      throw new Error(
+        `PRODUCT_REGRESSION: create business HTTP ${createRes.status()} ${body}`,
+      );
+    }
+    try {
+      await page.waitForFunction(
+        () => !location.pathname.includes("/business/new"),
+        null,
+        { timeout: 60_000 },
+      );
+    } catch {
+      const errText = (
+        (await page
+          .locator(".account-error, [role='alert']")
+          .first()
+          .textContent()
+          .catch(() => "")) || ""
+      ).trim();
+      throw new Error(
+        `PRODUCT_REGRESSION: remained on /business/new after create${errText ? `: ${errText}` : ""}`,
+      );
+    }
   }
 
-  // Land on dashboard to confirm session
+  // Land on dashboard to confirm session + business
   await page.goto(`${base}/dashboard`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
   });
-  if (new URL(page.url()).pathname === "/login") {
+  await page.waitForTimeout(1000);
+  const dashPath = new URL(page.url()).pathname;
+  if (dashPath === "/login") {
     throw new Error("PRODUCT_REGRESSION: session missing after registration");
+  }
+  if (dashPath.includes("/business/new")) {
+    throw new Error(
+      "PRODUCT_REGRESSION: still redirected to /business/new after create",
+    );
   }
 
   const storage = await ctx.storageState();
@@ -295,6 +337,8 @@ try {
         await page.screenshot({ path: path.join(out, file), fullPage: false });
         const overflowX = await bodyOverflowX(page);
         const loginRedirect = pathname === "/login";
+        const stuckOnboarding =
+          pathname.includes("/business/new") || pathname.includes("/register");
         report.push({
           route,
           viewport: { width: vp.width, height: vp.height },
@@ -304,6 +348,7 @@ try {
           pathname,
           overflowX,
           loginRedirect,
+          stuckOnboarding,
           screenshot: file,
           auth: true,
         });
@@ -325,6 +370,7 @@ const issues = report.filter(
     r.status >= 400 ||
     r.overflowX ||
     r.loginRedirect ||
+    r.stuckOnboarding ||
     (r.auth && /\/login/.test(r.pathname || "")),
 );
 
