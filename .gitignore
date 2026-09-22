@@ -52,3 +52,4 @@ next-env.d.ts
 /deploy/db.env
 /deploy/caddy.env
 *.dump
+test-results/

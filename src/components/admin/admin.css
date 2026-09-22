@@ -51,7 +51,7 @@
 .admin-sidebar__brand span {
   display: block;
   margin-top: 2px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -105,7 +105,7 @@
 .admin-sidebar__user span {
   display: block;
   margin-top: 2px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   word-break: break-all;
 }
@@ -158,8 +158,10 @@
   display: none;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid var(--border-default);
   border-radius: 8px;
   background: var(--bg-surface);
@@ -178,7 +180,7 @@
   border-radius: 6px;
   background: color-mix(in srgb, var(--info) 12%, transparent);
   color: var(--text-secondary);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 650;
   letter-spacing: 0.03em;
 }
@@ -243,7 +245,7 @@
 
 .admin-kpi__label {
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -347,7 +349,7 @@
   top: 0;
   background: color-mix(in srgb, var(--bg-elevated) 90%, var(--bg-surface));
   color: var(--text-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -430,7 +432,7 @@
   align-items: center;
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 650;
   line-height: 1.4;
   white-space: nowrap;
@@ -518,12 +520,14 @@
 
 .admin-search__clear {
   position: absolute;
-  right: 6px;
+  right: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -559,7 +563,7 @@
 .admin-search__group-title {
   margin: 0;
   padding: 8px 12px 4px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -598,6 +602,7 @@
   color: var(--text-primary);
   max-width: min(440px, calc(100vw - 24px));
   width: 100%;
+  max-height: min(90dvh, 720px);
 }
 
 .admin-dialog::backdrop {
@@ -606,6 +611,9 @@
 
 .admin-dialog__inner {
   padding: 18px;
+  max-height: min(90dvh, 720px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-dialog__inner h2 {
@@ -642,6 +650,17 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .admin-dialog__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .admin-dialog__actions .button {
+    width: 100%;
+    min-height: 44px;
+  }
 }
 
 .button--danger {
@@ -696,7 +715,7 @@
 
 .admin-detail-item dt {
   margin: 0 0 4px;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -804,6 +823,19 @@
 }
 
 @media (max-width: 860px) {
+  .admin-toolbar input,
+  .admin-toolbar select,
+  .admin-search__input,
+  .admin-content input:not([type="checkbox"]):not([type="radio"]),
+  .admin-content select,
+  .admin-content textarea {
+    font-size: 16px;
+  }
+  .admin-sidebar__link {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
   .admin-shell {
     display: block;
   }

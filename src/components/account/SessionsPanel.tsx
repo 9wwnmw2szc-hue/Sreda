@@ -148,7 +148,7 @@ export function SessionsPanel() {
               {!s.current ? (
                 <button
                   type="button"
-                  className="button button--ghost session-card__revoke"
+                  className="button button--ghost button--nowrap session-card__revoke"
                   disabled={busyId === s.id || busyAll}
                   onClick={() => void revokeOne(s.id)}
                 >

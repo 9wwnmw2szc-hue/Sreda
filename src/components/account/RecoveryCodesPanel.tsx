@@ -112,7 +112,7 @@ export function RecoveryCodesPanel({
           </ul>
           <div className="actions-row">
             <button
-              className="button button--outline"
+              className="button button--outline button--nowrap"
               type="button"
               onClick={() => void copy()}
             >
