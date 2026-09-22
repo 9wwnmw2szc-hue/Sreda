@@ -2,6 +2,10 @@
  * Systemic UI protection — AUTH / APP SHELL / SETTINGS basics.
  * Requires a reachable app via E2E_BASE_URL or AUDIT_BASE_URL.
  * Prefer Chromium (playwright.config default). Does not disable other e2e specs.
+ *
+ * Skip policy:
+ *   NETWORK / SERVER UNAVAILABLE → controlled skip
+ *   PRODUCT REGRESSION after successful /register load → FAIL
  */
 import { test, expect } from "playwright/test";
 import fs from "fs";
@@ -11,6 +15,17 @@ const baseURL =
   process.env.E2E_BASE_URL ||
   process.env.AUDIT_BASE_URL ||
   "http://127.0.0.1:3000";
+
+function isNetworkUnavailable(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  const name = error instanceof Error ? error.name : "";
+  return (
+    name === "NetworkUnavailable" ||
+    /NETWORK_UNAVAILABLE|ERR_CONNECTION_REFUSED|net::ERR_|ECONNREFUSED|ETIMEDOUT|Timeout .* exceeded.*goto/i.test(
+      message,
+    )
+  );
+}
 
 async function bodyOverflowX(page) {
   return page.evaluate(() => {
@@ -77,7 +92,6 @@ async function authGeometryOk(page) {
     if (hr.height < 1 || cr.height < 1) {
       return { bothVisible: false, ok: true };
     }
-    // Side-by-side desktop: card is not stacked under the hero
     const stacked = cr.top >= hr.bottom - 8;
     if (!stacked) {
       return { bothVisible: true, ok: true, layout: "side-by-side" };
@@ -95,10 +109,32 @@ async function authGeometryOk(page) {
 async function registerThrowaway(page, suffix) {
   const user = `e2eux${suffix}`;
   const pass = "AcceptTest!2026ui";
-  await page.goto(baseURL + "/register", {
-    waitUntil: "domcontentloaded",
-    timeout: 90_000,
-  });
+  let response;
+  try {
+    response = await page.goto(baseURL + "/register", {
+      waitUntil: "domcontentloaded",
+      timeout: 90_000,
+    });
+  } catch (error) {
+    const err = new Error(
+      `NETWORK_UNAVAILABLE: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    err.name = "NetworkUnavailable";
+    throw err;
+  }
+  if (!response || response.status() >= 500) {
+    const err = new Error(
+      `NETWORK_UNAVAILABLE: /register HTTP ${response?.status() ?? "none"}`,
+    );
+    err.name = "NetworkUnavailable";
+    throw err;
+  }
+  if (response.status() >= 400) {
+    throw new Error(
+      `PRODUCT_REGRESSION: /register returned HTTP ${response.status()}`,
+    );
+  }
+
   await page
     .locator(
       'input[name="username"], input[autocomplete="username"], #account-login',
@@ -111,21 +147,32 @@ async function registerThrowaway(page, suffix) {
   await page.getByRole("button", { name: /создать аккаунт/i }).click();
 
   const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
+  const alert = page.locator(".account-error, [role='alert']");
   try {
-    await checkbox.waitFor({ state: "attached", timeout: 20_000 });
+    await Promise.race([
+      checkbox.waitFor({ state: "attached", timeout: 45_000 }),
+      alert.waitFor({ state: "visible", timeout: 45_000 }),
+    ]);
   } catch {
-    const msg = (
-      (await page
-        .locator(".account-error")
-        .first()
-        .textContent()
-        .catch(() => "")) || ""
-    ).trim();
-    const err = new Error(
-      `REGISTRATION_UNAVAILABLE: ${msg || "signup did not reach recovery step"}`,
+    throw new Error(
+      "PRODUCT_REGRESSION: signup did not reach recovery step or error state",
     );
-    err.name = "RegistrationUnavailable";
-    throw err;
+  }
+
+  if (await alert.count()) {
+    const msg = ((await alert.first().textContent()) || "").trim();
+    if (/503|unavailable|недоступен|попробуйте позже/i.test(msg)) {
+      const err = new Error(`NETWORK_UNAVAILABLE: ${msg}`);
+      err.name = "NetworkUnavailable";
+      throw err;
+    }
+    if (msg) {
+      throw new Error(`PRODUCT_REGRESSION: signup error — ${msg}`);
+    }
+  }
+
+  if (!(await checkbox.count())) {
+    throw new Error("PRODUCT_REGRESSION: recovery checkbox missing after signup");
   }
 
   // Click the label so React onChange updates `saved` (force check does not).
@@ -137,14 +184,12 @@ async function registerThrowaway(page, suffix) {
     await page.waitForFunction(
       () => !location.pathname.includes("/register"),
       null,
-      { timeout: 30_000 },
+      { timeout: 45_000 },
     );
   } catch {
-    const err = new Error(
-      "REGISTRATION_UNAVAILABLE: remained on /register after signup",
+    throw new Error(
+      "PRODUCT_REGRESSION: remained on /register after recovery confirmation",
     );
-    err.name = "RegistrationUnavailable";
-    throw err;
   }
 
   if (page.url().includes("business/new")) {
@@ -160,14 +205,8 @@ async function ensureAuthenticated(page, testInfo) {
   try {
     await registerThrowaway(page, suffix);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      (error instanceof Error && error.name === "RegistrationUnavailable") ||
-      /REGISTRATION_UNAVAILABLE|ERR_CONNECTION_REFUSED|net::ERR_/i.test(
-        message,
-      )
-    ) {
-      testInfo.skip(true, message);
+    if (isNetworkUnavailable(error)) {
+      testInfo.skip(true, error instanceof Error ? error.message : String(error));
       return;
     }
     throw error;
@@ -251,13 +290,14 @@ test.describe("UI system — APP SHELL", () => {
   test("dashboard shell has no horizontal overflow at 390 after register", async ({
     page,
   }, testInfo) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await ensureAuthenticated(page, testInfo);
     await page.goto(baseURL + "/dashboard", {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+    expect(new URL(page.url()).pathname).not.toBe("/login");
     expect(await bodyOverflowX(page), "dashboard overflow-x").toBeFalsy();
     const mobileHeader = page.locator(".mobile-header");
     if (await mobileHeader.count()) {
@@ -268,13 +308,14 @@ test.describe("UI system — APP SHELL", () => {
 
 test.describe("UI system — SETTINGS", () => {
   test("settings business section basics at 390", async ({ page }, testInfo) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await ensureAuthenticated(page, testInfo);
     await page.goto(baseURL + "/settings?section=business", {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+    expect(new URL(page.url()).pathname).not.toBe("/login");
     await expect(
       page.getByRole("heading", { name: "Настройки" }),
     ).toBeVisible();

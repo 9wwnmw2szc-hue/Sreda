@@ -241,6 +241,129 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
+      function rectsOverlap(a, b, pad = 0) {
+        return !(
+          a.right <= b.left + pad ||
+          a.left >= b.right - pad ||
+          a.bottom <= b.top + pad ||
+          a.top >= b.bottom - pad
+        );
+      }
+
+      // Geometry: bottom nav must not cover last interactive content
+      const bottomNav = document.querySelector(".mobile-bottom-nav");
+      if (bottomNav && getComputedStyle(bottomNav).display !== "none") {
+        const navRect = bottomNav.getBoundingClientRect();
+        const interactives = [
+          ...document.querySelectorAll(
+            "main button, main .button, main a.button, .sticky-save-bar .button, .panel .button",
+          ),
+        ].filter((el) => {
+          if (!(el instanceof HTMLElement)) return false;
+          const st = getComputedStyle(el);
+          if (st.display === "none" || st.visibility === "hidden") return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        });
+        if (interactives.length) {
+          const last = interactives.reduce((best, el) => {
+            const r = el.getBoundingClientRect();
+            const br = best.getBoundingClientRect();
+            return r.bottom > br.bottom ? el : best;
+          });
+          const lastRect = last.getBoundingClientRect();
+          if (rectsOverlap(lastRect, navRect, -1) && lastRect.bottom > navRect.top + 2) {
+            const label = (last.textContent || "").trim().slice(0, 36);
+            failures.push(
+              `overlap-bottom-nav: "${label}" bottom=${Math.round(lastRect.bottom)} navTop=${Math.round(navRect.top)}`,
+            );
+          }
+        }
+      }
+
+      // Geometry: label must not overlap its following control
+      for (const label of document.querySelectorAll("label")) {
+        if (!(label instanceof HTMLElement)) continue;
+        const st = getComputedStyle(label);
+        if (st.display === "none" || st.visibility === "hidden") continue;
+        const forId = label.getAttribute("for");
+        let control = forId ? document.getElementById(forId) : null;
+        if (!control) {
+          control = label.querySelector("input, select, textarea");
+        }
+        if (!control || !(control instanceof HTMLElement)) continue;
+        // Skip checkbox/radio labels that wrap the control intentionally
+        if (
+          control.matches('input[type="checkbox"], input[type="radio"]') &&
+          label.contains(control)
+        ) {
+          continue;
+        }
+        const lr = label.getBoundingClientRect();
+        const cr = control.getBoundingClientRect();
+        if (lr.height < 1 || cr.height < 1) continue;
+        if (rectsOverlap(lr, cr, 1) && Math.abs(lr.top - cr.top) > 4) {
+          failures.push(
+            `overlap-label-input: "${(label.textContent || "").trim().slice(0, 32)}"`,
+          );
+        }
+      }
+
+      // BusinessSwitcher name vs chevron
+      const switcher = document.querySelector(
+        ".business-switcher, [data-business-switcher]",
+      );
+      if (switcher) {
+        const nameEl =
+          switcher.querySelector(
+            ".business-switcher__name, .business-switcher span, strong",
+          ) || null;
+        const chevron =
+          switcher.querySelector(
+            "svg, .business-switcher__chevron, [data-chevron]",
+          ) || null;
+        if (nameEl && chevron) {
+          const nr = nameEl.getBoundingClientRect();
+          const cr = chevron.getBoundingClientRect();
+          if (nr.width > 0 && cr.width > 0 && rectsOverlap(nr, cr, 2)) {
+            failures.push("overlap-business-switcher: name crosses chevron");
+          }
+        }
+      }
+
+      // Mobile search field vs close
+      const searchField = document.querySelector(
+        ".soty-command__field, .soty-command__sheet .soty-command__field",
+      );
+      const searchClose = document.querySelector(".soty-command__close");
+      if (searchField && searchClose) {
+        const fr = searchField.getBoundingClientRect();
+        const cr = searchClose.getBoundingClientRect();
+        if (
+          fr.width > 0 &&
+          cr.width > 0 &&
+          getComputedStyle(searchClose).display !== "none" &&
+          rectsOverlap(fr, cr, 2)
+        ) {
+          failures.push("overlap-command-search: field crosses close");
+        }
+      }
+
+      // Sticky save bar vs bottom nav
+      const sticky = document.querySelector(".sticky-save-bar");
+      if (
+        sticky &&
+        bottomNav &&
+        getComputedStyle(sticky).display !== "none" &&
+        getComputedStyle(bottomNav).display !== "none"
+      ) {
+        const sr = sticky.getBoundingClientRect();
+        const nr = bottomNav.getBoundingClientRect();
+        if (sr.height > 0 && nr.height > 0 && rectsOverlap(sr, nr, 1)) {
+          failures.push("overlap-sticky-save-bottom-nav");
+        }
+      }
+
       return {
         pathname: location.pathname + location.search,
         pathOnly: location.pathname,

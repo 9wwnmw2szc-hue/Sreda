@@ -5,15 +5,17 @@ on:
     paths:
       - "src/app/globals.css"
       - "src/components/**"
+      - "scripts/ui-audit-capture.mjs"
       - "scripts/visual-polish-capture.mjs"
-      - "scripts/ui-polish-capture.mjs"
+      - "scripts/responsive-audit.mjs"
+      - "e2e/ui-system.spec.mjs"
       - ".github/workflows/visual-audit.yml"
 permissions:
   contents: read
 jobs:
   visual:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -23,33 +25,35 @@ jobs:
       - run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
-      - name: Check audit credentials
-        id: creds
+      - name: Capture screenshots (throwaway account)
+        id: capture
         env:
-          AUDIT_USER: ${{ secrets.AUDIT_USER }}
-          AUDIT_PASS: ${{ secrets.AUDIT_PASS }}
-        run: |
-          if [ -z "$AUDIT_USER" ] || [ -z "$AUDIT_PASS" ]; then
-            echo "Missing AUDIT_USER / AUDIT_PASS secrets — skipping authenticated captures."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Capture screenshots
-        if: steps.creds.outputs.skip != 'true'
-        env:
-          AUDIT_USER: ${{ secrets.AUDIT_USER }}
-          AUDIT_PASS: ${{ secrets.AUDIT_PASS }}
           AUDIT_BASE_URL: ${{ vars.AUDIT_BASE_URL }}
           AUDIT_OUTPUT: artifacts/visual-audit
+          AUDIT_PHASE: staging
+          # Optional override; when unset the script registers a throwaway user.
+          AUDIT_USER: ${{ secrets.AUDIT_USER }}
+          AUDIT_PASS: ${{ secrets.AUDIT_PASS }}
         run: |
+          set -euo pipefail
           export AUDIT_BASE_URL="${AUDIT_BASE_URL:-https://web-production-1aace.up.railway.app}"
-          node scripts/visual-polish-capture.mjs
+          node scripts/ui-audit-capture.mjs
+          PNG_COUNT=$(find artifacts/visual-audit -name '*.png' | wc -l | tr -d ' ')
+          echo "png_count=${PNG_COUNT}" >> "$GITHUB_OUTPUT"
+          if [ ! -f artifacts/visual-audit/report.json ]; then
+            echo "Missing report.json" >&2
+            exit 1
+          fi
+          if [ "$PNG_COUNT" -lt 1 ]; then
+            echo "No PNG screenshots were written" >&2
+            exit 1
+          fi
+          echo "Captured ${PNG_COUNT} PNGs"
       - name: Upload visual artifacts
-        if: steps.creds.outputs.skip != 'true' && always()
+        if: always() && steps.capture.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: soty-visual-audit-${{ github.sha }}
           path: artifacts/visual-audit/
           retention-days: 21
-          if-no-files-found: warn
+          if-no-files-found: error
