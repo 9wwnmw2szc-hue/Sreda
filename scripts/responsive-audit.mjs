@@ -159,12 +159,27 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
-      // Input font-size on mobile (iOS zoom prevention)
+      // Input font-size on mobile (iOS zoom prevention for text entry)
       if (mobile) {
         for (const el of document.querySelectorAll(
           "input, textarea, select",
         )) {
           if (!(el instanceof HTMLElement)) continue;
+          if (
+            el instanceof HTMLInputElement &&
+            (el.type === "checkbox" ||
+              el.type === "radio" ||
+              el.type === "hidden" ||
+              el.type === "range" ||
+              el.type === "file" ||
+              el.type === "button" ||
+              el.type === "submit" ||
+              el.type === "reset" ||
+              el.type === "image" ||
+              el.type === "color")
+          ) {
+            continue;
+          }
           const style = getComputedStyle(el);
           if (style.display === "none" || style.visibility === "hidden") continue;
           const fontSize = parseFloat(style.fontSize) || 0;
