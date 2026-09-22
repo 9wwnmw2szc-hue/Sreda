@@ -624,7 +624,7 @@ ul {
   background: transparent;
   outline: none !important;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 16px;
   height: 100%;
 }
 .dashboard-search:focus-within {
@@ -1086,7 +1086,7 @@ ul {
   white-space: nowrap;
 }
 .button--sm {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   font-size: 14px;
 }
@@ -1143,7 +1143,7 @@ ul {
   border-color: transparent;
   color: var(--text-secondary);
   box-shadow: none;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 12px;
 }
 .button--ghost:hover {
@@ -1151,7 +1151,7 @@ ul {
   color: var(--text-primary);
 }
 .button--sm {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   font-size: var(--font-size-label);
 }
@@ -1167,7 +1167,7 @@ ul {
 .tariff-card .button {
   font-size: 12px;
   gap: var(--space-2);
-  min-height: 42px;
+  min-height: 44px;
   padding-inline: 8px;
 }
 .tariff-card__count {
@@ -4668,7 +4668,7 @@ ul {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--brand-primary);
@@ -4704,7 +4704,7 @@ ul {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 10px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -6394,7 +6394,7 @@ body {
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
   outline: none;
 }
 .soty-command__field input::placeholder {
@@ -7507,7 +7507,7 @@ a.soty-activity__row {
 
 /* Button scale */
 .button--sm {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   font-size: var(--font-size-label);
 }
