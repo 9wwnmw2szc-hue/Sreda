@@ -343,6 +343,7 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         await new Promise((r) => setTimeout(r, 50));
         const navRect = bottomNav.getBoundingClientRect();
         const main =
+          document.querySelector("#main-content") ||
           document.querySelector(".app-main") ||
           document.querySelector("main") ||
           document.body;
@@ -353,10 +354,9 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
             `bottom-nav-clearance: main padding-bottom=${Math.round(padBottom)} navHeight=${Math.round(navRect.height)}`,
           );
         }
-        // Exclude sticky chrome — checked separately against bottom nav
         const interactives = [
           ...document.querySelectorAll(
-            ".app-main a.button, .app-main button.button, .app-main .button, main a.button, main button.button, .panel .button",
+            "#main-content a.button, #main-content button.button, #main-content .button, .app-main a.button, .app-main button.button, .panel .button",
           ),
         ].filter((el) => {
           if (!(el instanceof HTMLElement)) return false;
@@ -368,25 +368,33 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
           return r.width > 0 && r.height > 0;
         });
         if (interactives.length) {
-          // Prefer the document-bottom-most interactive (page Y), not merely
-          // the lowest currently visible rect after an incomplete scroll.
           const last = interactives.reduce((best, el) => {
             const y =
-              el.getBoundingClientRect().bottom + (scrolling.scrollTop || 0);
+              el.getBoundingClientRect().bottom + (window.scrollY || 0);
             const by =
-              best.getBoundingClientRect().bottom + (scrolling.scrollTop || 0);
+              best.getBoundingClientRect().bottom + (window.scrollY || 0);
             return y > by ? el : best;
           });
+          last.scrollIntoView({ block: "nearest", inline: "nearest" });
+          await new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          );
+          window.scrollTo(0, document.documentElement.scrollHeight);
+          await new Promise((r) => setTimeout(r, 30));
           const lastRect = last.getBoundingClientRect();
-          // Only fail when the final content actually intersects the nav band
-          if (
-            lastRect.bottom > navRect.top + 4 &&
-            lastRect.top < navRect.bottom - 4 &&
-            rectsOverlap(lastRect, navRect, -2)
-          ) {
-            const label = (last.textContent || "").trim().slice(0, 36);
+          const docBottom = lastRect.bottom + (window.scrollY || 0);
+          const scrollHeight = Math.max(
+            document.documentElement.scrollHeight,
+            document.body?.scrollHeight ?? 0,
+          );
+          const clearance = scrollHeight - docBottom;
+          const need = Math.ceil(navRect.height) + 8;
+          const label = (last.textContent || "").trim().slice(0, 36);
+          // Document-space clearance is the reliable signal; viewport overlap
+          // alone is noisy when scroll anchoring fights fixed chrome.
+          if (clearance + 0.5 < need) {
             failures.push(
-              `overlap-bottom-nav: "${label}" bottom=${Math.round(lastRect.bottom)} navTop=${Math.round(navRect.top)}`,
+              `overlap-bottom-nav: "${label}" clearance=${Math.round(clearance)} need=${need} pad=${Math.round(padBottom)}`,
             );
           }
         }

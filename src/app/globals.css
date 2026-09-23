@@ -7624,35 +7624,18 @@ a.soty-activity__row {
   box-shadow: var(--shadow-md);
 }
 
-@media (max-width: 767px) {
-  .sticky-save-bar,
-  .auto-schedule > .sticky-save-bar {
-    bottom: calc(12px + var(--bottom-nav-clearance));
-  }
-}
-
 /* Bottom nav is visible through 899px (hidden again at 900–1099 tablet landscape). */
-@media (min-width: 768px) and (max-width: 899px) {
+@media (max-width: 899px) {
   .sticky-save-bar,
   .auto-schedule > .sticky-save-bar {
     bottom: calc(12px + var(--bottom-nav-clearance));
   }
   .app-main {
-    padding-bottom: var(--bottom-nav-clearance);
+    padding-bottom: var(--bottom-nav-clearance) !important;
   }
   .main-dashboard,
   .secondary-page {
-    padding-bottom: calc(var(--space-6) + var(--bottom-nav-clearance));
-  }
-}
-
-@media (max-width: 699px) {
-  .app-main {
-    padding-bottom: var(--bottom-nav-clearance);
-  }
-  .main-dashboard,
-  .secondary-page {
-    padding-bottom: calc(var(--space-6) + var(--bottom-nav-clearance));
+    padding-bottom: calc(var(--space-6) + var(--bottom-nav-clearance)) !important;
   }
 }
 
@@ -9003,6 +8986,25 @@ a.soty-activity__row {
   .secondary-page,
   .main-dashboard {
     padding-bottom: var(--space-6);
+  }
+}
+
+/* Final override: keep last interactive content above fixed bottom nav (≤899). */
+@media (max-width: 899px) {
+  html {
+    scroll-padding-bottom: var(--bottom-nav-clearance);
+  }
+  .app-shell {
+    padding-bottom: 0;
+  }
+  .app-main {
+    padding-bottom: 0 !important;
+  }
+  #main-content.main-dashboard,
+  #main-content.secondary-page,
+  main.main-dashboard,
+  main.secondary-page {
+    padding-bottom: 128px !important;
   }
 }
 
