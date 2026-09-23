@@ -604,7 +604,7 @@ try {
               `${phase}_leads_concept_${tab.slug}_${vp.name}_${theme}.png`;
             await page.screenshot({
               path: path.join(out, tabFile),
-              fullPage: false,
+              fullPage: true,
             });
             report.push({
               route: `${route}#${tab.slug}`,
