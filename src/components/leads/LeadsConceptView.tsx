@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -128,6 +128,23 @@ function demoLeads(businessId: string): Lead[] {
         service: "Консультация",
       },
     },
+    {
+      id: "concept-lead-4",
+      businessId,
+      source: "telegram",
+      name: "Александра Константиновна",
+      phone: "+7 926 400-18-33",
+      message:
+        "Нужно уточнить, можно ли перенести запись на следующую неделю после 19:00, и есть ли свободные мастера на пятницу или субботу. Интересует стоимость комплекса и оплата картой на месте.",
+      status: "waiting_customer",
+      processingName: "Александр Сергеевич",
+      createdAt: new Date(now - 95 * 60_000).toISOString(),
+      answers: {
+        service: "Комплекс",
+        comment:
+          "Перенос на следующую неделю после 19:00, пятница или суббота, оплата картой",
+      },
+    },
   ];
 }
 
@@ -196,6 +213,18 @@ export function LeadsConceptView() {
   const [loadingData, setLoadingData] = useState(false);
   const [dataError, setDataError] = useState("");
   const [usingDemo, setUsingDemo] = useState(false);
+  const tabButtonRefs = useRef<Partial<Record<ConceptTab, HTMLButtonElement | null>>>(
+    {},
+  );
+
+  useEffect(() => {
+    const button = tabButtonRefs.current[tab];
+    button?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [tab]);
 
   useEffect(() => {
     if (!currentBusiness) return;
@@ -240,33 +269,33 @@ export function LeadsConceptView() {
             <div>
               <h1>Приём заявок</h1>
               <p>
-                Клиент оставляет заявку за минуту, а команда сразу видит, что нужно
-                сделать и кто этим занимается.
+                Клиент оставляет заявку за минуту — команда сразу видит, что делать
+                и кто отвечает.
               </p>
             </div>
             <div className="leads-concept__state" aria-label="Состояние решения">
               <span className="leads-concept__state-dot" />
-              <div>
-                <strong>Работает</strong>
-                <small>Telegram · VK</small>
-              </div>
+              <strong>Работает</strong>
+              <small>Telegram · VK</small>
             </div>
           </div>
         </div>
-        <BusinessSwitcher
-          businesses={businesses}
-          currentBusiness={currentBusiness}
-          onSelect={setCurrentBusinessId}
-        />
+        <div className="leads-concept__switcher">
+          <BusinessSwitcher
+            businesses={businesses}
+            currentBusiness={currentBusiness}
+            onSelect={setCurrentBusinessId}
+          />
+        </div>
       </header>
 
       <section className="leads-concept__notice" role="note">
         <Sparkles size={18} aria-hidden />
         <div>
-          <strong>Интерактивный макет нового решения</strong>
+          <strong>Интерактивный макет</strong>
           <span>
-            Данные на этой странице не изменяются. Здесь можно оценить структуру,
-            навигацию и внешний вид до глубокой переработки логики.
+            Данные здесь не меняются — можно оценить структуру и навигацию до
+            переработки.
           </span>
         </div>
         <Link className="text-link" href="/leads">
@@ -292,23 +321,35 @@ export function LeadsConceptView() {
         <LoadingPanel label="Загружаем бизнес" />
       ) : (
         <>
-          <nav className="leads-concept__tabs" aria-label="Разделы приёма заявок">
-            {TABS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={tab === item.id ? "is-active" : undefined}
-                  aria-current={tab === item.id ? "page" : undefined}
-                  onClick={() => setTab(item.id)}
-                >
-                  <Icon size={18} aria-hidden />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <div className="leads-concept__tabs-wrap">
+            <nav
+              className="leads-concept__tabs"
+              role="tablist"
+              aria-label="Разделы приёма заявок"
+            >
+              {TABS.map((item) => {
+                const Icon = item.icon;
+                const selected = tab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="tab"
+                    className={selected ? "is-active" : undefined}
+                    aria-selected={selected}
+                    aria-current={selected ? "page" : undefined}
+                    ref={(node) => {
+                      tabButtonRefs.current[item.id] = node;
+                    }}
+                    onClick={() => setTab(item.id)}
+                  >
+                    <Icon size={18} aria-hidden />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
           {dataError ? (
             <p className="account-error" role="alert">
@@ -478,9 +519,19 @@ function LeadDetailPreview({ lead }: { lead: Lead }) {
         <div>
           <span className="eyebrow">Заявка</span>
           <h2>{lead.name}</h2>
-          <span className={`status-chip status-chip--${lead.status}`}>
-            {STATUS_LABEL[lead.status]}
-          </span>
+          <div className="leads-concept__status-pair">
+            <span className={`status-chip status-chip--${lead.status}`}>
+              {STATUS_LABEL[lead.status]}
+            </span>
+            <small className="leads-concept__status-hint">
+              Для клиента:{" "}
+              {lead.status === "waiting_customer" || lead.status === "processing"
+                ? "В работе"
+                : lead.status === "rejected"
+                  ? "Неактуальна"
+                  : STATUS_LABEL[lead.status]}
+            </small>
+          </div>
         </div>
         <PlatformBadge platform={lead.source as Platform} />
       </div>
@@ -547,7 +598,10 @@ function LeadDetailPreview({ lead }: { lead: Lead }) {
         )}
         <div className="leads-concept__internal-note">
           <strong>Внутренняя заметка</strong>
-          <span>Видна только сотрудникам бизнеса.</span>
+          <span>
+            Только для команды. Не уходит клиенту в Telegram/VK — в отличие от
+            «Написать».
+          </span>
           <textarea
             rows={3}
             placeholder="Например: клиент просил перезвонить после 19:00"
@@ -617,13 +671,31 @@ function FormTab({ fields }: { fields: FormField[] }) {
                 </span>
                 {field.fieldKey === "comment" || field.fieldKey === "message" ? (
                   <small>
-                    Условие: можно показать только после выбранного ответа.
+                    Условие: показать, если «Что вас интересует?» = «Другое».
                   </small>
                 ) : null}
               </div>
-              <button type="button" className="leads-concept__chevron" disabled>
-                <ChevronRight size={18} aria-hidden />
-              </button>
+              <div className="leads-concept__question-actions">
+                <button
+                  type="button"
+                  className="leads-concept__reorder"
+                  aria-label="Переместить выше"
+                  disabled
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="leads-concept__reorder"
+                  aria-label="Переместить ниже"
+                  disabled
+                >
+                  ↓
+                </button>
+                <button type="button" className="leads-concept__chevron" disabled>
+                  <ChevronRight size={18} aria-hidden />
+                </button>
+              </div>
             </article>
           ))}
         </div>
@@ -695,30 +767,30 @@ function AutomationTab() {
         <ConceptSetting
           icon={Users}
           title="Распределение"
-          description="Выберите, кто получает новые заявки."
+          description="Два режима: ручной захват или автоназначение."
           value="Кто взял — тот работает"
-          secondary="Можно включить автоназначение по очереди между выбранными сотрудниками."
+          secondary="Альтернатива: round-robin между выбранными сотрудниками (Иван ✓ · Анна ✓ · Сергей ✕)."
         />
         <ConceptSetting
           icon={Bell}
           title="Если заявку не взяли"
           description="Напомнить команде о необработанной заявке."
           value="Через 15 минут"
-          secondary="Повторное уведомление не создаёт дубли."
+          secondary="Reminder идемпотентен; после взятия/закрытия actionable-уведомление снимается."
         />
         <ConceptSetting
           icon={MessageCircle}
           title="Сообщение клиенту"
           description="Ответ после успешной отправки."
           value="Спасибо! Мы получили вашу заявку."
-          secondary="Можно изменить текст или предложить вариант с AI."
+          secondary="AI может предложить текст — применение только после подтверждения."
         />
         <ConceptSetting
           icon={Clock}
           title="Старые заявки"
-          description="Закрывать неактивные обращения автоматически."
-          value="Через 30 дней"
-          secondary="Перед автозакрытием можно предупредить ответственного."
+          description="Автоматически закрывать неактивные обращения."
+          value="Вкл · через 30 дней"
+          secondary="В истории: «Закрыта автоматически из-за отсутствия активности»."
         />
       </div>
     </section>
@@ -754,14 +826,21 @@ function SettingsTab() {
         <ConceptSetting
           icon={CheckCircle2}
           title="Статусы"
-          description="Внутренний workflow и публичный статус для клиента."
+          description="Внутренний workflow и публичный статус для клиента — разные слои."
           value="Новая → В работе → Завершена"
-          secondary="Внутренний статус можно назвать иначе, чем видит клиент."
+          secondary="Доп. внутренние статусы (Уточнение, Оценка) без сложного редактора в онбординге."
+        />
+        <ConceptSetting
+          icon={MessageCircle}
+          title="Отмена клиентом"
+          description="Разрешить клиенту отменять активную заявку в «Моих заявках»."
+          value="Разрешено"
+          secondary="Если выкл — кнопки отмены у клиента нет. Финальные статусы не показывают отмену."
         />
         <ConceptSetting
           icon={Settings}
           title="Состояние решения"
-          description="Управление функцией без удаления истории."
+          description="Управление функцией без удаления истории заявок."
           value="Работает"
           secondary="Приостановить · Отключить · Сбросить настройки."
         />
@@ -772,14 +851,14 @@ function SettingsTab() {
           <span className="eyebrow">Клиентский бот</span>
           <h3>«Мои заявки»</h3>
           <p>
-            Клиент видит свои обращения, публичный статус, историю обновлений и
-            может написать по конкретной заявке или отменить её, если это разрешено.
+            Публичный статус, история и «Написать по заявке» (связь с Inbox).
+            Отмена — только если бизнес разрешил.
           </p>
         </div>
         <div className="leads-concept__customer-ticket">
           <span>Заявка №128</span>
           <strong>Женская стрижка</strong>
-          <small>В работе · обновлено 12 минут назад</small>
+          <small>В работе · 23 сентября · 15:42</small>
           <div>
             <CheckCircle2 size={16} aria-hidden />
             Заявка отправлена
@@ -792,9 +871,14 @@ function SettingsTab() {
             <Clock size={16} aria-hidden />
             Ожидает завершения
           </div>
-          <button className="button button--outline" type="button" disabled>
-            Написать по заявке
-          </button>
+          <div className="leads-concept__customer-actions">
+            <button className="button button--outline" type="button" disabled>
+              Написать по заявке
+            </button>
+            <button className="button button--ghost" type="button" disabled>
+              Отменить заявку
+            </button>
+          </div>
         </div>
       </div>
     </section>

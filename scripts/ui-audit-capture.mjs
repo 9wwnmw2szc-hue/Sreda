@@ -92,6 +92,14 @@ const DARK_ROUTES = new Set([
   "/register",
 ]);
 
+const LEADS_CONCEPT_TABS = [
+  { id: "work", label: "Заявки" },
+  { id: "form", label: "Форма" },
+  { id: "automation", label: "Автоматизация" },
+  { id: "settings", label: "Настройки" },
+  { id: "stats", label: "Статистика" },
+];
+
 function routeSlug(route) {
   return (
     route
@@ -583,6 +591,43 @@ try {
           screenshot: ready.ready || !requireReady ? file : null,
           auth: true,
         });
+
+        if (
+          route === "/leads/concept" &&
+          (ready.ready || !requireReady) &&
+          !loginRedirect
+        ) {
+          for (const tab of LEADS_CONCEPT_TABS) {
+            const tabBtn = page
+              .locator(".leads-concept__tabs button")
+              .filter({ hasText: tab.label })
+              .first();
+            if ((await tabBtn.count()) === 0) continue;
+            await tabBtn.click().catch(() => null);
+            await page.waitForTimeout(280);
+            const tabFile = `${phase}_${routeSlug(route)}_${vp.name}_${theme}-tab-${tab.id}.png`;
+            await page.screenshot({
+              path: path.join(out, tabFile),
+              fullPage: false,
+            });
+            report.push({
+              route: `${route}#${tab.id}`,
+              viewport: { width: vp.width, height: vp.height },
+              theme,
+              status: res?.status() ?? 0,
+              url: page.url(),
+              pathname,
+              overflowX: await bodyOverflowX(page),
+              loginRedirect: false,
+              stuckOnboarding: false,
+              notReady: false,
+              notReadyReason: null,
+              screenshot: tabFile,
+              auth: true,
+              tab: tab.id,
+            });
+          }
+        }
       }
     }
     await ctx.close();

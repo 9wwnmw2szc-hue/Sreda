@@ -358,6 +358,133 @@ for (const theme of ["light", "dark"]) {
       );
       expect(segment).toBeGreaterThanOrEqual(UI_CHROME_MIN);
     });
+
+    test(`leads concept work + form contrast (${theme})`, async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(240_000);
+      await page.setViewportSize({ width: 390, height: 844 });
+      const suffix = `lc${Date.now().toString(36).slice(-5)}`;
+      try {
+        await registerAndEnterApp(page, suffix);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name === "NetworkUnavailable" ||
+            /NETWORK_UNAVAILABLE/i.test(error.message))
+        ) {
+          testInfo.skip(true, error.message);
+          return;
+        }
+        throw error;
+      }
+
+      await page.goto(baseURL + "/leads/concept", {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await setTheme(page, theme);
+      await page.waitForSelector(".leads-concept", { timeout: 45_000 });
+      await page.waitForTimeout(500);
+
+      const title = await requireSample(
+        page,
+        ".leads-concept__title h1",
+        {},
+        "leads concept title",
+      );
+      expect(title).toBeGreaterThanOrEqual(AA_NORMAL);
+
+      const subtitle = await requireSample(
+        page,
+        ".leads-concept__title p",
+        {},
+        "leads concept subtitle",
+      );
+      expect(subtitle).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      const state = await requireSample(
+        page,
+        ".leads-concept__state strong",
+        {},
+        "leads concept state",
+      );
+      expect(state).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      const activeTab = await requireSample(
+        page,
+        '.leads-concept__tabs button.is-active, .leads-concept__tabs button[aria-selected="true"]',
+        {},
+        "leads concept active tab",
+      );
+      expect(activeTab).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      const notice = await requireSample(
+        page,
+        ".leads-concept__notice strong, .leads-concept__notice span, .leads-concept__demo-note",
+        {},
+        "leads concept notice",
+      );
+      expect(notice).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      await page.waitForSelector(".leads-concept__record-main strong", {
+        timeout: 45_000,
+      });
+      const recordName = await requireSample(
+        page,
+        ".leads-concept__record-main strong",
+        {},
+        "leads concept record name",
+      );
+      expect(recordName).toBeGreaterThanOrEqual(AA_NORMAL);
+
+      const statusChip = await requireSample(
+        page,
+        ".leads-concept .status-chip",
+        {},
+        "leads concept status chip",
+      );
+      expect(statusChip).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      const searchInput = await requireSample(
+        page,
+        ".leads-concept__search input",
+        { fill: "Анна" },
+        "leads concept search value",
+      );
+      expect(searchInput).toBeGreaterThanOrEqual(AA_NORMAL);
+
+      await page.locator(".leads-concept__search input").fill("");
+      const searchPh = await requireSample(
+        page,
+        ".leads-concept__search input",
+        { placeholder: true },
+        "leads concept search placeholder",
+      );
+      expect(searchPh).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      await page
+        .locator('.leads-concept__tabs button[role="tab"]')
+        .filter({ hasText: "Форма" })
+        .click();
+      await page.waitForTimeout(400);
+
+      const question = await requireSample(
+        page,
+        ".leads-concept__question strong, .leads-concept__question",
+        {},
+        "leads concept question",
+      );
+      expect(question).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      const bubble = await requireSample(
+        page,
+        ".leads-concept__bubble.is-bot, .leads-concept__bubble",
+        {},
+        "leads concept bot bubble",
+      );
+      expect(bubble).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
   });
 }
 
