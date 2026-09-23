@@ -1200,6 +1200,8 @@ ul {
 .billing-page {
   display: grid;
   gap: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 .billing-page__header h1 {
   margin: 0 0 8px;
@@ -1211,6 +1213,7 @@ ul {
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.5;
+  overflow-wrap: break-word;
 }
 .billing-lines {
   list-style: none;
@@ -1218,14 +1221,20 @@ ul {
   padding: 0;
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 .billing-lines__item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border-light);
+}
+.billing-lines__item > div {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .billing-lines__item:last-child {
   border-bottom: 0;
@@ -1238,10 +1247,18 @@ ul {
   color: var(--text-muted);
 }
 .billing-lines__price {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  max-width: 45%;
+  text-align: right;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+  overflow-wrap: break-word;
+}
+.billing-page .tariff-card__price {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 .empty-copy {
   color: var(--text-secondary);
@@ -3741,6 +3758,24 @@ ul {
     min-width: 44px;
     min-height: 44px;
     padding-inline: 10px;
+  }
+  .billing-page,
+  .billing-page .panel,
+  .billing-summary,
+  .billing-lines {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .billing-page .tariff-card__price {
+    font-size: clamp(1.4rem, 8vw, 2rem);
+  }
+  .billing-lines__item {
+    flex-wrap: wrap;
+  }
+  .billing-lines__price {
+    max-width: 100%;
+    flex: 1 1 auto;
+    text-align: left;
   }
 }
 .crm-segment .button--outline {

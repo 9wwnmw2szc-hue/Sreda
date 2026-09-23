@@ -145,6 +145,24 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         failures.push(
           `body-overflow-x: scrollWidth=${Math.max(doc.scrollWidth, body?.scrollWidth ?? 0)} clientWidth=${doc.clientWidth}`,
         );
+        let widest = null;
+        let widestRight = 0;
+        for (const el of document.querySelectorAll("body *")) {
+          if (!(el instanceof HTMLElement)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 1 || r.height < 1) continue;
+          if (r.right > widestRight) {
+            widestRight = r.right;
+            widest = el;
+          }
+        }
+        if (widest) {
+          const tag = widest.tagName.toLowerCase();
+          const cls = (widest.className || "").toString().slice(0, 60);
+          failures.push(
+            `body-overflow-x-offender: <${tag}.${cls}> right=${Math.round(widestRight)}`,
+          );
+        }
       }
 
       // .button must not use overflow-wrap: anywhere (mid-word wrapping)

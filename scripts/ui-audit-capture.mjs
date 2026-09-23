@@ -133,39 +133,116 @@ async function applyTheme(page, theme) {
  */
 async function assertRouteReady(page, route) {
   if (!requireReady) return { ready: true, reason: null };
-  await page.waitForTimeout(400);
-  const probe = await page.evaluate(() => {
+
+  const deadline = Date.now() + 25_000;
+  let lastReason = "route not ready";
+
+  while (Date.now() < deadline) {
+    const probe = await page.evaluate(() => {
+      const text = (document.body?.innerText || "").replace(/\s+/g, " ");
+      const alert =
+        document
+          .querySelector(".account-error, [role='alert']")
+          ?.textContent?.trim() || "";
+      const switcher = document.querySelector(".business-switcher");
+      const switcherText = (switcher?.textContent || "").replace(/\s+/g, " ").trim();
+      const nameEl = switcher?.querySelector(".business-switcher__name");
+      const nameText = (nameEl?.textContent || "").replace(/\s+/g, " ").trim();
+      const loading =
+        /Загрузка бизнеса…/i.test(switcherText) ||
+        /Загрузка бизнеса…/i.test(nameText) ||
+        (!nameText && /Загрузка бизнеса…/i.test(text));
+      const accessError =
+        /Не удалось проверить доступ к вашим? бизнесам?/i.test(text) ||
+        /Не удалось проверить доступ к вашим? бизнесам?/i.test(alert);
+      const selectBusiness =
+        /^Выберите бизнес\.?$/m.test(
+          document.querySelector("main p, .app-main p, main .panel p")
+            ?.textContent?.trim() || "",
+        ) ||
+        (document.querySelectorAll("main p, .app-main p").length > 0 &&
+          [...document.querySelectorAll("main p, .app-main p")].some(
+            (p) => /^Выберите бизнес\.?$/i.test((p.textContent || "").trim()),
+          ));
+      const hasBusinessName =
+        Boolean(nameText) &&
+        !/Загрузка бизнеса…/i.test(nameText) &&
+        !/^Выберите бизнес/i.test(nameText);
+      return {
+        loading,
+        accessError,
+        selectBusiness,
+        hasBusinessName,
+        alert: alert.slice(0, 160),
+        snippet: text.slice(0, 200),
+        switcherText: switcherText.slice(0, 80),
+      };
+    });
+
+    if (probe.accessError) {
+      return {
+        ready: false,
+        reason: probe.alert || probe.snippet || "business access error",
+      };
+    }
+
+    if (probe.hasBusinessName && !probe.loading) {
+      // Business context ready — allow intentional empty-data copy
+      break;
+    }
+
+    if (!probe.loading && probe.selectBusiness) {
+      lastReason = "Выберите бизнес. (no current business after load)";
+      // Keep waiting briefly — context may still hydrate
+    } else if (probe.loading) {
+      lastReason = probe.switcherText || "Загрузка бизнеса…";
+    } else {
+      lastReason = probe.alert || probe.snippet || lastReason;
+    }
+    await page.waitForTimeout(400);
+  }
+
+  const finalProbe = await page.evaluate(() => {
     const text = (document.body?.innerText || "").replace(/\s+/g, " ");
     const alert =
-      document.querySelector(".account-error, [role='alert']")?.textContent?.trim() ||
-      "";
-    const bad =
-      /Не удалось проверить доступ к вашему бизнесу/i.test(text) ||
-      /Не удалось проверить доступ к вашему бизнесу/i.test(alert) ||
-      (/Выберите бизнес\.?/i.test(text) &&
-        !/Выберите бизнес/i.test(
-          document.querySelector(".business-switcher")?.textContent || "",
-        )) ||
-      /Загрузка бизнеса…/i.test(text);
-    const switcherLoading = /Загрузка бизнеса…/i.test(
-      document.querySelector(".business-switcher")?.textContent || "",
+      document
+        .querySelector(".account-error, [role='alert']")
+        ?.textContent?.trim() || "";
+    const nameEl = document.querySelector(".business-switcher__name");
+    const nameText = (nameEl?.textContent || "").replace(/\s+/g, " ").trim();
+    const hasBusinessName =
+      Boolean(nameText) &&
+      !/Загрузка бизнеса…/i.test(nameText) &&
+      !/^Выберите бизнес/i.test(nameText);
+    const accessError =
+      /Не удалось проверить доступ к вашим? бизнесам?/i.test(text) ||
+      /Не удалось проверить доступ к вашим? бизнесам?/i.test(alert);
+    const selectBusiness = [...document.querySelectorAll("main p, .app-main p")].some(
+      (p) => /^Выберите бизнес\.?$/i.test((p.textContent || "").trim()),
     );
     return {
-      bad: bad || switcherLoading,
+      hasBusinessName,
+      accessError,
+      selectBusiness,
       alert: alert.slice(0, 160),
       snippet: text.slice(0, 200),
     };
   });
-  if (probe.bad) {
+
+  if (finalProbe.accessError || !finalProbe.hasBusinessName || finalProbe.selectBusiness) {
     return {
       ready: false,
-      reason: probe.alert || probe.snippet || "route not ready",
+      reason:
+        finalProbe.alert ||
+        (finalProbe.selectBusiness ? "Выберите бизнес." : null) ||
+        finalProbe.snippet ||
+        lastReason,
     };
   }
-  // Soft wait for main shell
+
   const shell = page.locator("main, .app-main, .page-header, .account-card").first();
   try {
-    await shell.waitFor({ state: "visible", timeout: 15_000 });
+    await shell.waitFor({ state: "visible", timeout: 10_000 });
   } catch {
     return { ready: false, reason: "no main shell" };
   }
@@ -426,32 +503,62 @@ try {
   }
 
   for (const vp of VIEWPORTS) {
+    // One authenticated context per viewport — reuse across routes/themes to
+    // avoid re-hydrating BusinessProvider (and API storms) on every shot.
+    const ctx = await browser.newContext({
+      viewport: { width: vp.width, height: vp.height },
+      colorScheme: "light",
+      storageState: storage,
+      ignoreHTTPSErrors: ignoreHttps,
+    });
+    const page = await ctx.newPage();
+    await applyTheme(page, "light");
+    // Warm business context once
+    await page
+      .goto(base + "/dashboard", { waitUntil: "domcontentloaded", timeout: 60_000 })
+      .catch(() => null);
+    const warm = await assertRouteReady(page, "/dashboard");
+    if (!warm.ready) {
+      report.push({
+        route: "/dashboard",
+        viewport: { width: vp.width, height: vp.height },
+        theme: "light",
+        status: 0,
+        url: page.url(),
+        pathname: new URL(page.url()).pathname,
+        overflowX: false,
+        loginRedirect: false,
+        stuckOnboarding: false,
+        notReady: true,
+        notReadyReason: warm.reason,
+        screenshot: null,
+        auth: true,
+      });
+      await ctx.close();
+      continue;
+    }
+
     for (const route of AUTH_ROUTES) {
       for (const theme of themesFor(route)) {
-        const ctx = await browser.newContext({
-          viewport: { width: vp.width, height: vp.height },
-          colorScheme: theme === "dark" ? "dark" : "light",
-          storageState: storage,
-          ignoreHTTPSErrors: ignoreHttps,
-        });
-        const page = await ctx.newPage();
         await applyTheme(page, theme);
+        await page.emulateMedia({ colorScheme: theme === "dark" ? "dark" : "light" });
         const res = await page
-          .goto(base + route, { waitUntil: "networkidle", timeout: 60_000 })
+          .goto(base + route, { waitUntil: "domcontentloaded", timeout: 60_000 })
           .catch(() => null);
         await page.evaluate((t) => {
           try {
             localStorage.setItem("soty.theme", t);
             document.documentElement.setAttribute("data-theme", t);
+            document.documentElement.style.colorScheme = t;
           } catch {
             /* ignore */
           }
         }, theme);
+        await page.waitForTimeout(250);
 
         const ready = await assertRouteReady(page, route);
         const pathname = new URL(page.url()).pathname;
         const file = `${phase}_${routeSlug(route)}_${vp.name}_${theme}.png`;
-        // Only screenshot when ready (or when not requiring ready)
         if (ready.ready || !requireReady) {
           await page.screenshot({ path: path.join(out, file), fullPage: false });
         }
@@ -474,9 +581,9 @@ try {
           screenshot: ready.ready || !requireReady ? file : null,
           auth: true,
         });
-        await ctx.close();
       }
     }
+    await ctx.close();
   }
 
   cleanupResult = await cleanupCreated(browser, createdAccount);

@@ -190,6 +190,8 @@ async function start() {
         INSTAGRAM_WEBHOOKS_ENABLED: "false",
         ATTACHMENT_STORAGE: "filesystem",
         ATTACHMENT_STORAGE_PATH: attachDir,
+        // Ephemeral CI app only — avoid self-induced 429 during UI/visual audits
+        CI_RELAX_RATE_LIMITS: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
       detached: false,

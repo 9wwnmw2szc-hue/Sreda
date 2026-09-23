@@ -33,14 +33,16 @@ export function createApplication(options: {
       )
         throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
     }
-    if (options.db && options.secret)
+    if (options.db && options.secret) {
+      const relaxed = process.env.CI_RELAX_RATE_LIMITS === "1";
       await limit(
         options.db,
         options.secret,
         "api:" + session.user.id,
-        180,
+        relaxed ? 20_000 : 180,
         60,
       );
+    }
     return session.user;
   }
   return {
