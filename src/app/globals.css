@@ -9073,8 +9073,10 @@ a.soty-activity__row {
 /* Leads solution — concept v1 preview (UI/UX hardened) */
 .leads-concept {
   width: min(100%, var(--page-max-wide));
+  max-width: 100%;
   margin: 0 auto;
   padding: var(--space-6) var(--space-8) var(--space-12);
+  overflow-x: clip;
   background: var(--bg-page);
   color: var(--text-primary);
 }
@@ -10212,7 +10214,8 @@ a.soty-activity__row {
     font-size: var(--font-size-card);
   }
   .leads-concept__tabs-wrap {
-    margin-inline: calc(var(--content-gutter) * -1);
+    margin-inline: 0;
+    max-width: 100%;
   }
   .leads-concept__tabs-wrap::before,
   .leads-concept__tabs-wrap::after {
@@ -10220,10 +10223,9 @@ a.soty-activity__row {
   }
   .leads-concept__tabs {
     margin-inline: 0;
-    padding-inline: var(--content-gutter);
-    padding-inline-end: calc(var(--content-gutter) + var(--space-8));
-    border-inline: 0;
-    border-radius: 0;
+    padding-inline: var(--space-2);
+    padding-inline-end: var(--space-8);
+    border-radius: var(--radius-md);
   }
   .leads-concept__tabs button {
     min-height: 44px;
