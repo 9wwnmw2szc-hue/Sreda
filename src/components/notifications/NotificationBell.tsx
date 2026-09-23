@@ -4,28 +4,36 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
+
+type CountItem = { read_at: string | null; resolved_at?: string | null };
+
 export function NotificationBell() {
   const { currentBusiness } = useBusinessContext();
-  const [state, setState] = useState<{
-    business: string;
-    count: number;
-  } | null>(null);
+  const [count, setCount] = useState(0);
+
   useEffect(() => {
-    const id = currentBusiness?.id;
-    if (!id) return;
+    const businessId = currentBusiness?.id;
     let live = true;
     async function refresh() {
       try {
-        const items = await apiRequest<{ read_at: string | null }[]>(
-          `/api/v1/businesses/${id}/notifications`,
-        );
-        if (live)
-          setState({
-            business: id!,
-            count: items.filter((i) => !i.read_at).length,
-          });
+        const inboxPromise = apiRequest<CountItem[]>("/api/v1/inbox");
+        const businessPromise = businessId
+          ? apiRequest<CountItem[]>(
+              `/api/v1/businesses/${businessId}/notifications`,
+            )
+          : Promise.resolve([] as CountItem[]);
+        const [inbox, business] = await Promise.all([
+          inboxPromise,
+          businessPromise,
+        ]);
+        if (!live) return;
+        const inboxCount = inbox.filter((i) => !i.resolved_at).length;
+        const businessCount = business.filter(
+          (i) => !i.read_at && !i.resolved_at,
+        ).length;
+        setCount(inboxCount + businessCount);
       } catch {
-        if (live) setState(null);
+        if (live) setCount(0);
       }
     }
     void refresh();
@@ -35,7 +43,7 @@ export function NotificationBell() {
       clearInterval(timer);
     };
   }, [currentBusiness?.id]);
-  const count = state?.business === currentBusiness?.id ? state?.count : 0;
+
   return (
     <Link
       href="/notifications"

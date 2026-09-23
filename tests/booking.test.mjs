@@ -48,6 +48,16 @@ async function fixture() {
       status: "active",
     })
     .execute();
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "booking",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
   const svc = new BookingService(db);
   const service = await svc.configure(uid, b.public_id, {
     kind: "service",
@@ -264,16 +274,6 @@ test("Telegram booking menu creates linked booking and queues only current remin
       connection_id: connection,
       generation: randomUUID(),
       status: "ready",
-    })
-    .execute();
-  await db
-    .insertInto("business_solution")
-    .values({
-      business_id: f.b.id,
-      solution_code: "booking",
-      status: "active",
-      starts_at: new Date(),
-      expires_at: null,
     })
     .execute();
   let event = 1;

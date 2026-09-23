@@ -134,20 +134,19 @@ export function SetupChecklist({
       done: doneMap[step.id] === true,
     }));
     const done = steps.filter((s) => s.done).length;
-    const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
-    if (pct >= 100) return null;
+    if (done >= steps.length) return null;
     return (
       <section className="setup-checklist setup-checklist--compact" aria-label="Чеклист настройки">
         <div className="setup-checklist__head">
-          <h2 className="text-section-title">Старт за 3 шага</h2>
-          <p className="text-body-sm">{pct}% · {done} из {steps.length}</p>
+          <h2 className="text-section-title">
+            Стартовая настройка: {done} из {steps.length} шагов
+          </h2>
         </div>
         <ul className="setup-progress__list">
           {steps.map((step) => (
             <li key={step.id} className={step.done ? "is-done" : ""}>
               <Link href={step.href} className="text-link">
-                {step.done ? "✓ " : ""}
-                {step.label}
+                <span aria-hidden>{step.done ? "✓" : "○"}</span> {step.label}
               </Link>
             </li>
           ))}
@@ -163,7 +162,6 @@ export function SetupChecklist({
       (step.id === "industry" && local.industry === true),
   }));
   const done = steps.filter((s) => s.done).length;
-  const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
 
   async function toggle(id: string, value: boolean) {
     setBusy(true);
@@ -190,10 +188,10 @@ export function SetupChecklist({
 
   return (
     <section className="panel stack-md" aria-label="Чеклист настройки">
-      <h2 className="text-section-title">Что ещё настроить</h2>
-      <p className="text-body-sm">
-        Настройка бизнеса — {pct}%. Отмечайте шаги по мере готовности.
-      </p>
+      <h2 className="text-section-title">
+        Стартовая настройка: {done} из {steps.length} шагов
+      </h2>
+      <p className="text-body-sm">Отмечайте шаги по мере готовности.</p>
       <ul className="setup-progress__list">
         {steps.map((step) => (
           <li key={step.id} className={step.done ? "is-done" : ""}>
@@ -205,6 +203,7 @@ export function SetupChecklist({
                 onChange={(e) => void toggle(step.id, e.target.checked)}
               />
               <span>
+                <span aria-hidden>{step.done ? "✓" : "○"}</span>{" "}
                 <Link href={step.href} className="text-link">
                   {step.label}
                 </Link>

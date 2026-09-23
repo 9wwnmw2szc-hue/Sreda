@@ -46,20 +46,25 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
     }
   }
 
-  async function activate(code: string) {
+  async function activate(
+    code: string,
+    body: { enabled?: boolean; status?: "paused" },
+    successNotice: string,
+    href?: string,
+  ) {
     if (!business || busyCode) return;
     setBusyCode(code);
+    setNotice("");
     try {
       await apiRequest(`/api/v1/businesses/${business.id}/solutions`, {
         method: "POST",
-        body: JSON.stringify({ code, enabled: true }),
+        body: JSON.stringify({ code, ...body }),
       });
       await reloadStatuses(business.id);
-      const href = productSolutionHref("setup_required", code);
-      setNotice("Решение подключено. Переходим к настройке.");
-      router.push(href);
+      setNotice(successNotice);
+      if (href) router.push(href);
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Не удалось подключить.");
+      setNotice(e instanceof Error ? e.message : "Не удалось обновить решение.");
     } finally {
       setBusyCode("");
     }
@@ -146,13 +151,32 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
         {orderedSolutions.map((solution) => {
           const row = statusBySolutionId.get(solution.id);
           const status: SolutionStatus = row?.status ?? "available";
+          const entitlement = row?.entitlementStatus;
           const def = productSolutionByCode(solution.code);
-          const cta = productSolutionCta(status, solution.code);
+          const cta = productSolutionCta(
+            status,
+            solution.code,
+            entitlement,
+          );
           const href = productSolutionHref(status, solution.code);
           const priceLabel = formatSolutionPrice(
             solution.price,
             def?.messageLimit,
           );
+          const reconnect =
+            status === "available" && entitlement === "disabled";
+          const resume = entitlement === "paused" || status === "paused";
+          const connectPrimary =
+            (status === "available" && !isDemoMode) || reconnect || resume;
+          const canPause =
+            !isDemoMode &&
+            (status === "active" || status === "setup_required") &&
+            entitlement !== "paused";
+          const canDisable =
+            !isDemoMode &&
+            (status === "active" ||
+              status === "setup_required" ||
+              entitlement === "paused");
           return (
             <article
               key={solution.id}
@@ -174,13 +198,32 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                   <strong>{priceLabel}</strong>
                   {solution.price > 0 && <span>за решение</span>}
                 </div>
-                {status === "available" && !isDemoMode ? (
+                {connectPrimary ? (
                   <button
                     className="button button--primary"
                     disabled={busyCode === solution.code}
-                    onClick={() => void activate(solution.code)}
+                    onClick={() =>
+                      void activate(
+                        solution.code,
+                        { enabled: true },
+                        reconnect
+                          ? "Решение подключено снова."
+                          : resume
+                            ? "Решение возобновлено."
+                            : "Решение подключено. Переходим к настройке.",
+                        reconnect || resume
+                          ? productSolutionHref("setup_required", solution.code)
+                          : href,
+                      )
+                    }
                   >
-                    {busyCode === solution.code ? "Подключаем…" : "Подключить"}
+                    {busyCode === solution.code
+                      ? "Сохраняем…"
+                      : reconnect
+                        ? "Подключить снова"
+                        : resume
+                          ? "Возобновить"
+                          : "Подключить"}
                     <ArrowRight size={18} />
                   </button>
                 ) : (
@@ -191,6 +234,64 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                     <ArrowRight size={18} />
                   </Link>
                 )}
+                {canPause || canDisable ? (
+                  <div className="catalog-card__lifecycle">
+                    {canPause ? (
+                      <button
+                        type="button"
+                        className="button button--outline button--sm"
+                        disabled={busyCode === solution.code}
+                        onClick={() =>
+                          void activate(
+                            solution.code,
+                            { status: "paused" },
+                            "Решение приостановлено.",
+                          )
+                        }
+                      >
+                        Приостановить
+                      </button>
+                    ) : null}
+                    {entitlement === "paused" && !resume ? (
+                      <button
+                        type="button"
+                        className="button button--outline button--sm"
+                        disabled={busyCode === solution.code}
+                        onClick={() =>
+                          void activate(
+                            solution.code,
+                            { enabled: true },
+                            "Решение возобновлено.",
+                          )
+                        }
+                      >
+                        Возобновить
+                      </button>
+                    ) : null}
+                    {canDisable ? (
+                      <button
+                        type="button"
+                        className="button button--ghost button--sm"
+                        disabled={busyCode === solution.code}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              "Отключить решение? Данные сохранятся.",
+                            )
+                          )
+                            return;
+                          void activate(
+                            solution.code,
+                            { enabled: false },
+                            "Решение отключено.",
+                          );
+                        }}
+                      >
+                        Отключить
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {status !== "available" && (
                   <Link className="text-link" href={solutionRoute(solution.code)}>
                     Открыть раздел

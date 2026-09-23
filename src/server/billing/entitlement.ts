@@ -13,6 +13,7 @@ function mapStatus(
 ): { status: EntitlementStatus; entitled: boolean } {
   if (!status) return { status: "absent", entitled: false };
   if (status === "disabled") return { status: "disabled", entitled: false };
+  if (status === "paused") return { status: "paused", entitled: false };
   if (status === "expired") return { status: "expired", entitled: false };
   if (expiresAt && expiresAt.getTime() <= now.getTime()) {
     return { status: "expired", entitled: false };

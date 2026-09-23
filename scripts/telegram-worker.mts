@@ -5,6 +5,7 @@ import {
 } from "../src/server/posts/worker.ts";
 import { queueBookingReminder } from "../src/server/booking/worker.ts";
 import { processEntityReminder } from "../src/server/calendar/worker.ts";
+import { processSetupDrafts } from "../src/server/solutions/setup-draft-worker.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { TelegramService } from "../src/server/telegram/service.ts";
@@ -55,6 +56,7 @@ try {
         .execute();
       const queued =
         (await queueBookingReminder(db)) || (await processEntityReminder(db));
+      await processSetupDrafts(db);
       await db
         .insertInto("worker_heartbeat")
         .values({ name: "booking_reminders", seen_at: new Date() })

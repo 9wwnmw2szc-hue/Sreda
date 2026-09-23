@@ -115,6 +115,28 @@ async function create(account, name = "Кофейня", key = randomUUID()) {
     }),
   );
 }
+async function activateSolution(publicBusinessId, code = "leads") {
+  const row = await db
+    .selectFrom("business")
+    .select("id")
+    .where("public_id", "=", publicBusinessId)
+    .executeTakeFirstOrThrow();
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: row.id,
+      solution_code: code,
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .onConflict((oc) =>
+      oc
+        .columns(["business_id", "solution_code"])
+        .doUpdateSet({ status: "active", expires_at: null, updated_at: new Date() }),
+    )
+    .execute();
+}
 before(async () => {
   await migrate(db, new URL("../migrations", import.meta.url).pathname);
   await migrate(db, new URL("../migrations", import.meta.url).pathname);
@@ -1094,6 +1116,7 @@ test("leads are scoped, return public business ID and deduplicate channel event"
   const owner = await login();
   const stranger = await login();
   const business = await (await create(owner)).json();
+  await activateSolution(business.id, "leads");
   const leads = new LeadService(db);
   const input = {
     source: "telegram",
@@ -1479,6 +1502,8 @@ test("dashboard lead service reads real API data for the selected business and s
   const stranger = await login();
   const a = await (await create(owner, "Первый бизнес")).json();
   const b = await (await create(owner, "Второй бизнес")).json();
+  await activateSolution(a.id, "leads");
+  await activateSolution(b.id, "leads");
   const leads = new LeadService(db);
   const application = createApplication({
     auth,
@@ -1546,6 +1571,7 @@ test("dashboard lead service reads real API data for the selected business and s
 test("lead pages filter on the server, keep equal timestamps and avoid repeats after new arrivals", async () => {
   const owner = await login();
   const a = await (await create(owner)).json();
+  await activateSolution(a.id, "leads");
   const internal = await db
     .selectFrom("business")
     .select("id")
@@ -1598,6 +1624,7 @@ test("lead page client saves statuses through scoped API and loses access after 
   const operator = await login();
   const other = await (await create(owner)).json();
   const business = await (await create(owner)).json();
+  await activateSolution(business.id, "leads");
   const leads = new LeadService(db);
   const application = createApplication({
     auth,

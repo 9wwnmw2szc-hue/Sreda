@@ -105,11 +105,18 @@ export function productSolutionByCode(code: string) {
   return PRODUCT_SOLUTIONS.find((item) => item.code === normalized) ?? null;
 }
 
-export function productSolutionCta(status: string, code?: string): string {
+export function productSolutionCta(
+  status: string,
+  code?: string,
+  entitlementStatus?: string,
+): string {
+  if (entitlementStatus === "disabled") return "Подключить снова";
+  if (entitlementStatus === "paused") return "Возобновить";
   switch (status) {
     case "active":
       return code === "admin_messages" ? "Открыть" : "Настроить";
     case "setup_required":
+      return "Продолжить настройку";
     case "paused":
       return "Продолжить настройку";
     case "available":

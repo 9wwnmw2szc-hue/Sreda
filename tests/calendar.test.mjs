@@ -67,6 +67,16 @@ async function fixture(withBooking = false) {
   const cal = new CalendarService(db);
   const result = { uid, b, cal, specialist: null, service: null, slots: null };
   if (withBooking) {
+    await db
+      .insertInto("business_solution")
+      .values({
+        business_id: b.id,
+        solution_code: "booking",
+        status: "active",
+        starts_at: new Date(),
+        expires_at: null,
+      })
+      .execute();
     const svc = new BookingService(db);
     const service = await svc.configure(uid, b.public_id, {
       kind: "service",

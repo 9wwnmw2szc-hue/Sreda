@@ -231,6 +231,10 @@ export function createApplication(options: {
           return json(
             await options.invitations.accept(user.id, businessId ?? ""),
           );
+        if (request.method === "POST" && invitationId === "decline")
+          return json(
+            await options.invitations.decline(user.id, businessId ?? ""),
+          );
         if (request.method === "POST" && businessId && invitationId)
           return json(
             await options.invitations.revoke(user.id, businessId, invitationId),

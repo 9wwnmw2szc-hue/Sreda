@@ -4,6 +4,7 @@ import type { Kysely } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { requireBusiness } from "../access/permissions.ts";
+import { assertEntitlement } from "../billing/entitlement.ts";
 import { decryptSecret, encryptSecret } from "../connections/crypto.ts";
 import { telegramCall } from "../telegram/api.ts";
 import { vkCall } from "../vk/api.ts";
@@ -310,6 +311,7 @@ export class PostService {
         .forUpdate()
         .executeTakeFirstOrThrow();
       await requireBusiness(tx, user, publicId, "posts.manage");
+      await assertEntitlement(tx, b.id, "autopost");
       const targetRows = await tx
         .selectFrom("post_target")
         .selectAll()

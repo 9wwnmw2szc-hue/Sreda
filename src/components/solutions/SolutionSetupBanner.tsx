@@ -8,12 +8,19 @@ import {
 export function SolutionSetupBanner({
   code,
   title,
+  href,
+  loading,
+  onContinue,
 }: {
   code: ProductSolutionCode;
   title?: string;
+  href?: string;
+  loading?: boolean;
+  onContinue?: () => void;
 }) {
   const def = productSolutionByCode(code);
   if (!def) return null;
+  const continueHref = href ?? def.setupPath;
   return (
     <section className="panel solution-setup-banner" aria-label="Следующие шаги">
       <h2>{title ?? `Настройка: ${def.name}`}</h2>
@@ -23,9 +30,20 @@ export function SolutionSetupBanner({
         ))}
       </ol>
       <div className="solution-setup-banner__actions">
-        <Link className="button button--primary" href={def.setupPath}>
-          Продолжить настройку
-        </Link>
+        {onContinue ? (
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={loading}
+            onClick={onContinue}
+          >
+            {loading ? "Загрузка…" : "Продолжить настройку"}
+          </button>
+        ) : (
+          <Link className="button button--primary" href={continueHref}>
+            {loading ? "Загрузка…" : "Продолжить настройку"}
+          </Link>
+        )}
         <Link className="button button--ghost" href="/solutions">
           Все решения
         </Link>

@@ -30,6 +30,18 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
     } catch (e) { setError(e instanceof Error ? e.message : "Не удалось обновить доступ. Обновите список бизнесов."); }
     finally { setBusy(false); }
   }
+  async function decline(id: string) {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await apiRequest(`/api/v1/invitations/${id}/decline`, { method: "POST", body: "{}" });
+      setIncoming((items) => items.filter((item) => item.id !== id));
+      setNotice("Приглашение отклонено.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось отклонить приглашение.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function revoke(userId: string) { if (!business) return; setBusy(true); setError(""); try { await apiRequest(`/api/v1/businesses/${business.id}/members`, { method: "POST", body: JSON.stringify({ action: "revoke", userId }) }); setMembers((items) => items.filter((item) => item.userId !== userId)); setNotice("Доступ отозван."); } catch (e) { setError(e instanceof Error ? e.message : "Не удалось отозвать доступ."); } finally { setBusy(false); } }
   async function changeRole(userId: string, nextRole: "admin" | "operator") { if (!business) return; setBusy(true); setError(""); try { await apiRequest(`/api/v1/businesses/${business.id}/members`, { method: "POST", body: JSON.stringify({ action: "change_role", userId, role: nextRole }) }); setMembers((items) => items.map((item) => item.userId === userId ? { ...item, role: nextRole } : item)); setNotice("Роль обновлена."); } catch (e) { setError(e instanceof Error ? e.message : "Не удалось изменить роль."); } finally { setBusy(false); } }
   return (
@@ -127,6 +139,14 @@ export function MembersPanel({ business, onAccepted }: { business?: Business; on
               >
                 <Check size={16} />
                 Принять
+              </button>
+              <button
+                className="button button--ghost button--nowrap"
+                type="button"
+                disabled={busy}
+                onClick={() => void decline(item.id)}
+              >
+                Отклонить
               </button>
             </div>
           ))}

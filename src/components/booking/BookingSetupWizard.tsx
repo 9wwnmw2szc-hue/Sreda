@@ -64,6 +64,8 @@ export function BookingSetupWizard({
   catalog,
   onComplete,
   onSkipToAdvanced,
+  initialStep,
+  onStepSaved,
 }: {
   businessId: string;
   businessName: string;
@@ -71,9 +73,17 @@ export function BookingSetupWizard({
   catalog: CatalogLite;
   onComplete: () => Promise<void>;
   onSkipToAdvanced?: () => void;
+  initialStep?: number;
+  onStepSaved?: (step: number) => void | Promise<void>;
 }) {
   const base = `/api/v1/businesses/${businessId}`;
-  const [step, setStep] = useState(1);
+  const startStep =
+    typeof initialStep === "number" &&
+    initialStep >= 1 &&
+    initialStep <= TOTAL_STEPS
+      ? initialStep
+      : 1;
+  const [step, setStep] = useState(startStep);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -306,14 +316,17 @@ export function BookingSetupWizard({
     setError("");
     setNotice("");
     try {
+      let nextStep = step;
       if (step === 1) {
         await stepServices();
         setNotice("Услуга сохранена.");
+        nextStep = 2;
         setStep(2);
       } else if (step === 2) {
         const svcId = serviceId || (await stepServices());
         await stepSpecialists(svcId);
         setNotice("Специалисты настроены.");
+        nextStep = 3;
         setStep(3);
       } else if (step === 3) {
         const ids =
@@ -322,18 +335,23 @@ export function BookingSetupWizard({
             : await stepSpecialists(serviceId);
         await stepSchedule(ids);
         setNotice("Расписание сохранено.");
+        nextStep = 4;
         setStep(4);
       } else if (step === 4) {
         await stepRules();
         setNotice("Правила сохранены.");
+        nextStep = 5;
         setStep(5);
       } else if (step === 5) {
+        nextStep = 6;
         setStep(6);
       } else if (step === 6) {
         if (!launched) await stepLaunch();
         await onComplete();
         setNotice("Онлайн-запись запущена.");
+        nextStep = 6;
       }
+      if (step < 6 && onStepSaved) await onStepSaved(nextStep);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить шаг.");
     } finally {
