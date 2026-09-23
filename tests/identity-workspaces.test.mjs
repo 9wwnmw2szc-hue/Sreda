@@ -1162,6 +1162,7 @@ test(
     const owner = await login();
     const member = await login();
     const business = await (await create(owner)).json();
+    await activateSolution(business.id, "leads");
     const results = await Promise.allSettled(
       Array.from({ length: 3 }, () =>
         invitations.create(
