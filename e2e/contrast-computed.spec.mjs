@@ -357,6 +357,70 @@ for (const theme of ["light", "dark"]) {
         "orders segment",
       );
       expect(segment).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+
+      // Leads concept — every tab uses readable foreground/surface pairs.
+      await page.goto(baseURL + "/leads/concept", {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await setTheme(page, theme);
+      await page.waitForTimeout(500);
+
+      for (const [selector, label] of [
+        [".leads-concept__title h1", "leads concept title"],
+        [".leads-concept__title p", "leads concept subtitle"],
+        [".leads-concept__notice strong", "leads concept notice title"],
+        [".leads-concept__notice span", "leads concept notice copy"],
+        [".leads-concept__tabs button.is-active", "leads concept active tab"],
+        [".leads-concept__demo-note", "leads concept helper"],
+        [".leads-concept__record-main strong", "leads concept record title"],
+        [".leads-concept__record-main span:not(.leads-concept__avatar)", "leads concept record body"],
+        [".leads-concept__record-meta time", "leads concept record time"],
+        [".leads-concept__fact span", "leads concept fact label"],
+      ]) {
+        const ratio = await requireSample(page, selector, {}, label);
+        expect(ratio, label).toBeGreaterThanOrEqual(AA_NORMAL);
+      }
+
+      await page.getByRole("button", { name: /^Форма$/ }).click();
+      for (const [selector, label] of [
+        [".leads-concept__question strong", "leads form question"],
+        [".leads-concept__question div > span", "leads form type"],
+        [".leads-concept__question small", "leads form condition helper"],
+        [".leads-concept__bubble.is-bot", "leads bot preview bubble"],
+        [".leads-concept__phone-top small", "leads bot preview meta"],
+      ]) {
+        const ratio = await requireSample(page, selector, {}, label);
+        expect(ratio, label).toBeGreaterThanOrEqual(AA_NORMAL);
+      }
+
+      await page.getByRole("button", { name: /^Автоматизация$/ }).click();
+      for (const [selector, label] of [
+        [".leads-concept__setting p", "leads automation copy"],
+        [".leads-concept__setting small", "leads automation helper"],
+      ]) {
+        const ratio = await requireSample(page, selector, {}, label);
+        expect(ratio, label).toBeGreaterThanOrEqual(AA_NORMAL);
+      }
+
+      await page.getByRole("button", { name: /^Настройки$/ }).click();
+      const ticketMeta = await requireSample(
+        page,
+        ".leads-concept__customer-ticket > small",
+        {},
+        "leads customer ticket meta",
+      );
+      expect(ticketMeta).toBeGreaterThanOrEqual(AA_NORMAL);
+
+      await page.getByRole("button", { name: /^Статистика$/ }).click();
+      const kpiMeta = await requireSample(
+        page,
+        ".leads-concept__kpi small",
+        {},
+        "leads KPI helper",
+      );
+      expect(kpiMeta).toBeGreaterThanOrEqual(AA_NORMAL);
     });
   });
 }
