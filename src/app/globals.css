@@ -9932,6 +9932,14 @@ a.soty-activity__row {
   background: var(--solution-leads);
 }
 
+@media (max-width: 1099px) {
+  .leads-concept__header > .business-switcher {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 @media (max-width: 1180px) {
   .leads-concept {
     padding: 26px 24px 52px;
