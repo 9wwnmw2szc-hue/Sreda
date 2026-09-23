@@ -1400,12 +1400,12 @@ ul {
 }
 .status-chip--new {
   background: color-mix(in srgb, var(--success) 14%, var(--bg-surface));
-  color: color-mix(in srgb, var(--success) 82%, var(--text-primary));
+  color: color-mix(in srgb, var(--success) 55%, var(--text-primary));
   border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border-default));
 }
 .status-chip--processing {
   background: color-mix(in srgb, var(--info) 14%, var(--bg-surface));
-  color: color-mix(in srgb, var(--info) 82%, var(--text-primary));
+  color: color-mix(in srgb, var(--info) 50%, var(--text-primary));
   border: 1px solid color-mix(in srgb, var(--info) 28%, var(--border-default));
 }
 .status-chip--closed {
@@ -1415,17 +1415,17 @@ ul {
 }
 .status-chip--waiting_customer {
   background: color-mix(in srgb, var(--warning) 16%, var(--bg-surface));
-  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+  color: color-mix(in srgb, var(--warning) 40%, var(--text-primary));
   border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border-default));
 }
 .status-chip--completed {
   background: color-mix(in srgb, var(--success) 14%, var(--bg-surface));
-  color: color-mix(in srgb, var(--success) 78%, var(--text-primary));
+  color: color-mix(in srgb, var(--success) 50%, var(--text-primary));
   border: 1px solid color-mix(in srgb, var(--success) 30%, var(--border-default));
 }
 .status-chip--rejected {
   background: color-mix(in srgb, var(--danger) 12%, var(--bg-surface));
-  color: color-mix(in srgb, var(--danger) 72%, var(--text-primary));
+  color: color-mix(in srgb, var(--danger) 45%, var(--text-primary));
   border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border-default));
 }
 .post-row {
@@ -10201,6 +10201,15 @@ a.soty-activity__row {
   .leads-concept__filters button {
     min-height: 44px;
     padding: var(--space-2) var(--space-3);
+  }
+  .leads-concept__section-head .eyebrow {
+    display: none;
+  }
+  .leads-concept__workspace .leads-concept__section-head {
+    margin-bottom: var(--space-3);
+  }
+  .leads-concept__workspace .leads-concept__section-head h2 {
+    font-size: var(--font-size-card);
   }
   .leads-concept__tabs-wrap {
     margin-inline: calc(var(--content-gutter) * -1);
