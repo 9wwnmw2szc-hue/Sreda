@@ -55,6 +55,7 @@ const ROUTES = [
   "/solutions",
   "/solutions/leads/setup",
   "/leads",
+  "/leads/concept",
   "/orders",
   "/bookings",
   "/calendar",
@@ -91,6 +92,7 @@ const DARK_ROUTES = new Set([
   "/settings?section=business",
   "/messages",
   "/solutions",
+  "/leads/concept",
 ]);
 
 const MOBILE_MAX = 699;
