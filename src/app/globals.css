@@ -9135,6 +9135,7 @@ a.soty-activity__row {
 .leads-concept__state small {
   color: var(--text-secondary);
   font-size: var(--font-size-badge);
+  font-weight: 550;
   line-height: var(--line-height-snug);
 }
 .leads-concept__switcher {
@@ -9180,6 +9181,10 @@ a.soty-activity__row {
   gap: var(--space-1);
   white-space: nowrap;
   font-size: var(--font-size-label);
+  font-weight: 650;
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .leads-concept__tabs-wrap {
   position: relative;
@@ -9989,7 +9994,7 @@ a.soty-activity__row {
   font-size: var(--font-size-card);
   line-height: var(--line-height-snug);
 }
-.leads-concept__customer-ticket > div {
+.leads-concept__customer-ticket > div:not(.leads-concept__customer-actions) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -9997,7 +10002,7 @@ a.soty-activity__row {
   font-size: var(--font-size-caption);
   line-height: var(--line-height-snug);
 }
-.leads-concept__customer-ticket > div svg {
+.leads-concept__customer-ticket > div:not(.leads-concept__customer-actions) svg {
   color: var(--success);
 }
 .leads-concept__customer-ticket > div.is-pending svg {

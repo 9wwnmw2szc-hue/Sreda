@@ -210,7 +210,7 @@ export function LeadsConceptView() {
   const [tab, setTab] = useState<ConceptTab>("work");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [fields, setFields] = useState<FormField[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [dataError, setDataError] = useState("");
   const [usingDemo, setUsingDemo] = useState(false);
   const tabButtonRefs = useRef<Partial<Record<ConceptTab, HTMLButtonElement | null>>>(
@@ -229,6 +229,7 @@ export function LeadsConceptView() {
   useEffect(() => {
     if (!currentBusiness) return;
     let active = true;
+    setLoadingData(true);
     Promise.all([
       getLeadPage(currentBusiness.id).catch(() => [] as Lead[]),
       apiRequest<FormField[]>(
@@ -241,7 +242,7 @@ export function LeadsConceptView() {
         const realFields = (fieldRows ?? []).filter((field) => field.active !== false);
         setLeads(realLeads.length ? realLeads : demoLeads(currentBusiness.id));
         setFields(realFields.length ? realFields : demoFields());
-        setUsingDemo(realLeads.length === 0 && realFields.length === 0);
+        setUsingDemo(realLeads.length === 0);
       })
       .catch((e) => {
         if (!active) return;
@@ -505,7 +506,15 @@ function WorkTab({ leads }: { leads: Lead[] }) {
       </div>
 
       <aside className="leads-concept__detail">
-        {selected ? <LeadDetailPreview lead={selected} /> : null}
+        {selected ? (
+          <LeadDetailPreview lead={selected} />
+        ) : (
+          <div className="leads-concept__empty">
+            <ClipboardList size={24} aria-hidden />
+            <strong>Выберите заявку</strong>
+            <span>Карточка откроется справа на широком экране.</span>
+          </div>
+        )}
       </aside>
     </section>
   );
