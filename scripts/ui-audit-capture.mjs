@@ -592,6 +592,7 @@ try {
           (vp.name === "390" || vp.name === "1440")
         ) {
           const conceptTabs = [
+            { name: "Заявки", slug: "work" },
             { name: "Форма", slug: "form" },
             { name: "Автоматизация", slug: "automation" },
             { name: "Настройки", slug: "settings" },
