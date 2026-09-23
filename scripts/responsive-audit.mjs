@@ -354,47 +354,67 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
             `bottom-nav-clearance: main padding-bottom=${Math.round(padBottom)} navHeight=${Math.round(navRect.height)}`,
           );
         }
-        const interactives = [
+
+        function inFloatingChrome(el) {
+          let node = el;
+          while (node && node !== document.documentElement) {
+            if (!(node instanceof HTMLElement)) break;
+            if (
+              node.classList.contains("mobile-bottom-nav") ||
+              node.classList.contains("sticky-save-bar") ||
+              node.classList.contains("mobile-header") ||
+              node.classList.contains("desktop-topbar")
+            ) {
+              return true;
+            }
+            const st = getComputedStyle(node);
+            if (st.position === "fixed" || st.position === "sticky") return true;
+            if (st.transform !== "none" && st.transform !== "matrix(1, 0, 0, 1, 0, 0)") {
+              // transformed ancestors make document Y unreliable vs scrollHeight
+              return true;
+            }
+            node = node.parentElement;
+          }
+          return false;
+        }
+
+        const scrollHeight = Math.max(
+          document.documentElement.scrollHeight,
+          document.body?.scrollHeight ?? 0,
+        );
+        const need = Math.ceil(navRect.height) + 8;
+        const candidates = [
           ...document.querySelectorAll(
-            "#main-content a.button, #main-content button.button, #main-content .button, .app-main a.button, .app-main button.button, .panel .button",
+            "#main-content a.button, #main-content button.button, #main-content .button, .panel .button",
           ),
-        ].filter((el) => {
-          if (!(el instanceof HTMLElement)) return false;
-          if (el.closest(".mobile-bottom-nav, .sticky-save-bar")) return false;
-          const st = getComputedStyle(el);
-          if (st.display === "none" || st.visibility === "hidden") return false;
-          if (st.position === "fixed" || st.position === "sticky") return false;
-          const r = el.getBoundingClientRect();
-          return r.width > 0 && r.height > 0;
-        });
-        if (interactives.length) {
-          const last = interactives.reduce((best, el) => {
-            const y =
-              el.getBoundingClientRect().bottom + (window.scrollY || 0);
-            const by =
-              best.getBoundingClientRect().bottom + (window.scrollY || 0);
-            return y > by ? el : best;
-          });
-          last.scrollIntoView({ block: "nearest", inline: "nearest" });
-          await new Promise((r) =>
-            requestAnimationFrame(() => requestAnimationFrame(r)),
-          );
-          window.scrollTo(0, document.documentElement.scrollHeight);
-          await new Promise((r) => setTimeout(r, 30));
-          const lastRect = last.getBoundingClientRect();
-          const docBottom = lastRect.bottom + (window.scrollY || 0);
-          const scrollHeight = Math.max(
-            document.documentElement.scrollHeight,
-            document.body?.scrollHeight ?? 0,
-          );
-          const clearance = scrollHeight - docBottom;
-          const need = Math.ceil(navRect.height) + 8;
-          const label = (last.textContent || "").trim().slice(0, 36);
-          // Document-space clearance is the reliable signal; viewport overlap
-          // alone is noisy when scroll anchoring fights fixed chrome.
-          if (clearance + 0.5 < need) {
+        ]
+          .filter((el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            if (inFloatingChrome(el)) return false;
+            const st = getComputedStyle(el);
+            if (st.display === "none" || st.visibility === "hidden") return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          })
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            const docBottom = r.bottom + (window.scrollY || 0);
+            return {
+              el,
+              docBottom,
+              clearance: scrollHeight - docBottom,
+              label: (el.textContent || "").trim().slice(0, 36),
+            };
+          })
+          // Only in-flow content that participates in document height
+          .filter((c) => c.clearance >= -2)
+          .sort((a, b) => b.docBottom - a.docBottom);
+
+        if (candidates.length) {
+          const last = candidates[0];
+          if (last.clearance + 0.5 < need) {
             failures.push(
-              `overlap-bottom-nav: "${label}" clearance=${Math.round(clearance)} need=${need} pad=${Math.round(padBottom)}`,
+              `overlap-bottom-nav: "${last.label}" clearance=${Math.round(last.clearance)} need=${need} pad=${Math.round(padBottom)}`,
             );
           }
         }
