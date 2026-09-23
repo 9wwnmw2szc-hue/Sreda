@@ -23,6 +23,17 @@ function parseCssColor(input) {
       a: rgba[4] == null ? 1 : Number(rgba[4]),
     };
   }
+  const modern = s.match(
+    /color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)/i,
+  );
+  if (modern) {
+    return {
+      r: Math.round(Number(modern[1]) * 255),
+      g: Math.round(Number(modern[2]) * 255),
+      b: Math.round(Number(modern[3]) * 255),
+      a: modern[4] == null ? 1 : Number(modern[4]),
+    };
+  }
   if (s.startsWith("#")) {
     const hex = s.slice(1);
     const full =
@@ -73,11 +84,21 @@ async function sample(page, selector, { fill, placeholder } = {}) {
           /* ignore */
         }
       }
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const toRgb = (value) => {
+        if (!ctx || !value) return value;
+        ctx.fillStyle = "#000";
+        ctx.fillStyle = value;
+        return ctx.fillStyle;
+      };
+      color = toRgb(color);
+      background = toRgb(background);
       // Walk ancestors for opaque background
       let node = el;
       while (node && node !== document.documentElement) {
-        const bg = getComputedStyle(node).backgroundColor;
-        const parsed = bg.match(
+        const bg = toRgb(getComputedStyle(node).backgroundColor);
+        const parsed = String(bg).match(
           /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/i,
         );
         if (parsed) {
