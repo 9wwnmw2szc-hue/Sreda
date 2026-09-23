@@ -533,7 +533,7 @@ function LeadDetailPreview({ lead }: { lead: Lead }) {
               {STATUS_LABEL[lead.status]}
             </span>
             <small className="leads-concept__status-hint">
-              Для клиента:{" "}
+              Внутри · для клиента:{" "}
               {lead.status === "waiting_customer" || lead.status === "processing"
                 ? "В работе"
                 : lead.status === "rejected"
@@ -548,13 +548,17 @@ function LeadDetailPreview({ lead }: { lead: Lead }) {
       <div className="leads-concept__contact-actions">
         <button type="button" className="button button--outline" disabled>
           <MessageCircle size={17} aria-hidden />
-          Написать
+          Написать клиенту
         </button>
         <button type="button" className="button button--outline" disabled>
           <UserRound size={17} aria-hidden />
           Клиент
         </button>
       </div>
+      <p className="leads-concept__channel-hint">
+        «Написать клиенту» уходит в Telegram/VK через Связь с клиентами. Внутренняя
+        заметка ниже — только для команды.
+      </p>
 
       <div className="leads-concept__detail-card">
         <h3>Ответы клиента</h3>
@@ -750,11 +754,15 @@ function FormTab({ fields }: { fields: FormField[] }) {
               <span>← Назад</span>
               <span>Отменить заявку</span>
             </div>
+            <div className="leads-concept__bubble is-bot is-summary">
+              Перед отправкой клиент увидит сводку ответов и кнопки: «Отправить
+              заявку» · «Изменить» · «Отменить».
+            </div>
           </div>
         </div>
         <p>
-          Клиент видит простой диалог: один вопрос за раз, прогресс, «Назад» и
-          возможность отменить сценарий.
+          Один вопрос за раз → сводка → отправка. «Назад» и «Отменить заявку»
+          сбрасывают draft flow.
         </p>
       </aside>
     </section>
@@ -917,9 +925,9 @@ function StatsTab({ leads }: { leads: Lead[] }) {
 
       <div className="leads-concept__kpis">
         <Kpi label="Получено" value={String(total)} hint="за загруженный период" />
-        <Kpi label="Новые" value={String(newCount)} hint="требуют внимания" />
         <Kpi label="В работе" value={String(processing)} hint="активные" />
         <Kpi label="Завершено" value={String(done)} hint="обработанные" />
+        <Kpi label="До взятия" value="—" hint="среднее время (скоро)" />
       </div>
 
       <div className="leads-concept__stats-grid">
@@ -937,12 +945,11 @@ function StatsTab({ leads }: { leads: Lead[] }) {
           </div>
         </article>
         <article className="leads-concept__stat-card">
-          <h3>Что появится после полной реализации</h3>
+          <h3>После полной реализации</h3>
           <ul>
-            <li>Среднее время до взятия в работу</li>
-            <li>Доля завершённых заявок</li>
-            <li>Динамика по дням</li>
+            <li>Динамика заявок по дням</li>
             <li>Популярные ответы / услуги</li>
+            <li>Новые: {newCount} сейчас в очереди</li>
           </ul>
         </article>
       </div>
