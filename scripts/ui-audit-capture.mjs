@@ -583,6 +583,46 @@ try {
           screenshot: ready.ready || !requireReady ? file : null,
           auth: true,
         });
+
+        // The leads redesign is a multi-tab product surface. Capture every tab
+        // on the two review viewports so visual QA covers more than the default list.
+        if (
+          route === "/leads/concept" &&
+          ready.ready &&
+          (vp.name === "390" || vp.name === "1440")
+        ) {
+          const conceptTabs = [
+            { name: "Форма", slug: "form" },
+            { name: "Автоматизация", slug: "automation" },
+            { name: "Настройки", slug: "settings" },
+            { name: "Статистика", slug: "stats" },
+          ];
+          for (const tab of conceptTabs) {
+            await page.getByRole("button", { name: tab.name, exact: true }).click();
+            await page.waitForTimeout(100);
+            const tabFile =
+              `${phase}_leads_concept_${tab.slug}_${vp.name}_${theme}.png`;
+            await page.screenshot({
+              path: path.join(out, tabFile),
+              fullPage: false,
+            });
+            report.push({
+              route: `${route}#${tab.slug}`,
+              viewport: { width: vp.width, height: vp.height },
+              theme,
+              status: res?.status() ?? 0,
+              url: page.url(),
+              pathname,
+              overflowX: await bodyOverflowX(page),
+              loginRedirect: false,
+              stuckOnboarding: false,
+              notReady: false,
+              notReadyReason: null,
+              screenshot: tabFile,
+              auth: true,
+            });
+          }
+        }
       }
     }
     await ctx.close();
