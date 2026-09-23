@@ -9505,7 +9505,7 @@ a.soty-activity__row {
   background: var(--field-bg);
   color: var(--field-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
 }
 .leads-concept__timeline {
   margin-top: 17px;
