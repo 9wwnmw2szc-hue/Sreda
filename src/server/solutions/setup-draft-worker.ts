@@ -105,6 +105,7 @@ export async function processBatch(
         tx,
         row.business_id,
         row.solution_code,
+        { mode: "auto_expire" },
       );
       if (!result.ok) return false;
       await resolveByEventKey(

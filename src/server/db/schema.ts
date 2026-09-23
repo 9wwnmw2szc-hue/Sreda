@@ -48,6 +48,9 @@ export interface Database
     status: "active" | "trial" | "expired" | "disabled" | "paused";
     starts_at: Date;
     expires_at: Date | null;
+    disabled_at: Date | null;
+    paused_at: Date | null;
+    settings_reset_at: Date | null;
     created_at: Generated<Date>;
     updated_at: Generated<Date>;
   };
@@ -487,7 +490,13 @@ export interface Database
       | "analytics_import_confirmed"
       | "client_merged"
       | "conversation_internal_note"
-      | "data_import_committed";
+      | "data_import_committed"
+      | "solution.setup_cancelled"
+      | "solution.paused"
+      | "solution.resumed"
+      | "solution.disabled"
+      | "solution.reenabled"
+      | "solution.settings_reset";
     target_user_id: string | null;
     details: string | null;
     created_at: Generated<Date>;

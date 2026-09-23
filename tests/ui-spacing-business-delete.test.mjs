@@ -17,7 +17,7 @@ test("customer actions resolver is shared and not hardcoded per platform", async
   assert.doesNotMatch(actions, /автопост|autopost/i);
   assert.match(router, /getAvailableCustomerActions/);
   assert.match(router, /denyDisabled/);
-  assert.match(router, /недоступно для этого бизнеса/);
+  assert.match(router, /Эта функция временно недоступна\./);
 });
 
 test("catalog and solution cards keep content-driven spacing from actions", async () => {

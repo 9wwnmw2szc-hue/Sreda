@@ -305,7 +305,7 @@ test("paused/disabled solution disappears; stale callback blocked", async () => 
     }),
   );
   const msg = await lastMessage(tg, "telegram");
-  assert.match(msg, /недоступно/i);
+  assert.match(msg, /временно недоступна/i);
   const buttons = await menuButtons(tg, "telegram");
   assert.ok(!buttons.includes("Каталог"));
   assert.ok(buttons.includes("Записаться"));
@@ -329,7 +329,7 @@ test("setup_required orders (no products) omitted from menu", async () => {
       text: "Каталог",
     }),
   );
-  assert.match(await lastMessage(tg, "telegram"), /недоступно/i);
+  assert.match(await lastMessage(tg, "telegram"), /временно недоступна/i);
 });
 
 test("Business A and B have isolated customer menus", async () => {

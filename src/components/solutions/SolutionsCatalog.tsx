@@ -14,7 +14,6 @@ import {
 import {
   formatSolutionPrice,
   productSolutionByCode,
-  productSolutionCta,
   productSolutionHref,
 } from "@/lib/productSolutions";
 import {
@@ -23,7 +22,11 @@ import {
 } from "@/config/solutionPresentation";
 import { SolutionIcon } from "@/components/solutions/SolutionIcon";
 import { getBusinessSolutions } from "@/services/solutions.service";
-import type { BusinessSolution, Solution, SolutionStatus } from "@/types";
+import type {
+  BusinessSolution,
+  Solution,
+  SolutionLifecycleStatus,
+} from "@/types";
 
 type Profile = { business_type?: "store" | "service" | "hybrid" };
 
@@ -63,6 +66,28 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       await reloadStatuses(business.id);
       setNotice(successNotice);
       if (href) router.push(href);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Не удалось обновить решение.");
+    } finally {
+      setBusyCode("");
+    }
+  }
+
+  async function postAction(
+    code: string,
+    action: "cancel_setup" | "reset_settings",
+    successNotice: string,
+  ) {
+    if (!business || busyCode) return;
+    setBusyCode(code);
+    setNotice("");
+    try {
+      await apiRequest(`/api/v1/businesses/${business.id}/solutions`, {
+        method: "POST",
+        body: JSON.stringify({ action, code }),
+      });
+      await reloadStatuses(business.id);
+      setNotice(successNotice);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Не удалось обновить решение.");
     } finally {
@@ -150,33 +175,84 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       <div className="solution-catalog-grid">
         {orderedSolutions.map((solution) => {
           const row = statusBySolutionId.get(solution.id);
-          const status: SolutionStatus = row?.status ?? "available";
           const entitlement = row?.entitlementStatus;
+          const lifecycle: SolutionLifecycleStatus =
+            row?.lifecycleStatus ??
+            (entitlement === "disabled"
+              ? "disabled"
+              : entitlement === "paused"
+                ? "paused"
+                : entitlement === "expired"
+                  ? "expired"
+                  : row?.status === "setup_required"
+                    ? "setup_in_progress"
+                    : row?.status === "active"
+                      ? "active"
+                      : row?.status === "paused"
+                        ? "paused"
+                        : "not_connected");
           const def = productSolutionByCode(solution.code);
-          const cta = productSolutionCta(
-            status,
+          const href = productSolutionHref(
+            lifecycle === "setup_in_progress"
+              ? "setup_required"
+              : lifecycle === "active"
+                ? "active"
+                : lifecycle === "paused" || lifecycle === "error"
+                  ? "paused"
+                  : "available",
             solution.code,
-            entitlement,
           );
-          const href = productSolutionHref(status, solution.code);
           const priceLabel = formatSolutionPrice(
             solution.price,
             def?.messageLimit,
           );
-          const reconnect =
-            status === "available" && entitlement === "disabled";
-          const resume = entitlement === "paused" || status === "paused";
-          const connectPrimary =
-            (status === "available" && !isDemoMode) || reconnect || resume;
-          const canPause =
+          const busy = busyCode === solution.code;
+          const showReset =
             !isDemoMode &&
-            (status === "active" || status === "setup_required") &&
-            entitlement !== "paused";
+            (lifecycle === "active" ||
+              lifecycle === "paused" ||
+              lifecycle === "disabled" ||
+              lifecycle === "error");
+
+          const primaryLabel = (() => {
+            if (isDemoMode && lifecycle === "not_connected") return "Посмотреть";
+            switch (lifecycle) {
+              case "not_connected":
+              case "expired":
+                return "Подключить";
+              case "disabled":
+                return "Подключить снова";
+              case "setup_in_progress":
+                return "Продолжить настройку";
+              case "paused":
+                return entitlement === "paused" ? "Возобновить" : "Настроить";
+              case "error":
+                return "Настроить";
+              case "active":
+                return solution.code === "admin_messages"
+                  ? "Открыть"
+                  : "Настроить";
+              default:
+                return "Подключить";
+            }
+          })();
+
+          const connectPrimary =
+            !isDemoMode &&
+            (lifecycle === "not_connected" ||
+              lifecycle === "expired" ||
+              lifecycle === "disabled" ||
+              (lifecycle === "paused" && entitlement === "paused"));
+
+          const canPause = !isDemoMode && lifecycle === "active";
           const canDisable =
             !isDemoMode &&
-            (status === "active" ||
-              status === "setup_required" ||
-              entitlement === "paused");
+            (lifecycle === "active" ||
+              lifecycle === "paused" ||
+              lifecycle === "error");
+          const canCancelSetup =
+            !isDemoMode && lifecycle === "setup_in_progress";
+
           return (
             <article
               key={solution.id}
@@ -190,9 +266,9 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                 <p>{solution.description}</p>
                 <p className="catalog-card__status" role="status">
                   {row?.note ??
-                    (status === "available"
+                    (lifecycle === "not_connected"
                       ? "Не подключено"
-                      : cta)}
+                      : primaryLabel)}
                 </p>
                 <div className="catalog-card__price">
                   <strong>{priceLabel}</strong>
@@ -201,46 +277,63 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                 {connectPrimary ? (
                   <button
                     className="button button--primary"
-                    disabled={busyCode === solution.code}
+                    disabled={busy}
                     onClick={() =>
                       void activate(
                         solution.code,
                         { enabled: true },
-                        reconnect
+                        lifecycle === "disabled"
                           ? "Решение подключено снова."
-                          : resume
+                          : lifecycle === "paused"
                             ? "Решение возобновлено."
                             : "Решение подключено. Переходим к настройке.",
-                        reconnect || resume
-                          ? productSolutionHref("setup_required", solution.code)
+                        lifecycle === "disabled" || lifecycle === "paused"
+                          ? productSolutionHref(
+                              "setup_required",
+                              solution.code,
+                            )
                           : href,
                       )
                     }
                   >
-                    {busyCode === solution.code
-                      ? "Сохраняем…"
-                      : reconnect
-                        ? "Подключить снова"
-                        : resume
-                          ? "Возобновить"
-                          : "Подключить"}
+                    {busy ? "Сохраняем…" : primaryLabel}
                     <ArrowRight size={18} />
                   </button>
                 ) : (
                   <Link href={href} className="button button--primary">
-                    {isDemoMode && status === "available"
-                      ? "Посмотреть"
-                      : cta}
+                    {primaryLabel}
                     <ArrowRight size={18} />
                   </Link>
                 )}
-                {canPause || canDisable ? (
+                {(canPause || canDisable || canCancelSetup) && (
                   <div className="catalog-card__lifecycle">
+                    {canCancelSetup ? (
+                      <button
+                        type="button"
+                        className="button button--ghost button--sm"
+                        disabled={busy}
+                        onClick={() => {
+                          if (
+                            !window.confirm(
+                              `Отменить настройку «${solution.name}»? Незавершённая настройка будет сброшена, решение отключится. Данные каталога сохранятся.`,
+                            )
+                          )
+                            return;
+                          void postAction(
+                            solution.code,
+                            "cancel_setup",
+                            "Настройка отменена, решение отключено.",
+                          );
+                        }}
+                      >
+                        Отменить настройку
+                      </button>
+                    ) : null}
                     {canPause ? (
                       <button
                         type="button"
                         className="button button--outline button--sm"
-                        disabled={busyCode === solution.code}
+                        disabled={busy}
                         onClick={() =>
                           void activate(
                             solution.code,
@@ -252,27 +345,11 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                         Приостановить
                       </button>
                     ) : null}
-                    {entitlement === "paused" && !resume ? (
-                      <button
-                        type="button"
-                        className="button button--outline button--sm"
-                        disabled={busyCode === solution.code}
-                        onClick={() =>
-                          void activate(
-                            solution.code,
-                            { enabled: true },
-                            "Решение возобновлено.",
-                          )
-                        }
-                      >
-                        Возобновить
-                      </button>
-                    ) : null}
                     {canDisable ? (
                       <button
                         type="button"
                         className="button button--ghost button--sm"
-                        disabled={busyCode === solution.code}
+                        disabled={busy}
                         onClick={() => {
                           if (
                             !window.confirm(
@@ -291,12 +368,38 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
                       </button>
                     ) : null}
                   </div>
-                ) : null}
-                {status !== "available" && (
-                  <Link className="text-link" href={solutionRoute(solution.code)}>
-                    Открыть раздел
-                  </Link>
                 )}
+                {showReset ? (
+                  <button
+                    type="button"
+                    className="button button--ghost button--sm"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Сбросить настройки «${solution.name}»? История (заявки, заказы, записи) сохранится. Каталог товаров не удаляется.`,
+                        )
+                      )
+                        return;
+                      void postAction(
+                        solution.code,
+                        "reset_settings",
+                        "Настройки решения сброшены.",
+                      );
+                    }}
+                  >
+                    Сбросить настройки
+                  </button>
+                ) : null}
+                {lifecycle !== "not_connected" &&
+                  lifecycle !== "expired" && (
+                    <Link
+                      className="text-link"
+                      href={solutionRoute(solution.code)}
+                    >
+                      Открыть раздел
+                    </Link>
+                  )}
               </div>
             </article>
           );

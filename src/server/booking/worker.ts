@@ -1,5 +1,6 @@
 import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
+import { getEntitlement } from "../billing/entitlement.ts";
 export async function queueBookingReminder(db: Kysely<Database>) {
   const candidate = await db
     .selectFrom("booking_reminder as r")
@@ -26,6 +27,15 @@ export async function queueBookingReminder(db: Kysely<Database>) {
       .forUpdate()
       .executeTakeFirst();
     if (!reminder) return false;
+    const entitlement = await getEntitlement(tx, reminder.business_id, "booking");
+    if (!entitlement.entitled) {
+      await tx
+        .updateTable("booking_reminder")
+        .set({ status: "cancelled", last_error: "BOOKING_NOT_ENTITLED" })
+        .where("id", "=", reminder.id)
+        .execute();
+      return true;
+    }
     const booking = await tx
       .selectFrom("booking as k")
       .innerJoin("business as b", "b.id", "k.business_id")

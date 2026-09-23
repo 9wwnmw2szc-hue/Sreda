@@ -13,6 +13,15 @@ export type SolutionStatus =
   | "paused"
   | "unavailable";
 
+export type SolutionLifecycleStatus =
+  | "not_connected"
+  | "setup_in_progress"
+  | "active"
+  | "paused"
+  | "disabled"
+  | "expired"
+  | "error";
+
 export type LeadStatus =
   | "new"
   | "processing"
@@ -63,6 +72,8 @@ export interface BusinessSolution {
   businessId: string;
   solutionId: string;
   status: SolutionStatus;
+  lifecycleStatus?: SolutionLifecycleStatus;
+  setupDraft?: { status: string; step: number };
   entitlementStatus?:
     | "active"
     | "trial"

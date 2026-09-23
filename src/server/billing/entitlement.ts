@@ -1,10 +1,10 @@
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import type { Database } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 import { normalizeSolutionCode } from "../solutions/catalog.ts";
 import type { EntitlementStatus, SolutionEntitlement } from "./types.ts";
 
-type Db = Kysely<Database>;
+type Db = Kysely<Database> | Transaction<Database>;
 
 function mapStatus(
   status: Database["business_solution"]["status"] | undefined,
