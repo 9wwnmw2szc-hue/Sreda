@@ -7631,6 +7631,31 @@ a.soty-activity__row {
   }
 }
 
+/* Bottom nav is visible through 899px (hidden again at 900–1099 tablet landscape). */
+@media (min-width: 768px) and (max-width: 899px) {
+  .sticky-save-bar,
+  .auto-schedule > .sticky-save-bar {
+    bottom: calc(12px + var(--bottom-nav-clearance));
+  }
+  .app-main {
+    padding-bottom: var(--bottom-nav-clearance);
+  }
+  .main-dashboard,
+  .secondary-page {
+    padding-bottom: calc(var(--space-6) + var(--bottom-nav-clearance));
+  }
+}
+
+@media (max-width: 699px) {
+  .app-main {
+    padding-bottom: var(--bottom-nav-clearance);
+  }
+  .main-dashboard,
+  .secondary-page {
+    padding-bottom: calc(var(--space-6) + var(--bottom-nav-clearance));
+  }
+}
+
 /* Content gutter contract */
 @media (max-width: 359px) {
   :root { --content-gutter: 12px; }

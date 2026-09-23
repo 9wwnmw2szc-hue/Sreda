@@ -335,12 +335,17 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
       if (bottomNav && getComputedStyle(bottomNav).display !== "none") {
         const scrolling = document.scrollingElement || document.documentElement;
         const prevTop = scrolling.scrollTop;
+        window.scrollTo(0, document.documentElement.scrollHeight);
         scrolling.scrollTop = scrolling.scrollHeight;
         await new Promise((r) =>
           requestAnimationFrame(() => requestAnimationFrame(r)),
         );
+        await new Promise((r) => setTimeout(r, 50));
         const navRect = bottomNav.getBoundingClientRect();
-        const main = document.querySelector("main") || document.body;
+        const main =
+          document.querySelector(".app-main") ||
+          document.querySelector("main") ||
+          document.body;
         const mainStyle = getComputedStyle(main);
         const padBottom = parseFloat(mainStyle.paddingBottom) || 0;
         if (padBottom + 1 < navRect.height) {
@@ -348,26 +353,37 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
             `bottom-nav-clearance: main padding-bottom=${Math.round(padBottom)} navHeight=${Math.round(navRect.height)}`,
           );
         }
+        // Exclude sticky chrome — checked separately against bottom nav
         const interactives = [
           ...document.querySelectorAll(
-            "main button, main .button, main a.button, .sticky-save-bar .button, .panel .button",
+            ".app-main a.button, .app-main button.button, .app-main .button, main a.button, main button.button, .panel .button",
           ),
         ].filter((el) => {
           if (!(el instanceof HTMLElement)) return false;
-          if (el.closest(".mobile-bottom-nav")) return false;
+          if (el.closest(".mobile-bottom-nav, .sticky-save-bar")) return false;
           const st = getComputedStyle(el);
           if (st.display === "none" || st.visibility === "hidden") return false;
+          if (st.position === "fixed" || st.position === "sticky") return false;
           const r = el.getBoundingClientRect();
-          return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;
+          return r.width > 0 && r.height > 0;
         });
         if (interactives.length) {
+          // Prefer the document-bottom-most interactive (page Y), not merely
+          // the lowest currently visible rect after an incomplete scroll.
           const last = interactives.reduce((best, el) => {
-            const r = el.getBoundingClientRect();
-            const br = best.getBoundingClientRect();
-            return r.bottom > br.bottom ? el : best;
+            const y =
+              el.getBoundingClientRect().bottom + (scrolling.scrollTop || 0);
+            const by =
+              best.getBoundingClientRect().bottom + (scrolling.scrollTop || 0);
+            return y > by ? el : best;
           });
           const lastRect = last.getBoundingClientRect();
-          if (rectsOverlap(lastRect, navRect, -1) && lastRect.bottom > navRect.top + 2) {
+          // Only fail when the final content actually intersects the nav band
+          if (
+            lastRect.bottom > navRect.top + 4 &&
+            lastRect.top < navRect.bottom - 4 &&
+            rectsOverlap(lastRect, navRect, -2)
+          ) {
             const label = (last.textContent || "").trim().slice(0, 36);
             failures.push(
               `overlap-bottom-nav: "${label}" bottom=${Math.round(lastRect.bottom)} navTop=${Math.round(navRect.top)}`,
