@@ -1,6 +1,11 @@
 "use client";
 import { DetailDialog } from "@/components/dashboard/DetailDialog";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/apiClient";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
@@ -157,8 +162,14 @@ function Calendar({
     [cancel, setCancel] = useState<Booking | null>(null),
     [selected, setSelected] = useState<Booking | null>(null);
   const requestKey = useRef("");
+  const configRef = useRef<HTMLElement | null>(null);
   const search = useSearchParams();
   const focusConfig = search.get("tab") === "config";
+  const [solutionStatus, setSolutionStatus] = useState<string | null>(null);
+  const [forceWizard, setForceWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const range =
     mode === "list"
       ? ""
@@ -190,6 +201,43 @@ function Calendar({
       alive = false;
     };
   }, [base, bookingUrl]);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([
+      apiRequest<{ solutionId: string; status: string }[]>(base + "/solutions"),
+      apiRequest<{
+        status: string;
+        step?: number;
+        draft?: { step?: number };
+      } | null>(base + "/solutions?draft=booking"),
+    ])
+      .then(([solutions, draft]) => {
+        if (!alive) return;
+        const booking = solutions.find((s) => s.solutionId === "sol_booking");
+        setSolutionStatus(booking?.status ?? null);
+        const step =
+          typeof draft?.draft?.step === "number"
+            ? draft.draft.step
+            : typeof draft?.step === "number"
+              ? draft.step
+              : 1;
+        const inProgress =
+          !!draft &&
+          (draft.status === "in_progress" || draft.status === "reminded") &&
+          step < 6;
+        if (inProgress) {
+          setForceWizard(true);
+          setWizardStep(Math.max(1, Math.min(6, step)));
+        }
+        setDraftReady(true);
+      })
+      .catch(() => {
+        if (alive) setDraftReady(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [base]);
   useEffect(() => {
     if (!service || !specialist) return;
     let alive = true;
@@ -319,13 +367,35 @@ function Calendar({
           (mode === "week" ? until : date)),
   );
   const today = dateAt(new Date(), timezone);
+  const servicesEmpty = !catalog || catalog.services.length === 0;
+  const showSetupBanner =
+    draftReady &&
+    (forceWizard ||
+      servicesEmpty ||
+      solutionStatus === "setup_required");
   return (
     <div className="booking-page">
       <header className="page-header">
         <h1 className="text-page-title">Запись</h1>
         <p className="text-body-sm">Часовой пояс: {timezone}</p>
       </header>
-      <SolutionSetupBanner code="booking" />
+      {showSetupBanner ? (
+        <SolutionSetupBanner
+          code="booking"
+          loading={bannerLoading}
+          onContinue={() => {
+            setBannerLoading(true);
+            setForceWizard(true);
+            requestAnimationFrame(() => {
+              configRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+              setBannerLoading(false);
+            });
+          }}
+        />
+      ) : null}
       <div className="booking-toolbar">
         <div className="booking-date-nav">
           <button
@@ -664,6 +734,11 @@ function Calendar({
               onChange={refresh}
               openDetails={focusConfig}
               terms={terms}
+              forceWizard={forceWizard}
+              initialStep={wizardStep}
+              sectionRef={configRef}
+              onForceWizardChange={setForceWizard}
+              onWizardStepChange={setWizardStep}
             />
           )}
         </>
@@ -720,6 +795,11 @@ function Configuration({
   onChange,
   openDetails = false,
   terms,
+  forceWizard = false,
+  initialStep = 1,
+  sectionRef,
+  onForceWizardChange,
+  onWizardStepChange,
 }: {
   base: string;
   businessId: string;
@@ -729,9 +809,16 @@ function Configuration({
   onChange: () => Promise<void>;
   openDetails?: boolean;
   terms: Terminology;
+  forceWizard?: boolean;
+  initialStep?: number;
+  sectionRef?: RefObject<HTMLElement | null>;
+  onForceWizardChange?: (value: boolean) => void;
+  onWizardStepChange?: (step: number) => void;
 }) {
-  const needsWizard = catalog.services.length === 0;
-  const [showAdvanced, setShowAdvanced] = useState(!needsWizard || openDetails);
+  const needsWizard = catalog.services.length === 0 || forceWizard;
+  const [showAdvanced, setShowAdvanced] = useState(
+    (!needsWizard && !forceWizard) || openDetails,
+  );
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -1333,17 +1420,100 @@ function Configuration({
   );
 
   return (
-    <section className="panel crm-panel" id="booking-config">
+    <section
+      className="panel crm-panel"
+      id="booking-config"
+      ref={sectionRef as RefObject<HTMLElement>}
+    >
       <h2>Настройка записи</h2>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {!needsWizard ? (
+        <div className="booking-config-actions">
+          <button
+            type="button"
+            className="button button--outline button--sm"
+            disabled={busy}
+            onClick={() => setShowAdvanced(true)}
+          >
+            Изменить настройки
+          </button>
+          <button
+            type="button"
+            className="button button--ghost button--sm"
+            disabled={busy}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  "Настроить запись заново? Клиенты и история записей не удалятся. Услуги, специалисты и расписание будут сброшены.",
+                )
+              )
+                return;
+              void (async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  await apiRequest(base + "/booking-config", {
+                    method: "POST",
+                    body: JSON.stringify({ kind: "reset_setup" }),
+                  });
+                  onForceWizardChange?.(true);
+                  onWizardStepChange?.(1);
+                  setShowAdvanced(false);
+                  setNotice("Настройка сброшена. Пройдите мастер заново.");
+                  await onChange();
+                } catch (e) {
+                  setError(
+                    e instanceof Error
+                      ? e.message
+                      : "Не удалось сбросить настройку.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            }}
+          >
+            Настроить заново
+          </button>
+        </div>
+      ) : null}
       {needsWizard ? (
         <BookingSetupWizard
+          key={`wizard-${initialStep}-${forceWizard}`}
           businessId={businessId}
           businessName={businessName}
           timezone={timezone}
           catalog={catalog}
+          initialStep={initialStep}
+          onStepSaved={async (step) => {
+            onWizardStepChange?.(step);
+            try {
+              await apiRequest(`/api/v1/businesses/${businessId}/solutions`, {
+                method: "POST",
+                body: JSON.stringify({
+                  action: "touch_draft",
+                  code: "booking",
+                  draft: { step },
+                }),
+              });
+            } catch {
+              /* non-blocking draft persistence */
+            }
+          }}
           onComplete={async () => {
+            try {
+              await apiRequest(`/api/v1/businesses/${businessId}/solutions`, {
+                method: "POST",
+                body: JSON.stringify({
+                  action: "complete_draft",
+                  code: "booking",
+                }),
+              });
+            } catch {
+              /* ignore */
+            }
+            onForceWizardChange?.(false);
             await onChange();
             setShowAdvanced(true);
           }}

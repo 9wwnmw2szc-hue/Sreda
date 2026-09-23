@@ -5,6 +5,14 @@ import { SolutionService } from "../solutions/service.ts";
 import { TelegramService } from "../telegram/service.ts";
 import { AppError, json, readJson, requireOrigin, respond } from "./errors.ts";
 import { limit } from "./limits.ts";
+
+const DRAFT_ACTIONS = new Set([
+  "touch_draft",
+  "complete_draft",
+  "cancel_draft",
+  "get_draft",
+]);
+
 export function createSolutionHandler(options: {
   db: Kysely<Database>;
   auth: Identity;
@@ -37,8 +45,18 @@ export function createSolutionHandler(options: {
       if (!session?.user.username)
         throw new AppError(401, "UNAUTHENTICATED", "Войдите в аккаунт.");
       if (action === "solutions") {
-        if (request.method === "GET")
+        if (request.method === "GET") {
+          const draftCode = new URL(request.url).searchParams.get("draft");
+          if (draftCode)
+            return json(
+              await solutions.getSetupDraft(
+                session.user.id,
+                id,
+                draftCode,
+              ),
+            );
           return json(await solutions.list(session.user.id, id));
+        }
         await limit(
           options.db,
           options.secret,
@@ -46,12 +64,40 @@ export function createSolutionHandler(options: {
           30,
           60,
         );
-        return json(
-          await solutions.activate(
+        const body = await readJson(request);
+        if (
+          typeof body.action === "string" &&
+          DRAFT_ACTIONS.has(body.action)
+        ) {
+          const code = String(body.code ?? "");
+          if (!code)
+            throw new AppError(400, "INVALID_SOLUTION", "Укажите решение.");
+          if (body.action === "get_draft")
+            return json(
+              await solutions.getSetupDraft(session.user.id, id, code),
+            );
+          const businessId = await solutions.business(
             session.user.id,
             id,
-            await readJson(request),
-          ),
+            true,
+          );
+          if (body.action === "touch_draft") {
+            const draft =
+              body.draft && typeof body.draft === "object"
+                ? (body.draft as Record<string, unknown>)
+                : {};
+            return json(
+              await solutions.touchSetupDraft(businessId, code, draft),
+            );
+          }
+          if (body.action === "complete_draft")
+            return json(
+              await solutions.completeSetupDraft(businessId, code),
+            );
+          return json(await solutions.cancelSetupDraft(businessId, code));
+        }
+        return json(
+          await solutions.activate(session.user.id, id, body),
         );
       }
       if (action === "setup" && request.method === "GET")

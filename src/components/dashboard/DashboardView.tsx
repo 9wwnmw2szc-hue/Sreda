@@ -122,14 +122,19 @@ export function DashboardView() {
     industryHint?.id === data.businessId &&
     !industryHint.industry &&
     !industryHint.onboardingDone;
-  const setupPct = (() => {
+  const setupSteps = (() => {
     if (!industryHint || industryHint.id !== data.businessId) return null;
     if (industryHint.onboardingDone) return null;
     const p = industryHint.progress;
     const keys = Object.keys(p);
-    if (!keys.length) return industryHint.industry ? 20 : 0;
-    const done = keys.filter((k) => p[k]).length;
-    return Math.min(100, Math.round((done / Math.max(keys.length, 4)) * 100));
+    const total = Math.max(keys.length, 4);
+    const done = keys.length
+      ? keys.filter((k) => p[k]).length
+      : industryHint.industry
+        ? 1
+        : 0;
+    if (done >= total) return null;
+    return { done, total };
   })();
   const nextSetupHint = (() => {
     if (!industryHint?.industry || industryHint.onboardingDone) return null;
@@ -327,9 +332,10 @@ export function DashboardView() {
               <Link href="/settings/advanced">Расширенная настройка</Link>
             </p>
           ) : null}
-          {setupPct != null && setupPct < 100 && !showIndustryNudge ? (
+          {setupSteps && !showIndustryNudge ? (
             <p className="account-notice" role="status">
-              Настройка бизнеса — {setupPct}%.
+              Стартовая настройка: {setupSteps.done} из {setupSteps.total}{" "}
+              шагов.
               {nextSetupHint ? ` ${nextSetupHint}` : ""}{" "}
               <Link href="/onboarding">Продолжить</Link>
             </p>
@@ -526,6 +532,7 @@ export function DashboardView() {
                   {productSolutionCta(
                     visibleSelection.item.status,
                     visibleSelection.item.code,
+                    visibleSelection.item.entitlementStatus,
                   )}
                   <ArrowUpRight size={18} />
                 </Link>

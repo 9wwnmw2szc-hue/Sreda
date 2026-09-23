@@ -16,6 +16,8 @@ export const notificationTypes = [
   "post.failed",
   "calendar.reminder",
   "inventory.low_stock",
+  "invitation.received",
+  "setup.abandoned",
 ];
 
 type StaffPlatform = "telegram" | "vk";

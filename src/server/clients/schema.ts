@@ -56,5 +56,6 @@ export interface ClientTables {
     notification_id: string;
     user_id: string;
     read_at: Date | null;
+    resolved_at: Date | null;
   };
 }

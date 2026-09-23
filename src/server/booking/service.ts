@@ -9,7 +9,8 @@ import {
   clientInput,
   matchClient,
 } from "../clients/service.ts";
-import { notify } from "../notifications/service.ts";
+import { notify, resolveByEventKey } from "../notifications/service.ts";
+import { assertEntitlement } from "../billing/entitlement.ts";
 import {
   assertNoBlockedTimeOverlap,
   blockedBusyIntervals,
@@ -29,6 +30,7 @@ import {
   mergeIntervals,
 } from "./time.ts";
 import type { Interval } from "./time.ts";
+import { cancelSetupDraft } from "../solutions/setup-draft.ts";
 const fail = (message = "Проверьте параметры записи.") =>
   new AppError(400, "INVALID_BOOKING", message);
 function integer(value: unknown, min: number, max: number) {
@@ -345,6 +347,56 @@ export class BookingService {
         .execute();
       await requireBusiness(tx, userId, publicId, "solutions.manage");
       const kind = body.kind;
+      if (kind === "reset_setup") {
+        await tx
+          .updateTable("booking_service")
+          .set({ active: false, updated_at: new Date() })
+          .where("business_id", "=", b.id)
+          .execute();
+        await tx
+          .updateTable("booking_specialist")
+          .set({ active: false, updated_at: new Date() })
+          .where("business_id", "=", b.id)
+          .execute();
+        await tx
+          .deleteFrom("booking_schedule")
+          .where("business_id", "=", b.id)
+          .execute();
+        await tx
+          .deleteFrom("booking_schedule_exception")
+          .where("business_id", "=", b.id)
+          .execute();
+        await tx
+          .updateTable("booking_manual_slot")
+          .set({ active: false })
+          .where("business_id", "=", b.id)
+          .execute();
+        const defaults = {
+          business_id: b.id,
+          minimum_booking_notice: 120,
+          maximum_booking_horizon: 60,
+          slot_interval: 15,
+          choose_specialist: true,
+          schedule_mode: "automatic" as const,
+          client_reminders_enabled: true,
+          client_reminder_offsets: JSON.stringify([1440, 120]),
+          client_reminder_template: "",
+          staff_reminder_offsets: JSON.stringify([1440, 30]),
+          allow_customer_cancel: true,
+          cancel_before_minutes: 0,
+          allow_reschedule: true,
+          reschedule_before_minutes: 0,
+        };
+        await tx
+          .insertInto("booking_settings")
+          .values(defaults)
+          .onConflict((oc) =>
+            oc.column("business_id").doUpdateSet(defaults),
+          )
+          .execute();
+        await cancelSetupDraft(tx, b.id, "booking");
+        return { ok: true };
+      }
       if (kind === "settings") {
         if (
           body.choose_specialist != null &&
@@ -834,6 +886,7 @@ export class BookingService {
       .where("id", "=", businessId)
       .forUpdate()
       .execute();
+    await assertEntitlement(tx, businessId, "booking");
     const serviceId = id(body.service_id),
       specialistId = id(body.specialist_id),
       start = new Date(String(body.starts_at));
@@ -1241,6 +1294,8 @@ export class BookingService {
         type === "booking.cancelled" ? "Запись отменена" : "Запись перенесена",
         "/bookings?id=" + current.id,
       );
+    if (action === "cancel" || action === "complete")
+      await resolveByEventKey(tx, businessId, "booking:" + current.id);
     if (action !== "no_show")
       await audit(
         tx,

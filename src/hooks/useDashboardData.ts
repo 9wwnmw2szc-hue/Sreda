@@ -14,6 +14,7 @@ import {
 } from "@/services/solutions.service";
 import type {
   BillingInfo,
+  BusinessSolution,
   Connection,
   Lead,
   Post,
@@ -25,6 +26,7 @@ export interface WorkspaceSolutionItem {
   solution: Solution;
   code: SolutionAccentCode;
   status: SolutionStatus;
+  entitlementStatus?: BusinessSolution["entitlementStatus"];
   visual: (typeof SOLUTION_VISUALS)[SolutionAccentCode];
 }
 interface DashboardSnapshot {
@@ -72,15 +74,19 @@ export function useDashboardData() {
         );
         const workspaceItems = WORKSPACE_SOLUTION_ORDER.flatMap((code) => {
           const solution = catalog.find((item) => item.code === code);
+          const installedRow = installed.find(
+            (item) => item.solutionId === solution?.id,
+          );
           return solution
             ? [
                 {
                   solution,
-                  note: installed.find((item) => item.solutionId === solution.id)?.note,
+                  note: installedRow?.note,
                   code,
                   status:
                     statuses.get(solution.id) ??
                     ("available" as SolutionStatus),
+                  entitlementStatus: installedRow?.entitlementStatus,
                   visual: SOLUTION_VISUALS[code],
                 },
               ]

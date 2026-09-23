@@ -62,6 +62,7 @@ const BTN = {
   stats: "📊 Статистика",
   site: "🌐 Открыть сайт",
   client: "Режим клиента",
+  backAdmin: "← Вернуться в кабинет",
   switchBiz: "Сменить бизнес",
   changeName: "Изменить название",
   changeGreeting: "Изменить приветствие",
@@ -364,16 +365,43 @@ export async function routeChannelAdmin(
 
   if (!admin) return false;
 
-  // Client mode
+  // Client preview: do not intercept as admin except return / home /admin.
+  if (session?.mode === "client_preview") {
+    if (
+      text === BTN.backAdmin ||
+      text === BTN.home ||
+      text === "/admin" ||
+      text === BTN.adminEntry ||
+      text === "Управление бизнесом"
+    ) {
+      await showHome(
+        tx,
+        queue,
+        admin,
+        input.connectionId,
+        externalUserId,
+        platform,
+      );
+      return true;
+    }
+    return false;
+  }
+
+  // Client mode — keep admin session, hand off to customer bot menu.
   if (text === BTN.client) {
-    await clearChannelAdminSession(
-      tx,
-      input.connectionId,
+    await setChannelAdminSession(tx, {
+      connectionId: input.connectionId,
       externalUserId,
       platform,
-    );
+      userId: admin.userId,
+      businessId: admin.businessId,
+      mode: "client_preview",
+      step: "",
+      draft: {},
+    });
     await queue(
-      "Режим клиента. Отправьте /menu чтобы открыть клиентское меню.",
+      "Вы смотрите интерфейс клиента. Нажмите «← Вернуться в кабинет» или /admin.",
+      [BTN.backAdmin, "Главное меню"],
     );
     return true;
   }

@@ -20,6 +20,12 @@ const SOLUTION_BY_HREF: Record<string, string> = {
   "/posts": "sol_autopost",
 };
 
+function allSolutionLocks(): Record<string, boolean> {
+  const next: Record<string, boolean> = {};
+  for (const href of Object.keys(SOLUTION_BY_HREF)) next[href] = true;
+  return next;
+}
+
 export function Sidebar({
   onClose,
   mobile = false,
@@ -41,21 +47,25 @@ export function Sidebar({
     if (!business?.id || isDemoMode) return;
     const businessId = business.id;
     let alive = true;
-    void apiRequest<{ solutionId: string; status: string }[]>(
-      `/api/v1/businesses/${businessId}/solutions`,
-    )
+    void apiRequest<
+      { solutionId: string; status: string; entitlementStatus?: string }[]
+    >(`/api/v1/businesses/${businessId}/solutions`)
       .then((rows) => {
         if (!alive) return;
         const next: Record<string, boolean> = {};
         for (const [href, solutionId] of Object.entries(SOLUTION_BY_HREF)) {
           const row = rows.find((item) => item.solutionId === solutionId);
           next[href] =
-            !row || row.status === "available" || row.status === "unavailable";
+            !row ||
+            row.status === "available" ||
+            row.status === "unavailable" ||
+            row.entitlementStatus === "disabled";
         }
         setLockState({ id: businessId, locked: next });
       })
       .catch(() => {
-        if (alive) setLockState({ id: businessId, locked: {} });
+        if (alive)
+          setLockState({ id: businessId, locked: allSolutionLocks() });
       });
     return () => {
       alive = false;

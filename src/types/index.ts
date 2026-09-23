@@ -63,6 +63,13 @@ export interface BusinessSolution {
   businessId: string;
   solutionId: string;
   status: SolutionStatus;
+  entitlementStatus?:
+    | "active"
+    | "trial"
+    | "paused"
+    | "disabled"
+    | "absent"
+    | "expired";
 }
 
 export interface Lead {

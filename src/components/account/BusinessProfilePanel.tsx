@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
 import { AiInterviewPanel } from "@/components/ai/AiInterviewPanel";
 import { FieldHint } from "@/components/ui/SetupChrome";
@@ -41,7 +41,14 @@ export function BusinessProfilePanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
   const url = `/api/v1/businesses/${businessId}/profile`;
+
+  async function reloadProfile() {
+    const p = await apiRequest<Profile>(url);
+    setProfile(p);
+    return p;
+  }
 
   useEffect(() => {
     let active = true;
@@ -57,6 +64,11 @@ export function BusinessProfilePanel({
     };
   }, [url]);
 
+  function updateProfile(next: Profile) {
+    setNotice("");
+    setProfile(next);
+  }
+
   async function save() {
     if (!profile) return;
     setBusy(true);
@@ -68,7 +80,13 @@ export function BusinessProfilePanel({
           body: JSON.stringify(profile),
         }),
       );
-      setNotice("Профиль сохранён. AI и бот используют эти данные.");
+      setNotice("Профиль сохранён");
+      requestAnimationFrame(() => {
+        noticeRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить.");
     } finally {
@@ -89,14 +107,18 @@ export function BusinessProfilePanel({
           <textarea
             disabled={!canEdit || busy}
             value={profile[key] ?? ""}
-            onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
+            onChange={(e) =>
+              updateProfile({ ...profile, [key]: e.target.value })
+            }
           />
         ) : (
           <input
             disabled={!canEdit || busy}
             required={key === "name" || key === "timezone"}
             value={profile[key] ?? ""}
-            onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
+            onChange={(e) =>
+              updateProfile({ ...profile, [key]: e.target.value })
+            }
           />
         )}
       </label>
@@ -110,7 +132,11 @@ export function BusinessProfilePanel({
           {error}
         </p>
       )}
-      {notice && <p role="status">{notice}</p>}
+      {notice ? (
+        <p ref={noticeRef} className="account-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
       {!profile ? (
         <p>Загрузка профиля…</p>
       ) : (
@@ -128,7 +154,7 @@ export function BusinessProfilePanel({
               disabled={!canEdit || busy}
               value={profile.business_type ?? "hybrid"}
               onChange={(e) =>
-                setProfile({
+                updateProfile({
                   ...profile,
                   business_type: e.target.value as Profile["business_type"],
                 })
@@ -189,16 +215,30 @@ export function BusinessProfilePanel({
           })}
 
           {canEdit && (
-            <button className="button button--primary" disabled={busy}>
-              Сохранить профиль
-            </button>
+            <div className="stack-sm">
+              {notice ? (
+                <p className="account-toast" role="status">
+                  {notice}
+                </p>
+              ) : null}
+              <button className="button button--primary" disabled={busy}>
+                {busy ? "Сохраняем…" : "Сохранить профиль"}
+              </button>
+            </div>
           )}
         </form>
       )}
       {canEdit ? (
         <details>
           <summary>AI-интервью</summary>
-          <AiInterviewPanel businessId={businessId} />
+          <AiInterviewPanel
+            businessId={businessId}
+            onProfileApplied={() => {
+              void reloadProfile().catch(() => {
+                /* keep current fields */
+              });
+            }}
+          />
         </details>
       ) : null}
     </section>

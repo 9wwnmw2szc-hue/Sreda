@@ -47,6 +47,16 @@ async function fixture() {
       status: "active",
     })
     .execute();
+  await db
+    .insertInto("business_solution")
+    .values({
+      business_id: b.id,
+      solution_code: "leads",
+      status: "active",
+      starts_at: new Date(),
+      expires_at: null,
+    })
+    .execute();
   return { uid, b };
 }
 test("platform identities match inside business; names and unverified phones never merge", async () => {

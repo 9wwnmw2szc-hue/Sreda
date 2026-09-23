@@ -9,7 +9,8 @@ import {
   matchClient,
   normalizeIdentity,
 } from "../clients/service.ts";
-import { notify } from "../notifications/service.ts";
+import { notify, resolveByEventKey } from "../notifications/service.ts";
+import { assertEntitlement } from "../billing/entitlement.ts";
 import { evaluateLowStockCrossing } from "./low-stock.ts";
 import type {
   CartPlatform,
@@ -1622,6 +1623,7 @@ export class OrderService {
         .where("archived_at", "is", null)
         .forUpdate()
         .executeTakeFirstOrThrow();
+      await assertEntitlement(tx, businessId, "orders");
 
       const key = requestKey(body.request_key);
       const source = platform(body.source ?? body.platform);
@@ -2071,6 +2073,8 @@ export class OrderService {
           ? { channel: body.channel }
           : {}),
       });
+      if (to === "cancelled" || to === "completed")
+        await resolveByEventKey(tx, b.id, "order:" + current.id);
       return { id: current.id, status: to };
     });
   }

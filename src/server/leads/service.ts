@@ -6,8 +6,9 @@ import type { Database, LeadStatus } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
 
 import { matchClient, clientActivity } from "../clients/service.ts";
-import { notify } from "../notifications/service.ts";
+import { notify, resolveByEventKey } from "../notifications/service.ts";
 import { requireBusiness } from "../access/permissions.ts";
+import { assertEntitlement } from "../billing/entitlement.ts";
 type Input = {
   source: "telegram" | "vk" | "max";
   name: string;
@@ -317,6 +318,12 @@ export class LeadService {
               details: id,
             })
             .execute();
+        if (
+          next === "closed" ||
+          next === "completed" ||
+          next === "rejected"
+        )
+          await resolveByEventKey(tx, internalBusinessId, "lead:" + id);
       }
       return this.toLead(row, businessId);
     });
@@ -355,6 +362,7 @@ export async function createLead(
     .where("id", "=", businessId)
     .forUpdate()
     .execute();
+  await assertEntitlement(tx, businessId, "leads");
   if (input.externalEventId) {
     const existing = await tx
       .selectFrom("lead")

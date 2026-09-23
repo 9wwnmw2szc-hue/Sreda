@@ -24,12 +24,14 @@ Activation allowlist: `ACTIVATABLE_SOLUTIONS`. Status stored in `business_soluti
 ## Runtime behaviour
 
 - Bot menu is built from **active** solutions (`getAvailableCustomerActions`).
-- `leads`: form draft in `lead_setup`, fields/statuses, take-into-work in CRM.
+- Owner can pause (`status: paused`), disable (`enabled: false`, data retained), or reconnect (`enabled: true` → «Подключить снова»).
+- Unfinished setup is tracked in `solution_setup_draft` (touch / complete / cancel); abandoned drafts get a one-shot reminder.
+- `leads`: form draft in `lead_setup`, fields/statuses, take-into-work in CRM; lead save advances setup draft.
 - `orders`: catalog, variants (migration 052 enables per-variant prices), stock, bot cart/checkout flow (`orders-flow`).
-- `booking`: services/specialists/slots, reminders via worker, bot booking flow.
+- `booking`: services/specialists/slots, reminders via worker, bot booking flow; setup wizard persists draft step; `reset_setup` deactivates catalog without deleting clients/history.
 - `admin_messages`: shared inbox; free-tier messaging limits are product copy / soft caps, not a payment gateway.
 - `autopost`: schedule/recurring posts; delivery rows tied to channel outbox; `expires_at` re-checked before publish.
 
 ## Readiness gates
 
-`SolutionsService` checks connected channels + solution-specific prerequisites (e.g. products for orders, services for booking, targets for autopost) before presenting “ready / setup required”.
+`SolutionService` checks entitlement first (no setup_required/active without grant), then connected channels + solution-specific prerequisites (e.g. products for orders, services for booking, targets for autopost) before presenting “ready / setup required / paused”.

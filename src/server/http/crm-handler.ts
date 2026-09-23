@@ -47,6 +47,10 @@ export function crmHandler(
         body.all === true
       )
         return json(await service.markAllRead(user.id, businessId));
+      if (body.action === "resolve")
+        return json(
+          await service.resolve(user.id, businessId, String(body.id)),
+        );
       return json(
         await service.read(user.id, businessId, String(body.id)),
       );

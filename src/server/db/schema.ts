@@ -45,7 +45,7 @@ export interface Database
   business_solution: {
     business_id: string;
     solution_code: string;
-    status: "active" | "trial" | "expired" | "disabled";
+    status: "active" | "trial" | "expired" | "disabled" | "paused";
     starts_at: Date;
     expires_at: Date | null;
     created_at: Generated<Date>;
@@ -434,7 +434,7 @@ export interface Database
     inviter_user_id: string;
     invitee_user_id: string;
     role: "admin" | "operator";
-    status: "pending" | "accepted" | "revoked" | "expired";
+    status: "pending" | "accepted" | "revoked" | "expired" | "declined";
     expires_at: Date;
     created_at: Generated<Date>;
     responded_at: Date | null;
@@ -450,6 +450,7 @@ export interface Database
       | "invitation_created"
       | "invitation_accepted"
       | "invitation_revoked"
+      | "invitation_declined"
       | "member_revoked"
       | "member_role_changed"
       | "connection_connected"

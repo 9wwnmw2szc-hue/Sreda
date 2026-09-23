@@ -45,7 +45,13 @@ function summaryField(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-export function AiInterviewPanel({ businessId }: { businessId: string }) {
+export function AiInterviewPanel({
+  businessId,
+  onProfileApplied,
+}: {
+  businessId: string;
+  onProfileApplied?: () => void;
+}) {
   const url = `/api/v1/businesses/${businessId}/ai/interview`;
   const profileUrl = `/api/v1/businesses/${businessId}/profile`;
   const [payload, setPayload] = useState<InterviewResponse | null>(null);
@@ -57,6 +63,7 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
   const [textKind, setTextKind] = useState("greeting");
   const [draft, setDraft] = useState("");
   const [editMode, setEditMode] = useState(false);
+  const [applied, setApplied] = useState(false);
 
   async function refresh() {
     const data = await apiRequest<InterviewResponse>(url);
@@ -159,6 +166,7 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
         ? "Резюме применено к AI-профилю."
         : "Подтверждено без перезаписи профиля.",
     );
+    if (apply) onProfileApplied?.();
   }
 
   async function suggestText(kind = textKind) {
@@ -166,12 +174,13 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
     if (data?.text) {
       setDraft(data.text);
       setEditMode(false);
+      setApplied(false);
       setNotice("Черновик готов — выберите, что с ним сделать.");
     }
   }
 
   async function applyDraft() {
-    if (!draft.trim()) return;
+    if (!draft.trim() || applied) return;
     setBusy(true);
     setError("");
     try {
@@ -198,7 +207,9 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
-      setNotice("Текст сохранён в профиль. AI не перезаписывает его сам.");
+      setApplied(true);
+      setNotice("Текст применён");
+      onProfileApplied?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось сохранить текст.");
     } finally {
@@ -216,7 +227,7 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
       <h3>AI-интервью</h3>
       <p className="text-body-sm">
         Короткие вопросы помогут заполнить профиль. AI не придумывает цены,
-        наличие и расписание.
+        товары и расписание.
       </p>
       <FieldHint>{FIELD_HINTS.aiRestrictions}</FieldHint>
 
@@ -317,6 +328,7 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
                   onChange={(e) => {
                     setTextKind(e.target.value);
                     setDraft("");
+                    setApplied(false);
                   }}
                 >
                   {TEXT_KINDS.map((k) => (
@@ -340,7 +352,10 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
                     <textarea
                       rows={5}
                       value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
+                      onChange={(e) => {
+                        setDraft(e.target.value);
+                        setApplied(false);
+                      }}
                     />
                   ) : (
                     <div className="customer-preview__bubble">
@@ -351,10 +366,10 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
                     <button
                       type="button"
                       className="button button--primary"
-                      disabled={busy}
+                      disabled={busy || applied}
                       onClick={() => void applyDraft()}
                     >
-                      Использовать
+                      {applied ? "Использовано ✓" : "Использовать"}
                     </button>
                     <button
                       type="button"
@@ -373,6 +388,11 @@ export function AiInterviewPanel({ businessId }: { businessId: string }) {
                       Другой вариант
                     </button>
                   </div>
+                  {applied ? (
+                    <p className="account-notice" role="status">
+                      Текст применён
+                    </p>
+                  ) : null}
                   <FieldHint>
                     Ничего не публикуется и не перезаписывается без вашей кнопки
                     «Использовать».

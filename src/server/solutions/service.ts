@@ -14,8 +14,12 @@ import {
   normalizeSolutionCode,
 } from "./catalog.ts";
 import { assertCanGrantEntitlement } from "../billing/entitlement.ts";
+import type { EntitlementStatus } from "../billing/types.ts";
 import { trackProductEvent } from "../analytics/product-events.ts";
 import type { SolutionStatus } from "../../types/index.ts";
+import { resolveByEventKey } from "../notifications/service.ts";
+import { cancelSetupDraft } from "./setup-draft.ts";
+
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
   if (
@@ -77,6 +81,29 @@ export function validateSetup(raw: unknown): LeadSetupDraft {
     fields: LEAD_FIELDS.filter((f) => d.fields.includes(f.id)).map((f) => f.id),
   };
 }
+
+function mapEntitlementStatus(
+  status: Database["business_solution"]["status"] | undefined,
+  expiresAt: Date | null | undefined,
+  now: number,
+): { entitlementStatus: EntitlementStatus; entitled: boolean } {
+  if (!status) return { entitlementStatus: "absent", entitled: false };
+  if (status === "disabled")
+    return { entitlementStatus: "disabled", entitled: false };
+  if (status === "paused")
+    return { entitlementStatus: "paused", entitled: false };
+  if (status === "expired")
+    return { entitlementStatus: "expired", entitled: false };
+  if (expiresAt && expiresAt.getTime() <= now)
+    return { entitlementStatus: "expired", entitled: false };
+  if (status === "trial") return { entitlementStatus: "trial", entitled: true };
+  if (status === "active")
+    return { entitlementStatus: "active", entitled: true };
+  return { entitlementStatus: "absent", entitled: false };
+}
+
+export { cancelSetupDraft } from "./setup-draft.ts";
+
 export class SolutionService {
   constructor(
     private readonly db: Kysely<Database>,
@@ -189,6 +216,10 @@ export class SolutionService {
         solution: "leads",
         revision,
       });
+      const svc = new SolutionService(tx);
+      if (draft.step < 3)
+        await svc.touchSetupDraft(id, "leads", { step: draft.step });
+      else if (draft.step === 3) await svc.completeSetupDraft(id, "leads");
       return { draft, revision };
     });
   }
@@ -198,11 +229,19 @@ export class SolutionService {
     raw: Record<string, unknown>,
   ) {
     const code = normalizeSolutionCode(String(raw.code));
-    if (
-      !(ACTIVATABLE_SOLUTIONS as readonly string[]).includes(code) ||
-      typeof raw.enabled !== "boolean"
-    )
+    if (!(ACTIVATABLE_SOLUTIONS as readonly string[]).includes(code))
       throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
+    const statusFromRaw =
+      raw.status === "paused" ||
+      raw.status === "active" ||
+      raw.status === "disabled"
+        ? (raw.status as "paused" | "active" | "disabled")
+        : null;
+    if (statusFromRaw == null && typeof raw.enabled !== "boolean")
+      throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
+    const status =
+      statusFromRaw ?? (raw.enabled ? "active" : "disabled");
+    const enabling = status === "active";
     const result = await this.db.transaction().execute(async (tx) => {
       const id = await new SolutionService(tx).business(userId, publicId, true);
       await tx
@@ -212,10 +251,7 @@ export class SolutionService {
         .forUpdate()
         .execute();
       await new SolutionService(tx).business(userId, publicId, true);
-      const status = raw.enabled ? "active" : "disabled";
-      // Entitlement grant path: Closed Beta allows manual grant without payment.
-      // Future providers must confirm payment before assertCanGrantEntitlement passes.
-      if (raw.enabled) {
+      if (enabling) {
         await assertCanGrantEntitlement({
           businessId: id,
           solutionCode: code,
@@ -240,7 +276,13 @@ export class SolutionService {
         solution: code,
         status,
       });
-      return { ok: true as const, enabled: raw.enabled, code, businessId: id };
+      return {
+        ok: true as const,
+        enabled: enabling,
+        code,
+        businessId: id,
+        status,
+      };
     });
     if (result.enabled) {
       await trackProductEvent(this.db, {
@@ -250,7 +292,108 @@ export class SolutionService {
         meta: { solution: result.code },
       });
     }
-    return { ok: true };
+    return { ok: true, status: result.status };
+  }
+  async touchSetupDraft(
+    businessId: string,
+    code: string,
+    draftPatch: Record<string, unknown> = {},
+  ) {
+    const solutionCode = normalizeSolutionCode(code);
+    const now = new Date();
+    const current = await this.db
+      .selectFrom("solution_setup_draft")
+      .selectAll()
+      .where("business_id", "=", businessId)
+      .where("solution_code", "=", solutionCode)
+      .executeTakeFirst();
+    const prevDraft =
+      current?.draft && typeof current.draft === "object"
+        ? (current.draft as Record<string, unknown>)
+        : {};
+    const draft = { ...prevDraft, ...draftPatch };
+    const previous = await this.db
+      .selectFrom("business_solution")
+      .select(["status"])
+      .where("business_id", "=", businessId)
+      .where("solution_code", "=", solutionCode)
+      .executeTakeFirst();
+    await this.db
+      .insertInto("solution_setup_draft")
+      .values({
+        business_id: businessId,
+        solution_code: solutionCode,
+        status: "in_progress",
+        draft,
+        previous_solution_status: previous?.status ?? null,
+        previous_config: null,
+        started_at: now,
+        last_activity_at: now,
+        reminder_sent_at: null,
+        cancel_after: null,
+        updated_at: now,
+      })
+      .onConflict((oc) =>
+        oc.columns(["business_id", "solution_code"]).doUpdateSet({
+          status: "in_progress",
+          draft,
+          last_activity_at: now,
+          reminder_sent_at: null,
+          cancel_after: null,
+          updated_at: now,
+        }),
+      )
+      .execute();
+    return { ok: true as const };
+  }
+  async completeSetupDraft(businessId: string, code: string) {
+    const solutionCode = normalizeSolutionCode(code);
+    const now = new Date();
+    await this.db
+      .updateTable("solution_setup_draft")
+      .set({
+        status: "completed",
+        updated_at: now,
+        cancel_after: null,
+      })
+      .where("business_id", "=", businessId)
+      .where("solution_code", "=", solutionCode)
+      .where("status", "in", ["in_progress", "reminded"])
+      .execute();
+    await resolveByEventKey(
+      this.db,
+      businessId,
+      "setup:" + businessId + ":" + solutionCode,
+    );
+    return { ok: true as const };
+  }
+  async cancelSetupDraft(businessId: string, code: string) {
+    return cancelSetupDraft(this.db, businessId, code);
+  }
+  async getSetupDraft(userId: string, publicId: string, code: string) {
+    const id = await this.business(userId, publicId);
+    const solutionCode = normalizeSolutionCode(code);
+    const row = await this.db
+      .selectFrom("solution_setup_draft")
+      .selectAll()
+      .where("business_id", "=", id)
+      .where("solution_code", "=", solutionCode)
+      .executeTakeFirst();
+    if (!row) return null;
+    const draft =
+      row.draft && typeof row.draft === "object"
+        ? (row.draft as Record<string, unknown>)
+        : {};
+    return {
+      businessId: id,
+      code: solutionCode,
+      status: row.status,
+      draft,
+      step: typeof draft.step === "number" ? draft.step : 1,
+      started_at: row.started_at,
+      last_activity_at: row.last_activity_at,
+      reminder_sent_at: row.reminder_sent_at,
+    };
   }
   async list(userId: string, publicId: string) {
     const id = await this.business(userId, publicId);
@@ -262,15 +405,21 @@ export class SolutionService {
       .execute();
     const now = Date.now();
     const solutionState = new Map(
-      enabledSolutions.map((item) => [
-        normalizeSolutionCode(item.solution_code),
-        {
-          active:
-            (item.status === "active" || item.status === "trial") &&
-            (!item.expires_at || item.expires_at.getTime() > now),
-          status: item.status,
-        },
-      ]),
+      enabledSolutions.map((item) => {
+        const mapped = mapEntitlementStatus(
+          item.status,
+          item.expires_at,
+          now,
+        );
+        return [
+          normalizeSolutionCode(item.solution_code),
+          {
+            entitled: mapped.entitled,
+            entitlementStatus: mapped.entitlementStatus,
+            status: item.status,
+          },
+        ] as const;
+      }),
     );
     const connections = await this.db
       .selectFrom("business_connection")
@@ -329,7 +478,10 @@ export class SolutionService {
     return SOLUTIONS.filter((solution) =>
       (ACTIVATABLE_SOLUTIONS as readonly string[]).includes(solution.code),
     ).map((solution) => {
-      const configured = solutionState.get(solution.code)?.active;
+      const state = solutionState.get(solution.code);
+      const entitled = !!state?.entitled;
+      const entitlementStatus: EntitlementStatus =
+        state?.entitlementStatus ?? "absent";
       const channels =
         solution.code === "leads" ? setup.draft.channels : connectedChannels;
       const ready =
@@ -342,18 +494,36 @@ export class SolutionService {
             : true;
       let status: SolutionStatus = "available";
       let note = "Подключите решение, чтобы настроить его функции.";
-      if (solution.code === "leads") {
-        if (!setup.revision) {
+
+      // Never expose setup_required/active without entitlement.
+      if (!entitled) {
+        if (entitlementStatus === "paused") {
+          status = "paused";
+          note = "Приостановлено. Можно возобновить или отключить.";
+        } else if (entitlementStatus === "disabled") {
           status = "available";
-          note = "Выберите площадки и вопросы.";
-        } else if (
+          note = "Отключено. Подключить снова.";
+        } else if (solution.code === "leads") {
+          status = "available";
+          note = setup.revision
+            ? "Подключите решение, чтобы продолжить настройку."
+            : "Выберите площадки и вопросы.";
+        } else if (solution.code === "moderation") {
+          status = "unavailable";
+          note = "Решение пока не подключено к продукту.";
+        } else {
+          status = "available";
+          note = "Подключите решение, чтобы пройти настройку.";
+        }
+      } else if (solution.code === "leads") {
+        if (
           setup.draft.step !== 3 ||
           !channels.length ||
           !channels.every((c) => states.has(c))
         ) {
           status = "setup_required";
           note = "Завершите настройку и подключите выбранные каналы.";
-        } else if (configured && ready) {
+        } else if (ready) {
           status = "active";
           note = "Каналы приёма заявок и обработчики отвечают.";
         } else if (channels.some((c) => states.get(c)?.error)) {
@@ -363,12 +533,6 @@ export class SolutionService {
           status = "setup_required";
           note = "Запустите выбранные каналы в разделе «Подключения».";
         }
-      } else if (solution.code === "moderation") {
-        status = "unavailable";
-        note = "Решение пока не подключено к продукту.";
-      } else if (!configured) {
-        status = "available";
-        note = "Подключите решение, чтобы пройти настройку.";
       } else if (solution.code === "orders" && productCount === 0) {
         status = "setup_required";
         note = "Добавьте первый товар в каталог.";
@@ -398,6 +562,7 @@ export class SolutionService {
         solutionId: solution.id,
         status,
         note,
+        entitlementStatus,
       };
     });
   }

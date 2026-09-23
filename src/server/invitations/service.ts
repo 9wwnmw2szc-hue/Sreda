@@ -2,9 +2,17 @@ import { randomUUID } from "node:crypto";
 import { sql, type Kysely, type Selectable } from "kysely";
 import type { Database, Role } from "../db/schema.ts";
 import { AppError } from "../http/errors.ts";
+import {
+  notifyUser,
+  resolveUserByEventKey,
+} from "../notifications/service.ts";
 
 type InvitationRole = "admin" | "operator";
 const publicId = /^usr_[a-f0-9]{20}$/;
+const ROLE_LABEL: Record<InvitationRole, string> = {
+  admin: "администратор",
+  operator: "оператор",
+};
 
 export class InvitationService {
   constructor(
@@ -157,6 +165,36 @@ export class InvitationService {
       })
       .returningAll()
       .executeTakeFirstOrThrow();
+    const business = await this.db
+      .selectFrom("business")
+      .select(["name", "public_id"])
+      .where("id", "=", businessId)
+      .executeTakeFirstOrThrow();
+    const inviter = await this.db
+      .selectFrom("user")
+      .select("name")
+      .where("id", "=", inviterId)
+      .executeTakeFirst();
+    const inviteRole = role as InvitationRole;
+    await notifyUser(this.db, {
+      userId: target.id,
+      type: "invitation.received",
+      eventKey: "invitation:" + row.id,
+      title: `Вас приглашают в бизнес «${business.name}»`,
+      body:
+        (inviter?.name || "Владелец") +
+        " приглашает вас как " +
+        ROLE_LABEL[inviteRole] +
+        ".",
+      targetPath: "/settings?section=members",
+      businessId,
+      payload: {
+        invitationId: row.id,
+        role: inviteRole,
+        businessPublicId: business.public_id,
+        businessName: business.name,
+      },
+    });
     await this.audit(
       this.db,
       businessId,
@@ -443,11 +481,76 @@ export class InvitationService {
         .set({ status: "accepted", responded_at: new Date() })
         .where("id", "=", invitation.id)
         .execute();
+      await resolveUserByEventKey(
+        tx,
+        userId,
+        "invitation:" + invitation.id,
+      );
       await this.audit(
         tx,
         invitation.business_id,
         userId,
         "invitation_accepted",
+        userId,
+        invitation.role,
+      );
+      return { ok: true };
+    });
+  }
+
+  async decline(userId: string, invitationId: string) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        invitationId,
+      )
+    )
+      throw new AppError(
+        404,
+        "INVITATION_NOT_FOUND",
+        "Приглашение не найдено.",
+      );
+    return this.db.transaction().execute(async (tx) => {
+      const invitation = await tx
+        .selectFrom("business_invitation")
+        .selectAll()
+        .where("id", "=", invitationId)
+        .where("invitee_user_id", "=", userId)
+        .where("status", "=", "pending")
+        .executeTakeFirst();
+      if (!invitation || invitation.expires_at <= new Date())
+        throw new AppError(
+          404,
+          "INVITATION_NOT_FOUND",
+          "Приглашение не найдено.",
+        );
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", invitation.business_id)
+        .forUpdate()
+        .execute();
+      const changed = await tx
+        .updateTable("business_invitation")
+        .set({ status: "declined", responded_at: new Date() })
+        .where("id", "=", invitation.id)
+        .where("status", "=", "pending")
+        .executeTakeFirst();
+      if (!changed || Number(changed.numUpdatedRows) !== 1)
+        throw new AppError(
+          404,
+          "INVITATION_NOT_FOUND",
+          "Приглашение не найдено.",
+        );
+      await resolveUserByEventKey(
+        tx,
+        userId,
+        "invitation:" + invitation.id,
+      );
+      await this.audit(
+        tx,
+        invitation.business_id,
+        userId,
+        "invitation_declined",
         userId,
         invitation.role,
       );
@@ -475,6 +578,19 @@ export class InvitationService {
         "Приглашение не найдено.",
       );
     const businessId = await this.business(ownerId, businessPublicId);
+    const pending = await this.db
+      .selectFrom("business_invitation")
+      .select(["id", "invitee_user_id"])
+      .where("id", "=", invitationId)
+      .where("business_id", "=", businessId)
+      .where("status", "=", "pending")
+      .executeTakeFirst();
+    if (!pending)
+      throw new AppError(
+        404,
+        "INVITATION_NOT_FOUND",
+        "Приглашение не найдено.",
+      );
     const changed = await this.db
       .updateTable("business_invitation")
       .set({ status: "revoked", responded_at: new Date() })
@@ -488,17 +604,17 @@ export class InvitationService {
         "INVITATION_NOT_FOUND",
         "Приглашение не найдено.",
       );
-    const invitation = await this.db
-      .selectFrom("business_invitation")
-      .select("invitee_user_id")
-      .where("id", "=", invitationId)
-      .executeTakeFirst();
+    await resolveUserByEventKey(
+      this.db,
+      pending.invitee_user_id,
+      "invitation:" + invitationId,
+    );
     await this.audit(
       this.db,
       businessId,
       ownerId,
       "invitation_revoked",
-      invitation?.invitee_user_id ?? null,
+      pending.invitee_user_id,
     );
     return { ok: true };
   }

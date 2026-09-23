@@ -5,6 +5,7 @@ export type EntitlementStatus =
   | "trial"
   | "expired"
   | "disabled"
+  | "paused"
   | "absent";
 
 export type SubscriptionStatus =
