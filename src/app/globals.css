@@ -10005,7 +10005,7 @@ a.soty-activity__row {
     position: static;
   }
   .leads-concept__phone-preview {
-    order: -1;
+    order: initial;
   }
   .leads-concept__settings-grid,
   .leads-concept__stats-grid,
