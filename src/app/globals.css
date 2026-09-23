@@ -9533,6 +9533,12 @@ a.soty-activity__row {
   flex: 1;
   min-height: 44px;
 }
+.leads-concept__channel-hint {
+  margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-snug);
+}
 .leads-concept__detail-card {
   padding: var(--space-3) var(--space-4);
   margin-top: var(--space-3);
@@ -9850,6 +9856,12 @@ a.soty-activity__row {
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   color: var(--text-primary);
+}
+.leads-concept__bubble.is-summary {
+  margin-top: var(--space-2);
+  border-style: dashed;
+  color: var(--text-secondary);
+  font-size: var(--font-size-badge);
 }
 .leads-concept__progress {
   position: relative;
