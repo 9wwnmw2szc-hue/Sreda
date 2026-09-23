@@ -17,8 +17,21 @@ import { assertCanGrantEntitlement } from "../billing/entitlement.ts";
 import type { EntitlementStatus } from "../billing/types.ts";
 import { trackProductEvent } from "../analytics/product-events.ts";
 import type { SolutionStatus } from "../../types/index.ts";
-import { resolveByEventKey } from "../notifications/service.ts";
-import { cancelSetupDraft } from "./setup-draft.ts";
+import { requireBusiness } from "../access/permissions.ts";
+import {
+  cancelSetupDraft,
+  clearOpenSetupDraft,
+  resolveSetupNotifications,
+} from "./setup-draft.ts";
+
+export type SolutionLifecycleStatus =
+  | "not_connected"
+  | "setup_in_progress"
+  | "active"
+  | "paused"
+  | "disabled"
+  | "expired"
+  | "error";
 
 export function validateSetup(raw: unknown): LeadSetupDraft {
   const d = raw as LeadSetupDraft;
@@ -102,7 +115,28 @@ function mapEntitlementStatus(
   return { entitlementStatus: "absent", entitled: false };
 }
 
-export { cancelSetupDraft } from "./setup-draft.ts";
+/** Map canonical lifecycle → legacy SolutionStatus for UI backward compat. */
+function legacyStatusFromLifecycle(
+  lifecycle: SolutionLifecycleStatus,
+): SolutionStatus {
+  switch (lifecycle) {
+    case "not_connected":
+    case "disabled":
+    case "expired":
+      return "available";
+    case "setup_in_progress":
+      return "setup_required";
+    case "active":
+      return "active";
+    case "paused":
+    case "error":
+      return "paused";
+    default:
+      return "available";
+  }
+}
+
+export { cancelSetupDraft, resolveSetupNotifications } from "./setup-draft.ts";
 
 export class SolutionService {
   constructor(
@@ -111,6 +145,15 @@ export class SolutionService {
     private readonly vkEnabled = false,
   ) {}
   async business(userId: string, publicId: string, write = false) {
+    if (write) {
+      const b = await requireBusiness(
+        this.db,
+        userId,
+        publicId,
+        "solutions.manage",
+      );
+      return b.id;
+    }
     const row = await this.db
       .selectFrom("business")
       .innerJoin("business_member as m", "m.business_id", "business.id")
@@ -122,12 +165,6 @@ export class SolutionService {
       .executeTakeFirst();
     if (!row)
       throw new AppError(404, "BUSINESS_NOT_FOUND", "Бизнес не найден.");
-    if (write && row.role === "operator")
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Настройку меняют владелец и администратор.",
-      );
     return row.id;
   }
   async get(userId: string, publicId: string) {
@@ -206,6 +243,8 @@ export class SolutionService {
                 .doUpdateSet({
                   status: "active",
                   expires_at: null,
+                  disabled_at: null,
+                  paused_at: null,
                   updated_at: new Date(),
                 }),
             )
@@ -251,11 +290,37 @@ export class SolutionService {
         .forUpdate()
         .execute();
       await new SolutionService(tx).business(userId, publicId, true);
+      const previous = await tx
+        .selectFrom("business_solution")
+        .select(["status", "settings_reset_at"])
+        .where("business_id", "=", id)
+        .where("solution_code", "=", code)
+        .executeTakeFirst();
+      const previousStatus = previous?.status;
       if (enabling) {
         await assertCanGrantEntitlement({
           businessId: id,
           solutionCode: code,
         });
+      }
+      const now = new Date();
+      const patch: {
+        status: typeof status;
+        expires_at: null;
+        updated_at: Date;
+        disabled_at: Date | null;
+        paused_at: Date | null;
+        settings_reset_at?: Date | null;
+      } = {
+        status,
+        expires_at: null,
+        updated_at: now,
+        disabled_at: status === "disabled" ? now : null,
+        paused_at: status === "paused" ? now : null,
+      };
+      // Clear settings_reset_at on reenable only (not while resetting).
+      if (enabling && previousStatus === "disabled") {
+        patch.settings_reset_at = null;
       }
       await tx
         .insertInto("business_solution")
@@ -263,28 +328,60 @@ export class SolutionService {
           business_id: id,
           solution_code: code,
           status,
-          starts_at: new Date(),
+          starts_at: now,
           expires_at: null,
+          disabled_at: patch.disabled_at,
+          paused_at: patch.paused_at,
+          settings_reset_at: patch.settings_reset_at ?? null,
         })
         .onConflict((oc) =>
-          oc
-            .columns(["business_id", "solution_code"])
-            .doUpdateSet({ status, expires_at: null, updated_at: new Date() }),
+          oc.columns(["business_id", "solution_code"]).doUpdateSet(patch),
         )
         .execute();
-      await audit(tx, id, userId, "settings_changed", id, {
-        solution: code,
-        status,
-      });
+
+      if (status === "disabled") {
+        await resolveSetupNotifications(tx, id, code);
+        await audit(tx, id, userId, "solution.disabled", id, {
+          solution: code,
+          previousStatus: previousStatus ?? null,
+        });
+      } else if (status === "paused") {
+        await audit(tx, id, userId, "solution.paused", id, {
+          solution: code,
+          previousStatus: previousStatus ?? null,
+        });
+      } else if (status === "active") {
+        if (previousStatus === "paused") {
+          await audit(tx, id, userId, "solution.resumed", id, {
+            solution: code,
+          });
+        } else if (previousStatus === "disabled") {
+          await audit(tx, id, userId, "solution.reenabled", id, {
+            solution: code,
+          });
+        } else {
+          await audit(tx, id, userId, "settings_changed", id, {
+            solution: code,
+            status,
+          });
+        }
+      } else {
+        await audit(tx, id, userId, "settings_changed", id, {
+          solution: code,
+          status,
+        });
+      }
+
       return {
         ok: true as const,
         enabled: enabling,
         code,
         businessId: id,
         status,
+        previousStatus: previousStatus ?? null,
       };
     });
-    if (result.enabled) {
+    if (result.enabled && result.previousStatus !== "paused" && result.previousStatus !== "disabled") {
       await trackProductEvent(this.db, {
         event: "solution_activated",
         businessId: result.businessId,
@@ -293,6 +390,129 @@ export class SolutionService {
       });
     }
     return { ok: true, status: result.status };
+  }
+  async cancelSetup(userId: string, publicId: string, code: string) {
+    const solutionCode = normalizeSolutionCode(code);
+    if (!(ACTIVATABLE_SOLUTIONS as readonly string[]).includes(solutionCode))
+      throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
+    return this.db.transaction().execute(async (tx) => {
+      const id = await new SolutionService(tx).business(userId, publicId, true);
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", id)
+        .forUpdate()
+        .execute();
+      await new SolutionService(tx).business(userId, publicId, true);
+      const result = await cancelSetupDraft(tx, id, solutionCode, {
+        mode: "user_cancel",
+      });
+      if (!result.ok) {
+        // No open draft — still disable as user cancel intent.
+        const now = new Date();
+        await tx
+          .insertInto("business_solution")
+          .values({
+            business_id: id,
+            solution_code: solutionCode,
+            status: "disabled",
+            starts_at: now,
+            expires_at: null,
+            disabled_at: now,
+            paused_at: null,
+          })
+          .onConflict((oc) =>
+            oc.columns(["business_id", "solution_code"]).doUpdateSet({
+              status: "disabled",
+              disabled_at: now,
+              paused_at: null,
+              updated_at: now,
+            }),
+          )
+          .execute();
+        await resolveSetupNotifications(tx, id, solutionCode);
+      }
+      await audit(tx, id, userId, "solution.setup_cancelled", id, {
+        solution: solutionCode,
+      });
+      return { ok: true as const, status: "disabled" as const };
+    });
+  }
+  async resetSettings(userId: string, publicId: string, code: string) {
+    const solutionCode = normalizeSolutionCode(code);
+    if (!(ACTIVATABLE_SOLUTIONS as readonly string[]).includes(solutionCode))
+      throw new AppError(400, "INVALID_SOLUTION", "Выберите решение.");
+    return this.db.transaction().execute(async (tx) => {
+      const id = await new SolutionService(tx).business(userId, publicId, true);
+      await tx
+        .selectFrom("business")
+        .select("id")
+        .where("id", "=", id)
+        .forUpdate()
+        .execute();
+      await new SolutionService(tx).business(userId, publicId, true);
+      const now = new Date();
+
+      await clearOpenSetupDraft(tx, id, solutionCode);
+
+      if (solutionCode === "booking") {
+        await resetBookingConfig(tx, id);
+      } else if (solutionCode === "leads") {
+        const draft = newLeadSetupDraft();
+        const current = await tx
+          .selectFrom("lead_setup")
+          .select("revision")
+          .where("business_id", "=", id)
+          .executeTakeFirst();
+        const revision = (current?.revision ?? 0) + 1;
+        await tx
+          .insertInto("lead_setup")
+          .values({
+            business_id: id,
+            draft: JSON.stringify(draft),
+            revision,
+            updated_at: now,
+          })
+          .onConflict((oc) =>
+            oc.column("business_id").doUpdateSet({
+              draft: JSON.stringify(draft),
+              revision,
+              updated_at: now,
+            }),
+          )
+          .execute();
+        await syncLeadFormFields(tx, id, draft);
+      } else if (
+        solutionCode === "orders" ||
+        solutionCode === "autopost" ||
+        solutionCode === "admin_messages"
+      ) {
+        // Catalog/history retained; only clear optional solution_config + flag.
+        await tx
+          .deleteFrom("solution_config")
+          .where("business_id", "=", id)
+          .where("solution_code", "=", solutionCode)
+          .execute();
+      }
+
+      await tx
+        .updateTable("business_solution")
+        .set({ settings_reset_at: now, updated_at: now })
+        .where("business_id", "=", id)
+        .where("solution_code", "=", solutionCode)
+        .execute();
+
+      await audit(tx, id, userId, "solution.settings_reset", id, {
+        solution: solutionCode,
+        note:
+          solutionCode === "orders"
+            ? "catalog_retained"
+            : solutionCode === "booking"
+              ? "services_deactivated"
+              : undefined,
+      });
+      return { ok: true as const };
+    });
   }
   async touchSetupDraft(
     businessId: string,
@@ -360,15 +580,15 @@ export class SolutionService {
       .where("solution_code", "=", solutionCode)
       .where("status", "in", ["in_progress", "reminded"])
       .execute();
-    await resolveByEventKey(
-      this.db,
-      businessId,
-      "setup:" + businessId + ":" + solutionCode,
-    );
+    await resolveSetupNotifications(this.db, businessId, solutionCode);
     return { ok: true as const };
   }
-  async cancelSetupDraft(businessId: string, code: string) {
-    return cancelSetupDraft(this.db, businessId, code);
+  async cancelSetupDraft(
+    businessId: string,
+    code: string,
+    options?: { mode: "user_cancel" | "auto_expire" },
+  ) {
+    return cancelSetupDraft(this.db, businessId, code, options);
   }
   async getSetupDraft(userId: string, publicId: string, code: string) {
     const id = await this.business(userId, publicId);
@@ -403,6 +623,27 @@ export class SolutionService {
       .select(["solution_code", "status", "expires_at"])
       .where("business_id", "=", id)
       .execute();
+    const setupDrafts = await this.db
+      .selectFrom("solution_setup_draft")
+      .select(["solution_code", "status", "draft"])
+      .where("business_id", "=", id)
+      .where("status", "in", ["in_progress", "reminded"])
+      .execute();
+    const draftByCode = new Map(
+      setupDrafts.map((d) => {
+        const draft =
+          d.draft && typeof d.draft === "object"
+            ? (d.draft as Record<string, unknown>)
+            : {};
+        return [
+          normalizeSolutionCode(d.solution_code),
+          {
+            status: d.status as "in_progress" | "reminded",
+            step: typeof draft.step === "number" ? draft.step : 1,
+          },
+        ] as const;
+      }),
+    );
     const now = Date.now();
     const solutionState = new Map(
       enabledSolutions.map((item) => {
@@ -482,6 +723,7 @@ export class SolutionService {
       const entitled = !!state?.entitled;
       const entitlementStatus: EntitlementStatus =
         state?.entitlementStatus ?? "absent";
+      const openDraft = draftByCode.get(solution.code);
       const channels =
         solution.code === "leads" ? setup.draft.channels : connectedChannels;
       const ready =
@@ -492,78 +734,157 @@ export class SolutionService {
           : solution.code === "booking"
             ? alive("booking_reminders")
             : true;
-      let status: SolutionStatus = "available";
+
+      let readinessIncomplete = false;
+      let channelError = false;
       let note = "Подключите решение, чтобы настроить его функции.";
 
-      // Never expose setup_required/active without entitlement.
-      if (!entitled) {
-        if (entitlementStatus === "paused") {
-          status = "paused";
-          note = "Приостановлено. Можно возобновить или отключить.";
-        } else if (entitlementStatus === "disabled") {
-          status = "available";
-          note = "Отключено. Подключить снова.";
-        } else if (solution.code === "leads") {
-          status = "available";
+      if (entitled) {
+        if (solution.code === "leads") {
+          if (
+            setup.draft.step !== 3 ||
+            !channels.length ||
+            !channels.every((c) => states.has(c))
+          ) {
+            readinessIncomplete = true;
+            note = "Завершите настройку и подключите выбранные каналы.";
+          } else if (ready) {
+            note = "Каналы приёма заявок и обработчики отвечают.";
+          } else if (channels.some((c) => states.get(c)?.error)) {
+            channelError = true;
+            note =
+              "Обработчик сообщений не отвечает или канал приостановлен.";
+          } else {
+            readinessIncomplete = true;
+            note = "Запустите выбранные каналы в разделе «Подключения».";
+          }
+        } else if (solution.code === "orders" && productCount === 0) {
+          readinessIncomplete = true;
+          note = "Добавьте первый товар в каталог.";
+        } else if (solution.code === "booking" && serviceCount === 0) {
+          readinessIncomplete = true;
+          note = "Создайте услугу и настройте расписание.";
+        } else if (solution.code === "autopost" && targetCount === 0) {
+          readinessIncomplete = true;
+          note = "Подключите площадку Telegram или VK для публикаций.";
+        } else if (
+          solution.code === "admin_messages" &&
+          connectedChannels.length === 0
+        ) {
+          readinessIncomplete = true;
+          note = "Подключите Telegram или VK, чтобы принимать сообщения.";
+        } else if (ready && scheduler) {
+          note = "Подключения и обработчики отвечают.";
+        } else {
+          channelError = true;
+          note =
+            "Проверьте запуск каналов и состояние обработчиков на сервере.";
+        }
+      }
+
+      // Canonical lifecycle priority (SoT).
+      let lifecycleStatus: SolutionLifecycleStatus;
+      if (entitlementStatus === "disabled") {
+        lifecycleStatus = "disabled";
+        note = "Отключено. Подключить снова.";
+      } else if (entitlementStatus === "expired") {
+        lifecycleStatus = "expired";
+        note = "Срок истёк. Подключите решение снова.";
+      } else if (entitlementStatus === "paused") {
+        lifecycleStatus = "paused";
+        note = "Приостановлено. Можно возобновить или отключить.";
+      } else if (!entitled) {
+        lifecycleStatus = "not_connected";
+        if (solution.code === "leads") {
           note = setup.revision
             ? "Подключите решение, чтобы продолжить настройку."
             : "Выберите площадки и вопросы.";
         } else if (solution.code === "moderation") {
-          status = "unavailable";
           note = "Решение пока не подключено к продукту.";
         } else {
-          status = "available";
           note = "Подключите решение, чтобы пройти настройку.";
         }
-      } else if (solution.code === "leads") {
-        if (
-          setup.draft.step !== 3 ||
-          !channels.length ||
-          !channels.every((c) => states.has(c))
-        ) {
-          status = "setup_required";
-          note = "Завершите настройку и подключите выбранные каналы.";
-        } else if (ready) {
-          status = "active";
-          note = "Каналы приёма заявок и обработчики отвечают.";
-        } else if (channels.some((c) => states.get(c)?.error)) {
-          status = "paused";
-          note = "Обработчик сообщений не отвечает или канал приостановлен.";
-        } else {
-          status = "setup_required";
-          note = "Запустите выбранные каналы в разделе «Подключения».";
-        }
-      } else if (solution.code === "orders" && productCount === 0) {
-        status = "setup_required";
-        note = "Добавьте первый товар в каталог.";
-      } else if (solution.code === "booking" && serviceCount === 0) {
-        status = "setup_required";
-        note = "Создайте услугу и настройте расписание.";
-      } else if (solution.code === "autopost" && targetCount === 0) {
-        status = "setup_required";
-        note = "Подключите площадку Telegram или VK для публикаций.";
       } else if (
-        solution.code === "admin_messages" &&
-        connectedChannels.length === 0
+        openDraft ||
+        readinessIncomplete
       ) {
-        status = "setup_required";
-        note = "Подключите Telegram или VK, чтобы принимать сообщения.";
-      } else if (ready && scheduler) {
-        status = "active";
-        note = "Подключения и обработчики отвечают.";
+        lifecycleStatus = "setup_in_progress";
+        if (openDraft && !readinessIncomplete) {
+          note = "Продолжите настройку решения.";
+        }
+      } else if (channelError) {
+        lifecycleStatus = "error";
       } else {
-        status = "paused";
-        note =
-          "Проверьте запуск каналов и состояние обработчиков на сервере.";
+        lifecycleStatus = "active";
       }
+
+      const status = legacyStatusFromLifecycle(lifecycleStatus);
+
       return {
         id: publicId + ":" + solution.code,
         businessId: publicId,
         solutionId: solution.id,
         status,
+        lifecycleStatus,
         note,
         entitlementStatus,
+        ...(openDraft
+          ? { setupDraft: { status: openDraft.status, step: openDraft.step } }
+          : {}),
       };
     });
   }
+}
+
+/** Shared booking config reset — deactivates catalog, keeps bookings/clients. */
+export async function resetBookingConfig(
+  tx: Kysely<Database>,
+  businessId: string,
+) {
+  const now = new Date();
+  await tx
+    .updateTable("booking_service")
+    .set({ active: false, updated_at: now })
+    .where("business_id", "=", businessId)
+    .execute();
+  await tx
+    .updateTable("booking_specialist")
+    .set({ active: false, updated_at: now })
+    .where("business_id", "=", businessId)
+    .execute();
+  await tx
+    .deleteFrom("booking_schedule")
+    .where("business_id", "=", businessId)
+    .execute();
+  await tx
+    .deleteFrom("booking_schedule_exception")
+    .where("business_id", "=", businessId)
+    .execute();
+  await tx
+    .updateTable("booking_manual_slot")
+    .set({ active: false })
+    .where("business_id", "=", businessId)
+    .execute();
+  const defaults = {
+    business_id: businessId,
+    minimum_booking_notice: 120,
+    maximum_booking_horizon: 60,
+    slot_interval: 15,
+    choose_specialist: true,
+    schedule_mode: "automatic" as const,
+    client_reminders_enabled: true,
+    client_reminder_offsets: JSON.stringify([1440, 120]),
+    client_reminder_template: "",
+    staff_reminder_offsets: JSON.stringify([1440, 30]),
+    allow_customer_cancel: true,
+    cancel_before_minutes: 0,
+    allow_reschedule: true,
+    reschedule_before_minutes: 0,
+  };
+  await tx
+    .insertInto("booking_settings")
+    .values(defaults)
+    .onConflict((oc) => oc.column("business_id").doUpdateSet(defaults))
+    .execute();
+  await clearOpenSetupDraft(tx, businessId, "booking");
 }

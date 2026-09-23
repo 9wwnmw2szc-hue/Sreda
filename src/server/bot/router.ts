@@ -155,10 +155,8 @@ export async function routeBot(
       menu,
     );
   };
-  const denyDisabled = async (label: string) => {
-    await showMenu(
-      `${label} сейчас недоступно для этого бизнеса. Выберите другое действие.`,
-    );
+  const denyDisabled = async () => {
+    await showMenu("Эта функция временно недоступна.");
   };
   const notifyCode =
     text.match(/^\/start\s+notify_([\w-]{32})$/)?.[1] ??
@@ -206,7 +204,7 @@ export async function routeBot(
       text === available.leadTitle) &&
     !available.has("leads")
   ) {
-    await denyDisabled("Приём заявок");
+    await denyDisabled();
     return;
   }
   if (
@@ -215,7 +213,7 @@ export async function routeBot(
       text === "Связаться с магазином") &&
     !available.has("admin_messages")
   ) {
-    await denyDisabled("Связь с администратором");
+    await denyDisabled();
     return;
   }
   if (
@@ -225,13 +223,7 @@ export async function routeBot(
       text === "Профиль") &&
     !available.has("orders")
   ) {
-    await denyDisabled(
-      text === "Профиль"
-        ? "Профиль"
-        : text === "Мои заказы"
-          ? "Мои заказы"
-          : "Заказы",
-    );
+    await denyDisabled();
     return;
   }
   if (
@@ -240,7 +232,7 @@ export async function routeBot(
       text === "Онлайн-запись") &&
     !available.has("booking")
   ) {
-    await denyDisabled("Онлайн-запись");
+    await denyDisabled();
     return;
   }
 
@@ -307,7 +299,7 @@ export async function routeBot(
     current?.mode === "messages" &&
     !available.has("admin_messages")
   ) {
-    await denyDisabled("Связь с администратором");
+    await denyDisabled();
     return;
   }
   const ask = (snapshot: LeadSetupDraft, field: string) => {

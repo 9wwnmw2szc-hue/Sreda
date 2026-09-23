@@ -13,6 +13,8 @@ const DRAFT_ACTIONS = new Set([
   "get_draft",
 ]);
 
+const LIFECYCLE_ACTIONS = new Set(["cancel_setup", "reset_settings"]);
+
 export function createSolutionHandler(options: {
   db: Kysely<Database>;
   auth: Identity;
@@ -67,6 +69,21 @@ export function createSolutionHandler(options: {
         const body = await readJson(request);
         if (
           typeof body.action === "string" &&
+          LIFECYCLE_ACTIONS.has(body.action)
+        ) {
+          const code = String(body.code ?? "");
+          if (!code)
+            throw new AppError(400, "INVALID_SOLUTION", "Укажите решение.");
+          if (body.action === "cancel_setup")
+            return json(
+              await solutions.cancelSetup(session.user.id, id, code),
+            );
+          return json(
+            await solutions.resetSettings(session.user.id, id, code),
+          );
+        }
+        if (
+          typeof body.action === "string" &&
           DRAFT_ACTIONS.has(body.action)
         ) {
           const code = String(body.code ?? "");
@@ -94,7 +111,11 @@ export function createSolutionHandler(options: {
             return json(
               await solutions.completeSetupDraft(businessId, code),
             );
-          return json(await solutions.cancelSetupDraft(businessId, code));
+          return json(
+            await solutions.cancelSetupDraft(businessId, code, {
+              mode: "user_cancel",
+            }),
+          );
         }
         return json(
           await solutions.activate(session.user.id, id, body),

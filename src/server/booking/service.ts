@@ -30,7 +30,7 @@ import {
   mergeIntervals,
 } from "./time.ts";
 import type { Interval } from "./time.ts";
-import { cancelSetupDraft } from "../solutions/setup-draft.ts";
+import { resetBookingConfig } from "../solutions/service.ts";
 const fail = (message = "Проверьте параметры записи.") =>
   new AppError(400, "INVALID_BOOKING", message);
 function integer(value: unknown, min: number, max: number) {
@@ -348,53 +348,7 @@ export class BookingService {
       await requireBusiness(tx, userId, publicId, "solutions.manage");
       const kind = body.kind;
       if (kind === "reset_setup") {
-        await tx
-          .updateTable("booking_service")
-          .set({ active: false, updated_at: new Date() })
-          .where("business_id", "=", b.id)
-          .execute();
-        await tx
-          .updateTable("booking_specialist")
-          .set({ active: false, updated_at: new Date() })
-          .where("business_id", "=", b.id)
-          .execute();
-        await tx
-          .deleteFrom("booking_schedule")
-          .where("business_id", "=", b.id)
-          .execute();
-        await tx
-          .deleteFrom("booking_schedule_exception")
-          .where("business_id", "=", b.id)
-          .execute();
-        await tx
-          .updateTable("booking_manual_slot")
-          .set({ active: false })
-          .where("business_id", "=", b.id)
-          .execute();
-        const defaults = {
-          business_id: b.id,
-          minimum_booking_notice: 120,
-          maximum_booking_horizon: 60,
-          slot_interval: 15,
-          choose_specialist: true,
-          schedule_mode: "automatic" as const,
-          client_reminders_enabled: true,
-          client_reminder_offsets: JSON.stringify([1440, 120]),
-          client_reminder_template: "",
-          staff_reminder_offsets: JSON.stringify([1440, 30]),
-          allow_customer_cancel: true,
-          cancel_before_minutes: 0,
-          allow_reschedule: true,
-          reschedule_before_minutes: 0,
-        };
-        await tx
-          .insertInto("booking_settings")
-          .values(defaults)
-          .onConflict((oc) =>
-            oc.column("business_id").doUpdateSet(defaults),
-          )
-          .execute();
-        await cancelSetupDraft(tx, b.id, "booking");
+        await resetBookingConfig(tx, b.id);
         return { ok: true };
       }
       if (kind === "settings") {
