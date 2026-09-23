@@ -9061,6 +9061,10 @@ a.soty-activity__row {
   margin: 0 auto;
   padding: 32px 36px 56px;
 }
+.leads-concept .eyebrow {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .leads-concept__header {
   display: flex;
   align-items: flex-start;
@@ -9439,7 +9443,7 @@ a.soty-activity__row {
   text-align: center;
 }
 .leads-concept__empty span {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 .leads-concept__detail-head {
