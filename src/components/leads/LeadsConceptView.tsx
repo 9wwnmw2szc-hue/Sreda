@@ -200,8 +200,6 @@ export function LeadsConceptView() {
   useEffect(() => {
     if (!currentBusiness) return;
     let active = true;
-    setLoadingData(true);
-    setDataError("");
     Promise.all([
       getLeadPage(currentBusiness.id).catch(() => [] as Lead[]),
       apiRequest<FormField[]>(
@@ -347,11 +345,6 @@ function WorkTab({ leads }: { leads: Lead[] }) {
   const [filter, setFilter] = useState<WorkFilter>("all");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(leads[0]?.id ?? "");
-
-  useEffect(() => {
-    if (!leads.some((lead) => lead.id === selectedId))
-      setSelectedId(leads[0]?.id ?? "");
-  }, [leads, selectedId]);
 
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase();
