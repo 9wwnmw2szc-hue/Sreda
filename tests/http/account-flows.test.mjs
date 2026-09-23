@@ -143,6 +143,12 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
       // Missing connection: 404 application error, not an unimplemented DELETE (405).
       const disconnected = await request(base + "/connections?platform=telegram", { method: "DELETE", cookie: owner.cookie });
       assert.equal(disconnected.status, 404); assert.equal(disconnected.json.error.code, "CONNECTION_NOT_FOUND");
+      const activate = await request(base + "/solutions", {
+        method: "POST",
+        cookie: owner.cookie,
+        body: { code: "leads", enabled: true },
+      });
+      assert.equal(activate.status, 200, activate.text);
       const createdLead = await request(base + "/leads", { method: "POST", cookie: invitee.cookie, body: { source: "telegram", name: "Тестовый клиент", externalEventId: "http-event" } });
       assert.equal(createdLead.status, 201, createdLead.text); lead = createdLead.json;
     });
