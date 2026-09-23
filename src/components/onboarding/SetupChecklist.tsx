@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { apiRequest } from "@/lib/apiClient";
-import { SetupProgress } from "@/components/ui/SetupChrome";
 import { terminologyFor } from "@/lib/industryPresets";
 
 type ChecklistStep = {
@@ -143,7 +142,6 @@ export function SetupChecklist({
           <h2 className="text-section-title">Старт за 3 шага</h2>
           <p className="text-body-sm">{pct}% · {done} из {steps.length}</p>
         </div>
-        <SetupProgress steps={steps} done={done} />
         <ul className="setup-progress__list">
           {steps.map((step) => (
             <li key={step.id} className={step.done ? "is-done" : ""}>
@@ -196,7 +194,6 @@ export function SetupChecklist({
       <p className="text-body-sm">
         Настройка бизнеса — {pct}%. Отмечайте шаги по мере готовности.
       </p>
-      <SetupProgress steps={steps} done={done} />
       <ul className="setup-progress__list">
         {steps.map((step) => (
           <li key={step.id} className={step.done ? "is-done" : ""}>

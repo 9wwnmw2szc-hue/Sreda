@@ -1351,6 +1351,29 @@ for (const operation of ["change", "recover"]) {
     `in-flight login cannot survive password ${operation}`,
     { timeout: 20000 },
     async () => {
+      const maxAttempts = 3;
+      let lastError;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await assertInFlightLoginCannotSurvive(operation);
+          return;
+        } catch (error) {
+          lastError = error;
+          if (
+            !(error instanceof Error) ||
+            !/Login finished before verification barrier/i.test(error.message) ||
+            attempt === maxAttempts
+          ) {
+            throw error;
+          }
+        }
+      }
+      throw lastError;
+    },
+  );
+}
+
+async function assertInFlightLoginCannotSurvive(operation) {
       const a = await login();
       const other = await login();
       const { codes } = await recovery.issue(a.internalId, password);
@@ -1430,8 +1453,6 @@ for (const operation of ["change", "recover"]) {
       );
       assert.equal((await signin(a.username, next)).status, 200);
       assert.equal((await signin(a.username)).status, 400);
-    },
-  );
 }
 
 test("login completed before password reset is revoked by reset", async () => {

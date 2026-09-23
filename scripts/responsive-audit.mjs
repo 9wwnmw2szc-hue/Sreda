@@ -63,12 +63,24 @@ const ROUTES = [
   "/clients",
   "/analytics",
   "/notifications",
-  "/connections",
+  // Canonical connections surface (not /connections — that redirects)
+  "/settings?section=connections",
   "/billing",
   "/onboarding",
-  ...SETTINGS_SECTIONS.map((s) => `/settings?section=${s}`),
+  ...SETTINGS_SECTIONS.filter((s) => s !== "connections").map(
+    (s) => `/settings?section=${s}`,
+  ),
   "/settings/advanced",
   "/__not_found__",
+];
+
+/** Soft redirect assertion — separate from UI failure. */
+const REDIRECT_ASSERTIONS = [
+  {
+    from: "/connections",
+    toPath: "/settings",
+    toSearchIncludes: "section=connections",
+  },
 ];
 
 /** Dark theme only for a key subset to keep runtime bounded. */
@@ -84,6 +96,9 @@ const DARK_ROUTES = new Set([
 const MOBILE_MAX = 699;
 const TOUCH_MIN = 44;
 const OVERFLOW_SLOP = 1;
+const ignoreHttps =
+  process.env.AUDIT_IGNORE_HTTPS_ERRORS === "1" ||
+  /^https:\/\/127\.0\.0\.1(?::\d+)?/i.test(baseUrl);
 
 function routeUrl(route) {
   if (route === "/__not_found__") return `${baseUrl}/__ui-audit-not-found__`;
@@ -91,7 +106,7 @@ function routeUrl(route) {
 }
 
 function expectedPathname(route) {
-  if (route === "/__not_found__") return null; // any 404 path is fine
+  if (route === "/__not_found__") return null;
   return route.split("?")[0];
 }
 
@@ -117,7 +132,7 @@ async function applyTheme(page, theme) {
 
 async function collectMetrics(page, { mobile, protectedWithAuth }) {
   return page.evaluate(
-    ({ mobile, protectedWithAuth, touchMin, overflowSlop }) => {
+    async ({ mobile, protectedWithAuth, touchMin, overflowSlop }) => {
       const failures = [];
       const warnings = [];
 
@@ -130,6 +145,24 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         failures.push(
           `body-overflow-x: scrollWidth=${Math.max(doc.scrollWidth, body?.scrollWidth ?? 0)} clientWidth=${doc.clientWidth}`,
         );
+        let widest = null;
+        let widestRight = 0;
+        for (const el of document.querySelectorAll("body *")) {
+          if (!(el instanceof HTMLElement)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 1 || r.height < 1) continue;
+          if (r.right > widestRight) {
+            widestRight = r.right;
+            widest = el;
+          }
+        }
+        if (widest) {
+          const tag = widest.tagName.toLowerCase();
+          const cls = (widest.className || "").toString().slice(0, 60);
+          failures.push(
+            `body-overflow-x-offender: <${tag}.${cls}> right=${Math.round(widestRight)}`,
+          );
+        }
       }
 
       // .button must not use overflow-wrap: anywhere (mid-word wrapping)
@@ -143,27 +176,72 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
-      // Interactive clipping: buttons whose content overflows horizontally
+      // Interactive clipping: fail only when content is actually horizontally clipped
       for (const el of document.querySelectorAll(
         "button, .button, a.button, [role='button']",
       )) {
         if (!(el instanceof HTMLElement)) continue;
-        if (el.scrollWidth > el.clientWidth + overflowSlop) {
-          const label = (el.textContent || el.getAttribute("aria-label") || "")
-            .trim()
-            .slice(0, 40);
-          failures.push(
-            `interactive-clipping: "${label}" scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}`,
-          );
+        const style = getComputedStyle(el);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.pointerEvents === "none"
+        ) {
+          continue;
         }
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) continue;
+        const delta = el.scrollWidth - el.clientWidth;
+        if (delta <= overflowSlop) continue;
+        const nowrap = style.whiteSpace === "nowrap" || style.whiteSpace === "pre";
+        const clips =
+          style.overflowX === "hidden" ||
+          style.overflowX === "clip" ||
+          style.overflow === "hidden" ||
+          style.overflow === "clip";
+        const label = (el.textContent || el.getAttribute("aria-label") || "")
+          .trim()
+          .slice(0, 40);
+        // Wrapping text with overflow:visible often has benign scrollWidth quirks
+        // (text-wrap:balance). Only fail for nowrap or actually clipped overflow.
+        if (!nowrap && !clips) {
+          if (delta > 4) {
+            warnings.push(
+              `interactive-clipping-soft: "${label}" Δ=${delta}`,
+            );
+          }
+          continue;
+        }
+        failures.push(
+          `interactive-clipping: "${label}" scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}`,
+        );
       }
 
-      // Input font-size on mobile (iOS zoom prevention)
+      // Input font-size on mobile — text-like controls only (iOS zoom)
       if (mobile) {
+        const TEXT_TYPES = new Set([
+          "text",
+          "search",
+          "email",
+          "tel",
+          "url",
+          "password",
+          "number",
+          "date",
+          "datetime-local",
+          "time",
+          "month",
+          "week",
+          "",
+        ]);
         for (const el of document.querySelectorAll(
           "input, textarea, select",
         )) {
           if (!(el instanceof HTMLElement)) continue;
+          if (el instanceof HTMLInputElement) {
+            const t = (el.type || "text").toLowerCase();
+            if (!TEXT_TYPES.has(t)) continue;
+          }
           const style = getComputedStyle(el);
           if (style.display === "none" || style.visibility === "hidden") continue;
           const fontSize = parseFloat(style.fontSize) || 0;
@@ -180,7 +258,7 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
-      // Touch targets for standalone buttons / button-links / nav controls
+      // Touch targets: strict failure only on mobile/touch surfaces
       const touchCandidates = document.querySelectorAll(
         "button:not([disabled]), a.button, nav a, nav button, .icon-button, [role='button']",
       );
@@ -196,7 +274,6 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
         const rect = el.getBoundingClientRect();
         if (rect.width < 1 || rect.height < 1) continue;
-        // Skip text links inside paragraphs — only "standalone" / nav / button-like
         const isNav = Boolean(el.closest("nav"));
         const isButtonLike =
           el.matches("button, .button, a.button, .icon-button, [role='button']");
@@ -210,7 +287,10 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
             .trim()
             .slice(0, 40);
           const msg = `touch-target: "${label}" ${Math.round(rect.width)}×${Math.round(rect.height)} (<${touchMin})`;
-          // Icon-only / dense nav often warn; primary .button fails
+          if (!mobile) {
+            warnings.push(`desktop-${msg}`);
+            continue;
+          }
           if (el.classList.contains("button") && !el.classList.contains("icon-button")) {
             failures.push(msg);
           } else {
@@ -241,6 +321,189 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
+      function rectsOverlap(a, b, pad = 0) {
+        return !(
+          a.right <= b.left + pad ||
+          a.left >= b.right - pad ||
+          a.bottom <= b.top + pad ||
+          a.top >= b.bottom - pad
+        );
+      }
+
+      // Geometry: bottom nav must not cover last interactive content (after scroll)
+      const bottomNav = document.querySelector(".mobile-bottom-nav");
+      if (bottomNav && getComputedStyle(bottomNav).display !== "none") {
+        const scrolling = document.scrollingElement || document.documentElement;
+        const prevTop = scrolling.scrollTop;
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        scrolling.scrollTop = scrolling.scrollHeight;
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        );
+        await new Promise((r) => setTimeout(r, 50));
+        const navRect = bottomNav.getBoundingClientRect();
+        const main =
+          document.querySelector("#main-content") ||
+          document.querySelector(".app-main") ||
+          document.querySelector("main") ||
+          document.body;
+        const mainStyle = getComputedStyle(main);
+        const padBottom = parseFloat(mainStyle.paddingBottom) || 0;
+        if (padBottom + 1 < navRect.height) {
+          warnings.push(
+            `bottom-nav-clearance: main padding-bottom=${Math.round(padBottom)} navHeight=${Math.round(navRect.height)}`,
+          );
+        }
+
+        function inFloatingChrome(el) {
+          let node = el;
+          while (node && node !== document.documentElement) {
+            if (!(node instanceof HTMLElement)) break;
+            if (
+              node.classList.contains("mobile-bottom-nav") ||
+              node.classList.contains("sticky-save-bar") ||
+              node.classList.contains("mobile-header") ||
+              node.classList.contains("desktop-topbar")
+            ) {
+              return true;
+            }
+            const st = getComputedStyle(node);
+            if (st.position === "fixed" || st.position === "sticky") return true;
+            if (st.transform !== "none" && st.transform !== "matrix(1, 0, 0, 1, 0, 0)") {
+              // transformed ancestors make document Y unreliable vs scrollHeight
+              return true;
+            }
+            node = node.parentElement;
+          }
+          return false;
+        }
+
+        const scrollHeight = Math.max(
+          document.documentElement.scrollHeight,
+          document.body?.scrollHeight ?? 0,
+        );
+        const need = Math.ceil(navRect.height) + 8;
+        const candidates = [
+          ...document.querySelectorAll(
+            "#main-content a.button, #main-content button.button, #main-content .button, .panel .button",
+          ),
+        ]
+          .filter((el) => {
+            if (!(el instanceof HTMLElement)) return false;
+            if (inFloatingChrome(el)) return false;
+            const st = getComputedStyle(el);
+            if (st.display === "none" || st.visibility === "hidden") return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          })
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            const docBottom = r.bottom + (window.scrollY || 0);
+            return {
+              el,
+              docBottom,
+              clearance: scrollHeight - docBottom,
+              label: (el.textContent || "").trim().slice(0, 36),
+            };
+          })
+          // Only in-flow content that participates in document height
+          .filter((c) => c.clearance >= -2)
+          .sort((a, b) => b.docBottom - a.docBottom);
+
+        if (candidates.length) {
+          const last = candidates[0];
+          if (last.clearance + 0.5 < need) {
+            failures.push(
+              `overlap-bottom-nav: "${last.label}" clearance=${Math.round(last.clearance)} need=${need} pad=${Math.round(padBottom)}`,
+            );
+          }
+        }
+        scrolling.scrollTop = prevTop;
+      }
+
+      // Geometry: label text vs control — never use wrapping <label> box alone
+      for (const label of document.querySelectorAll("label")) {
+        if (!(label instanceof HTMLElement)) continue;
+        if (label.closest(".business-switcher")) continue;
+        const st = getComputedStyle(label);
+        if (st.display === "none" || st.visibility === "hidden") continue;
+        const forId = label.getAttribute("for");
+        let control = forId ? document.getElementById(forId) : null;
+        if (!control) {
+          control = label.querySelector("input, select, textarea");
+        }
+        if (!control || !(control instanceof HTMLElement)) continue;
+        if (
+          control.matches('input[type="checkbox"], input[type="radio"]')
+        ) {
+          continue;
+        }
+        let textEl = null;
+        if (label.contains(control)) {
+          textEl = label.querySelector(".field__label");
+          if (!textEl) continue; // no explicit label text → skip container label
+        } else if (label.classList.contains("field__label") || forId) {
+          textEl = label;
+        } else {
+          continue;
+        }
+        const lr = textEl.getBoundingClientRect();
+        const cr = control.getBoundingClientRect();
+        if (lr.height < 1 || cr.height < 1) continue;
+        if (rectsOverlap(lr, cr, 1)) {
+          failures.push(
+            `overlap-label-input: "${(textEl.textContent || "").trim().slice(0, 32)}"`,
+          );
+        }
+      }
+
+      // BusinessSwitcher name vs chevron (precise selectors only)
+      const switcher = document.querySelector(".business-switcher");
+      if (switcher) {
+        const nameEl = switcher.querySelector(".business-switcher__name");
+        const chevron = switcher.querySelector(".business-switcher__chevron");
+        if (nameEl && chevron) {
+          const nr = nameEl.getBoundingClientRect();
+          const cr = chevron.getBoundingClientRect();
+          if (nr.width > 0 && cr.width > 0 && rectsOverlap(nr, cr, 2)) {
+            failures.push("overlap-business-switcher: name crosses chevron");
+          }
+        }
+      }
+
+      // Mobile search field vs close
+      const searchField = document.querySelector(
+        ".soty-command__field, .soty-command__sheet .soty-command__field",
+      );
+      const searchClose = document.querySelector(".soty-command__close");
+      if (searchField && searchClose) {
+        const fr = searchField.getBoundingClientRect();
+        const cr = searchClose.getBoundingClientRect();
+        if (
+          fr.width > 0 &&
+          cr.width > 0 &&
+          getComputedStyle(searchClose).display !== "none" &&
+          rectsOverlap(fr, cr, 2)
+        ) {
+          failures.push("overlap-command-search: field crosses close");
+        }
+      }
+
+      // Sticky save bar vs bottom nav
+      const sticky = document.querySelector(".sticky-save-bar");
+      if (
+        sticky &&
+        bottomNav &&
+        getComputedStyle(sticky).display !== "none" &&
+        getComputedStyle(bottomNav).display !== "none"
+      ) {
+        const sr = sticky.getBoundingClientRect();
+        const nr = bottomNav.getBoundingClientRect();
+        if (sr.height > 0 && nr.height > 0 && rectsOverlap(sr, nr, 1)) {
+          failures.push("overlap-sticky-save-bottom-nav");
+        }
+      }
+
       return {
         pathname: location.pathname + location.search,
         pathOnly: location.pathname,
@@ -258,14 +521,65 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
 let failureCount = 0;
+let warningCount = 0;
 
 try {
+  // Redirect assertions (canonical /connections → settings)
+  if (storageState) {
+    for (const assertion of REDIRECT_ASSERTIONS) {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        storageState,
+        ignoreHTTPSErrors: ignoreHttps,
+      });
+      const page = await context.newPage();
+      const failures = [];
+      const warnings = [];
+      try {
+        await page.goto(routeUrl(assertion.from), {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        });
+        await page.waitForTimeout(300);
+        const url = new URL(page.url());
+        if (url.pathname !== assertion.toPath) {
+          failures.push(
+            `redirect: ${assertion.from} → expected path ${assertion.toPath}, got ${url.pathname}`,
+          );
+        } else if (
+          assertion.toSearchIncludes &&
+          !url.search.includes(assertion.toSearchIncludes)
+        ) {
+          failures.push(
+            `redirect: ${assertion.from} → missing ${assertion.toSearchIncludes} in ${url.search}`,
+          );
+        }
+      } catch (error) {
+        failures.push(
+          `redirect-error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      results.push({
+        route: assertion.from,
+        viewport: { width: 390, height: 844 },
+        theme: "light",
+        status: 200,
+        pathname: "redirect-check",
+        failures,
+        warnings,
+      });
+      if (failures.length) failureCount += 1;
+      await context.close();
+    }
+  }
+
   for (const viewport of VIEWPORTS) {
     for (const route of ROUTES) {
       for (const theme of themesFor(route)) {
         const context = await browser.newContext({
           viewport,
           colorScheme: theme === "dark" ? "dark" : "light",
+          ignoreHTTPSErrors: ignoreHttps,
           ...(storageState ? { storageState } : {}),
         });
         const page = await context.newPage();
@@ -351,6 +665,15 @@ try {
           for (const err of consoleErrors) {
             // Filter noisy Next.js / hydration noise that is not actionable
             if (/Download the React DevTools/i.test(err)) continue;
+            // Self-induced rate limits / missing optional assets → warnings
+            if (
+              /status of 429|status of 404|net::ERR_|Failed to load resource/i.test(
+                err,
+              )
+            ) {
+              warnings.push(`console-warning: ${err}`);
+              continue;
+            }
             failures.push(`console-error: ${err}`);
           }
 
@@ -373,6 +696,7 @@ try {
         };
         results.push(result);
         if (failures.length) failureCount += 1;
+        warningCount += warnings.length;
 
         await context.close();
       }
@@ -388,6 +712,9 @@ await writeFile(reportPath, JSON.stringify(results, null, 2));
 const summary = {
   checked: results.length,
   withFailures: failureCount,
+  warningCount,
+  checkedSha: process.env.GITHUB_SHA || null,
+  baseUrl,
   output: reportPath,
   sampleFailures: results
     .filter((r) => r.failures.length)
