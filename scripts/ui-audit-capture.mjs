@@ -5,27 +5,31 @@
  * then captures authenticated + public routes across viewports and themes.
  *
  * Env:
- *   AUDIT_BASE_URL   default https://web-production-1aace.up.railway.app
+ *   AUDIT_BASE_URL   default http://127.0.0.1:3000 (PR local) or staging URL
  *   AUDIT_OUTPUT     default artifacts/visual-audit
- *   AUDIT_PHASE      filename prefix (default "shot")
- *   AUDIT_USER / AUDIT_PASS  optional existing account (skips registration)
+ *   AUDIT_PHASE      filename prefix (default "shot"; use "pr" / "staging")
+ *   AUDIT_USER / AUDIT_PASS  optional existing account (never deleted)
+ *   AUDIT_IGNORE_HTTPS_ERRORS=1 for self-signed CI HTTPS
+ *   AUDIT_REQUIRE_READY=1 fail on app errors / business-select / stale loading
+ *   AUDIT_CLEANUP_THROWAWAY=1 attempt account deletion for audit-created users
  *
- * Exit 1 if:
- *   - registration / sign-in fails (product regression, not "skip")
- *   - protected route redirects to /login
- *   - body horizontal overflow
- *   - zero PNGs written
+ * Exit 1 if registration fails, login redirect, overflow, not-ready auth page, or zero PNGs.
  */
 import { mkdir, writeFile, readdir } from "node:fs/promises";
 import { chromium } from "playwright";
 import path from "node:path";
 
 const base =
-  process.env.AUDIT_BASE_URL || "https://web-production-1aace.up.railway.app";
+  process.env.AUDIT_BASE_URL || "http://127.0.0.1:3000";
 const out = process.env.AUDIT_OUTPUT || "artifacts/visual-audit";
 const phase = process.env.AUDIT_PHASE || "shot";
 const existingUser = process.env.AUDIT_USER || "";
 const existingPass = process.env.AUDIT_PASS || "";
+const ignoreHttps =
+  process.env.AUDIT_IGNORE_HTTPS_ERRORS === "1" ||
+  /^https:\/\/127\.0\.0\.1(?::\d+)?/i.test(base);
+const requireReady = process.env.AUDIT_REQUIRE_READY === "1";
+const cleanupThrowaway = process.env.AUDIT_CLEANUP_THROWAWAY === "1";
 
 await mkdir(out, { recursive: true });
 
@@ -39,7 +43,7 @@ const VIEWPORTS = [
 
 const PUBLIC_ROUTES = ["/login", "/register", "/recover"];
 
-const AUTH_ROUTES = [
+const AUTH_ROUTES_PR = [
   "/dashboard",
   "/solutions",
   "/orders",
@@ -48,7 +52,7 @@ const AUTH_ROUTES = [
   "/messages",
   "/clients",
   "/posts",
-  "/connections",
+  "/settings?section=connections",
   "/analytics",
   "/notifications",
   "/settings?section=business",
@@ -57,7 +61,20 @@ const AUTH_ROUTES = [
   "/settings?section=danger",
 ];
 
-/** Key pages get light+dark; others light-only to bound artifact size. */
+/** Reduced set for post-merge staging (avoid self-induced 429). */
+const AUTH_ROUTES_STAGING = [
+  "/dashboard",
+  "/solutions",
+  "/orders",
+  "/bookings",
+  "/settings?section=connections",
+  "/settings?section=business",
+  "/settings?section=account",
+];
+
+const AUTH_ROUTES =
+  phase === "staging" ? AUTH_ROUTES_STAGING : AUTH_ROUTES_PR;
+
 const DARK_ROUTES = new Set([
   "/dashboard",
   "/solutions",
@@ -65,7 +82,7 @@ const DARK_ROUTES = new Set([
   "/leads",
   "/bookings",
   "/messages",
-  "/connections",
+  "/settings?section=connections",
   "/analytics",
   "/settings?section=business",
   "/settings?section=account",
@@ -74,11 +91,13 @@ const DARK_ROUTES = new Set([
 ]);
 
 function routeSlug(route) {
-  return route
-    .replace(/^\//, "")
-    .replace(/\?/g, "_")
-    .replace(/=/g, "-")
-    .replace(/\//g, "_") || "home";
+  return (
+    route
+      .replace(/^\//, "")
+      .replace(/\?/g, "_")
+      .replace(/=/g, "-")
+      .replace(/\//g, "_") || "home"
+  );
 }
 
 function themesFor(route) {
@@ -91,7 +110,7 @@ async function bodyOverflowX(page) {
     const body = document.body;
     return (
       doc.scrollWidth > doc.clientWidth + 1 ||
-      (body != null && body.scrollWidth > doc.clientWidth + 1)
+      (body != null && body.scrollWidth > body.clientWidth + 1)
     );
   });
 }
@@ -109,11 +128,54 @@ async function applyTheme(page, theme) {
 }
 
 /**
- * @returns {Promise<import('playwright').BrowserContext['storageState'] extends Function ? Awaited<ReturnType<import('playwright').BrowserContext['storageState']>> : never>}
+ * Fail if authenticated page is stuck in loading / business-select / app error.
+ * Empty data states ("Заказов пока нет") are allowed.
  */
+async function assertRouteReady(page, route) {
+  if (!requireReady) return { ready: true, reason: null };
+  await page.waitForTimeout(400);
+  const probe = await page.evaluate(() => {
+    const text = (document.body?.innerText || "").replace(/\s+/g, " ");
+    const alert =
+      document.querySelector(".account-error, [role='alert']")?.textContent?.trim() ||
+      "";
+    const bad =
+      /Не удалось проверить доступ к вашему бизнесу/i.test(text) ||
+      /Не удалось проверить доступ к вашему бизнесу/i.test(alert) ||
+      (/Выберите бизнес\.?/i.test(text) &&
+        !/Выберите бизнес/i.test(
+          document.querySelector(".business-switcher")?.textContent || "",
+        )) ||
+      /Загрузка бизнеса…/i.test(text);
+    const switcherLoading = /Загрузка бизнеса…/i.test(
+      document.querySelector(".business-switcher")?.textContent || "",
+    );
+    return {
+      bad: bad || switcherLoading,
+      alert: alert.slice(0, 160),
+      snippet: text.slice(0, 200),
+    };
+  });
+  if (probe.bad) {
+    return {
+      ready: false,
+      reason: probe.alert || probe.snippet || "route not ready",
+    };
+  }
+  // Soft wait for main shell
+  const shell = page.locator("main, .app-main, .page-header, .account-card").first();
+  try {
+    await shell.waitFor({ state: "visible", timeout: 15_000 });
+  } catch {
+    return { ready: false, reason: "no main shell" };
+  }
+  return { ready: true, reason: null };
+}
+
 async function createAuthStorage(browser) {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: ignoreHttps });
   const page = await ctx.newPage();
+  let created = null;
 
   if (existingUser && existingPass) {
     const signIn = await page.request.post(`${base}/api/auth/sign-in/username`, {
@@ -125,12 +187,13 @@ async function createAuthStorage(browser) {
     }
     const storage = await ctx.storageState();
     await ctx.close();
-    return storage;
+    return { storage, created: null };
   }
 
   const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const user = `visaud${suffix}`.slice(0, 28);
   const pass = "AcceptTest!2026ui";
+  created = { user, pass };
 
   const reg = await page.goto(`${base}/register`, {
     waitUntil: "networkidle",
@@ -144,7 +207,6 @@ async function createAuthStorage(browser) {
 
   const loginInput = page.locator("#account-login");
   await loginInput.waitFor({ state: "visible", timeout: 30_000 });
-  // Wait for React hydration (controlled inputs)
   await page.waitForTimeout(1500);
   await loginInput.click();
   await loginInput.fill("");
@@ -230,7 +292,6 @@ async function createAuthStorage(browser) {
     }
   }
 
-  // Land on dashboard to confirm session + business
   await page.goto(`${base}/dashboard`, {
     waitUntil: "domcontentloaded",
     timeout: 60_000,
@@ -248,29 +309,88 @@ async function createAuthStorage(browser) {
 
   const storage = await ctx.storageState();
   await ctx.close();
-  return storage;
+  return { storage, created };
+}
+
+async function cleanupCreated(browser, created) {
+  // Never delete externally supplied AUDIT_USER.
+  if (!cleanupThrowaway || !created || existingUser) {
+    return { cleaned: false, reason: "skipped" };
+  }
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: ignoreHttps });
+  try {
+    const signIn = await ctx.request.post(`${base}/api/auth/sign-in/username`, {
+      data: { username: created.user, password: created.pass },
+      headers: { origin: base, "content-type": "application/json" },
+    });
+    if (!signIn.ok()) {
+      return { cleaned: false, reason: `sign-in ${signIn.status()}` };
+    }
+    const req = await ctx.request.post(`${base}/api/v1/account/deletion`, {
+      data: { action: "request" },
+      headers: { origin: base, "content-type": "application/json" },
+    });
+    if (!req.ok()) {
+      return { cleaned: false, reason: `deletion request ${req.status()}` };
+    }
+    const payload = await req.json();
+    const token = payload?.token;
+    const impact = payload?.impact;
+    if (!token) {
+      return { cleaned: false, reason: "no deletion token" };
+    }
+    const decisions = (impact?.ownedBusinesses || []).map((b) => ({
+      businessId: b.id,
+      action: "archive",
+    }));
+    const del = await ctx.request.post(`${base}/api/v1/account/deletion`, {
+      data: {
+        action: "confirm",
+        token,
+        password: created.pass,
+        confirmation: "УДАЛИТЬ",
+        decisions,
+      },
+      headers: { origin: base, "content-type": "application/json" },
+    });
+    return {
+      cleaned: del.ok(),
+      reason: del.ok() ? "deleted" : `deletion confirm ${del.status()}`,
+    };
+  } catch (error) {
+    return {
+      cleaned: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await ctx.close();
+  }
 }
 
 const browser = await chromium.launch({ headless: true });
 const report = [];
 let fatal = null;
+let createdAccount = null;
+let cleanupResult = null;
 
 try {
   let storage;
   try {
-    storage = await createAuthStorage(browser);
+    const auth = await createAuthStorage(browser);
+    storage = auth.storage;
+    createdAccount = auth.created;
   } catch (error) {
     fatal = error instanceof Error ? error.message : String(error);
     throw error;
   }
 
-  // Public routes (no auth)
   for (const vp of VIEWPORTS) {
     for (const theme of ["light", "dark"]) {
       if (theme === "dark" && vp.name !== "390" && vp.name !== "1440") continue;
       const ctx = await browser.newContext({
         viewport: { width: vp.width, height: vp.height },
         colorScheme: theme,
+        ignoreHTTPSErrors: ignoreHttps,
       });
       const page = await ctx.newPage();
       await applyTheme(page, theme);
@@ -289,25 +409,22 @@ try {
         }, theme);
         const file = `${phase}_${routeSlug(route)}_${vp.name}_${theme}.png`;
         await page.screenshot({ path: path.join(out, file), fullPage: false });
-        const overflowX = await bodyOverflowX(page);
-        const entry = {
+        report.push({
           route,
           viewport: { width: vp.width, height: vp.height },
           theme,
           status: res?.status() ?? 0,
           url: page.url(),
           pathname: new URL(page.url()).pathname,
-          overflowX,
+          overflowX: await bodyOverflowX(page),
           screenshot: file,
           auth: false,
-        };
-        report.push(entry);
+        });
       }
       await ctx.close();
     }
   }
 
-  // Authenticated routes
   for (const vp of VIEWPORTS) {
     for (const route of AUTH_ROUTES) {
       for (const theme of themesFor(route)) {
@@ -315,13 +432,13 @@ try {
           viewport: { width: vp.width, height: vp.height },
           colorScheme: theme === "dark" ? "dark" : "light",
           storageState: storage,
+          ignoreHTTPSErrors: ignoreHttps,
         });
         const page = await ctx.newPage();
         await applyTheme(page, theme);
         const res = await page
           .goto(base + route, { waitUntil: "networkidle", timeout: 60_000 })
           .catch(() => null);
-        await page.waitForTimeout(400);
         await page.evaluate((t) => {
           try {
             localStorage.setItem("soty.theme", t);
@@ -330,11 +447,14 @@ try {
             /* ignore */
           }
         }, theme);
-        await page.waitForTimeout(150);
 
+        const ready = await assertRouteReady(page, route);
         const pathname = new URL(page.url()).pathname;
         const file = `${phase}_${routeSlug(route)}_${vp.name}_${theme}.png`;
-        await page.screenshot({ path: path.join(out, file), fullPage: false });
+        // Only screenshot when ready (or when not requiring ready)
+        if (ready.ready || !requireReady) {
+          await page.screenshot({ path: path.join(out, file), fullPage: false });
+        }
         const overflowX = await bodyOverflowX(page);
         const loginRedirect = pathname === "/login";
         const stuckOnboarding =
@@ -349,13 +469,17 @@ try {
           overflowX,
           loginRedirect,
           stuckOnboarding,
-          screenshot: file,
+          notReady: !ready.ready,
+          notReadyReason: ready.reason,
+          screenshot: ready.ready || !requireReady ? file : null,
           auth: true,
         });
         await ctx.close();
       }
     }
   }
+
+  cleanupResult = await cleanupCreated(browser, createdAccount);
 } catch (error) {
   if (!fatal) fatal = error instanceof Error ? error.message : String(error);
 } finally {
@@ -371,6 +495,7 @@ const issues = report.filter(
     r.overflowX ||
     r.loginRedirect ||
     r.stuckOnboarding ||
+    r.notReady ||
     (r.auth && /\/login/.test(r.pathname || "")),
 );
 
@@ -379,7 +504,12 @@ const summary = {
   count: pngs.length,
   reportEntries: report.length,
   out,
+  phase,
+  base,
+  checkedSha: process.env.GITHUB_SHA || null,
   fatal,
+  cleanupResult,
+  createdThrowaway: Boolean(createdAccount),
   issues: issues.slice(0, 40),
 };
 

@@ -43,7 +43,22 @@ jobs:
   ui-gate:
     name: UI gate
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sreda
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: sreda_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sreda -d sreda_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://sreda:ci-only-password@localhost:5432/sreda_test
+      NEXT_PUBLIC_DATA_SOURCE: api
+      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -51,28 +66,45 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Resolve audit base URL
-        id: base
-        env:
-          AUDIT_BASE_URL_VAR: ${{ vars.AUDIT_BASE_URL }}
+      - name: Build PR app
+        run: npm run build
+      - name: Start isolated UI app (PR code + disposable Postgres)
+        id: app
         run: |
-          echo "url=${AUDIT_BASE_URL_VAR:-https://web-production-1aace.up.railway.app}" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          mkdir -p artifacts
+          node --import tsx scripts/ci-ui-app.mjs start > artifacts/ci-ui-app.log 2>&1 &
+          echo $! > artifacts/ci-ui-app.pid
+          for i in $(seq 1 90); do
+            if [ -f artifacts/ci-ui-app.json ]; then
+              ORIGIN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('artifacts/ci-ui-app.json','utf8')).origin)")
+              if curl -skf "$ORIGIN/login" >/dev/null; then
+                echo "origin=$ORIGIN" >> "$GITHUB_OUTPUT"
+                echo "UI app ready at $ORIGIN (sha=${GITHUB_SHA})"
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          echo "=== ci-ui-app.log ===" >&2
+          tail -200 artifacts/ci-ui-app.log >&2 || true
+          exit 1
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
       - name: Playwright ui-system (Chromium)
         env:
-          E2E_BASE_URL: ${{ steps.base.outputs.url }}
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+          E2E_BASE_URL: ${{ steps.app.outputs.origin }}
+          AUDIT_BASE_URL: ${{ steps.app.outputs.origin }}
         run: npx playwright test e2e/ui-system.spec.mjs --project=chromium
       - name: Playwright ui-system (WebKit)
         env:
-          E2E_BASE_URL: ${{ steps.base.outputs.url }}
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+          E2E_BASE_URL: ${{ steps.app.outputs.origin }}
+          AUDIT_BASE_URL: ${{ steps.app.outputs.origin }}
         run: npx playwright test e2e/ui-system.spec.mjs --project=webkit
       - name: Prepare auth storage for responsive audit
         id: auth
         env:
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+          AUDIT_BASE_URL: ${{ steps.app.outputs.origin }}
         run: |
           set -euo pipefail
           node --input-type=module <<'JS'
@@ -81,7 +113,7 @@ jobs:
           const base = process.env.AUDIT_BASE_URL;
           await mkdir("artifacts", { recursive: true });
           const browser = await chromium.launch({ headless: true });
-          const ctx = await browser.newContext();
+          const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
           const page = await ctx.newPage();
           const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
           const user = `uigat${suffix}`.slice(0, 28);
@@ -126,21 +158,48 @@ jobs:
           }
           await writeFile("artifacts/audit-storage.json", JSON.stringify(await ctx.storageState(), null, 2));
           await browser.close();
-          console.log("storage written");
+          console.log("storage written (ephemeral)");
           JS
-      - name: Responsive audit (authenticated)
+      - name: Responsive audit (authenticated, PR build)
         env:
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+          AUDIT_BASE_URL: ${{ steps.app.outputs.origin }}
           AUDIT_STORAGE_STATE: artifacts/audit-storage.json
           AUDIT_OUTPUT: artifacts/responsive-audit
+          AUDIT_IGNORE_HTTPS_ERRORS: "1"
         run: |
           mkdir -p artifacts/responsive-audit
           npm run audit:responsive
       - name: Playwright contrast computed styles
         env:
-          E2E_BASE_URL: ${{ steps.base.outputs.url }}
-          AUDIT_BASE_URL: ${{ steps.base.outputs.url }}
+          E2E_BASE_URL: ${{ steps.app.outputs.origin }}
+          AUDIT_BASE_URL: ${{ steps.app.outputs.origin }}
         run: npx playwright test e2e/contrast-computed.spec.mjs --project=chromium
+      - name: Scrub auth storage (never upload)
+        if: always()
+        run: |
+          rm -f artifacts/audit-storage.json
+          echo "AUDIT_STORAGE_ARTIFACT_REMOVED=yes"
+      - name: Stop isolated UI app
+        if: always()
+        run: |
+          node --import tsx scripts/ci-ui-app.mjs stop || true
+          if [ -f artifacts/ci-ui-app.pid ]; then
+            kill "$(cat artifacts/ci-ui-app.pid)" 2>/dev/null || true
+          fi
+      - name: Sanitize CI app state before upload
+        if: always()
+        run: |
+          rm -f artifacts/audit-storage.json
+          if [ -f artifacts/ci-ui-app.json ]; then
+            node -e "
+              const fs = require('fs');
+              const s = JSON.parse(fs.readFileSync('artifacts/ci-ui-app.json','utf8'));
+              delete s.adminUrl;
+              delete s.adminUrlRaw;
+              delete s.databaseUrl;
+              fs.writeFileSync('artifacts/ci-ui-app.json', JSON.stringify(s, null, 2));
+            "
+          fi
       - name: Upload UI gate artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -148,6 +207,7 @@ jobs:
           name: soty-ui-gate-${{ github.sha }}
           path: |
             artifacts/responsive-audit/
-            artifacts/audit-storage.json
+            artifacts/ci-ui-app.json
+            artifacts/ci-ui-app.log
           retention-days: 14
           if-no-files-found: warn

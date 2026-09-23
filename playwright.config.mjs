@@ -5,12 +5,17 @@ const baseURL =
   process.env.AUDIT_BASE_URL ||
   "http://127.0.0.1:3000";
 
+const ignoreHTTPSErrors =
+  process.env.AUDIT_IGNORE_HTTPS_ERRORS === "1" ||
+  /^https:\/\/127\.0\.0\.1(?::\d+)?$/i.test(baseURL);
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 60_000,
   retries: 0,
   use: {
     baseURL,
+    ignoreHTTPSErrors,
     trace: "off",
     screenshot: "off",
   },

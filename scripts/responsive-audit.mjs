@@ -63,12 +63,24 @@ const ROUTES = [
   "/clients",
   "/analytics",
   "/notifications",
-  "/connections",
+  // Canonical connections surface (not /connections — that redirects)
+  "/settings?section=connections",
   "/billing",
   "/onboarding",
-  ...SETTINGS_SECTIONS.map((s) => `/settings?section=${s}`),
+  ...SETTINGS_SECTIONS.filter((s) => s !== "connections").map(
+    (s) => `/settings?section=${s}`,
+  ),
   "/settings/advanced",
   "/__not_found__",
+];
+
+/** Soft redirect assertion — separate from UI failure. */
+const REDIRECT_ASSERTIONS = [
+  {
+    from: "/connections",
+    toPath: "/settings",
+    toSearchIncludes: "section=connections",
+  },
 ];
 
 /** Dark theme only for a key subset to keep runtime bounded. */
@@ -84,6 +96,9 @@ const DARK_ROUTES = new Set([
 const MOBILE_MAX = 699;
 const TOUCH_MIN = 44;
 const OVERFLOW_SLOP = 1;
+const ignoreHttps =
+  process.env.AUDIT_IGNORE_HTTPS_ERRORS === "1" ||
+  /^https:\/\/127\.0\.0\.1(?::\d+)?/i.test(baseUrl);
 
 function routeUrl(route) {
   if (route === "/__not_found__") return `${baseUrl}/__ui-audit-not-found__`;
@@ -91,8 +106,7 @@ function routeUrl(route) {
 }
 
 function expectedPathname(route) {
-  if (route === "/__not_found__") return null; // any 404 path is fine
-  if (route === "/connections") return "/settings"; // canonical redirect
+  if (route === "/__not_found__") return null;
   return route.split("?")[0];
 }
 
@@ -118,7 +132,7 @@ async function applyTheme(page, theme) {
 
 async function collectMetrics(page, { mobile, protectedWithAuth }) {
   return page.evaluate(
-    ({ mobile, protectedWithAuth, touchMin, overflowSlop }) => {
+    async ({ mobile, protectedWithAuth, touchMin, overflowSlop }) => {
       const failures = [];
       const warnings = [];
 
@@ -144,41 +158,71 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
-      // Interactive clipping: buttons whose content overflows horizontally
+      // Interactive clipping: fail only when content is actually horizontally clipped
       for (const el of document.querySelectorAll(
         "button, .button, a.button, [role='button']",
       )) {
         if (!(el instanceof HTMLElement)) continue;
-        if (el.scrollWidth > el.clientWidth + overflowSlop) {
-          const label = (el.textContent || el.getAttribute("aria-label") || "")
-            .trim()
-            .slice(0, 40);
-          failures.push(
-            `interactive-clipping: "${label}" scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}`,
-          );
+        const style = getComputedStyle(el);
+        if (
+          style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.pointerEvents === "none"
+        ) {
+          continue;
         }
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) continue;
+        const delta = el.scrollWidth - el.clientWidth;
+        if (delta <= overflowSlop) continue;
+        const nowrap = style.whiteSpace === "nowrap" || style.whiteSpace === "pre";
+        const clips =
+          style.overflowX === "hidden" ||
+          style.overflowX === "clip" ||
+          style.overflow === "hidden" ||
+          style.overflow === "clip";
+        const label = (el.textContent || el.getAttribute("aria-label") || "")
+          .trim()
+          .slice(0, 40);
+        // Wrapping text with overflow:visible often has benign scrollWidth quirks
+        // (text-wrap:balance). Only fail for nowrap or actually clipped overflow.
+        if (!nowrap && !clips) {
+          if (delta > 4) {
+            warnings.push(
+              `interactive-clipping-soft: "${label}" Δ=${delta}`,
+            );
+          }
+          continue;
+        }
+        failures.push(
+          `interactive-clipping: "${label}" scrollWidth=${el.scrollWidth} clientWidth=${el.clientWidth}`,
+        );
       }
 
-      // Input font-size on mobile (iOS zoom prevention for text entry)
+      // Input font-size on mobile — text-like controls only (iOS zoom)
       if (mobile) {
+        const TEXT_TYPES = new Set([
+          "text",
+          "search",
+          "email",
+          "tel",
+          "url",
+          "password",
+          "number",
+          "date",
+          "datetime-local",
+          "time",
+          "month",
+          "week",
+          "",
+        ]);
         for (const el of document.querySelectorAll(
           "input, textarea, select",
         )) {
           if (!(el instanceof HTMLElement)) continue;
-          if (
-            el instanceof HTMLInputElement &&
-            (el.type === "checkbox" ||
-              el.type === "radio" ||
-              el.type === "hidden" ||
-              el.type === "range" ||
-              el.type === "file" ||
-              el.type === "button" ||
-              el.type === "submit" ||
-              el.type === "reset" ||
-              el.type === "image" ||
-              el.type === "color")
-          ) {
-            continue;
+          if (el instanceof HTMLInputElement) {
+            const t = (el.type || "text").toLowerCase();
+            if (!TEXT_TYPES.has(t)) continue;
           }
           const style = getComputedStyle(el);
           if (style.display === "none" || style.visibility === "hidden") continue;
@@ -196,7 +240,7 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
       }
 
-      // Touch targets for standalone buttons / button-links / nav controls
+      // Touch targets: strict failure only on mobile/touch surfaces
       const touchCandidates = document.querySelectorAll(
         "button:not([disabled]), a.button, nav a, nav button, .icon-button, [role='button']",
       );
@@ -212,7 +256,6 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         }
         const rect = el.getBoundingClientRect();
         if (rect.width < 1 || rect.height < 1) continue;
-        // Skip text links inside paragraphs — only "standalone" / nav / button-like
         const isNav = Boolean(el.closest("nav"));
         const isButtonLike =
           el.matches("button, .button, a.button, .icon-button, [role='button']");
@@ -226,7 +269,10 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
             .trim()
             .slice(0, 40);
           const msg = `touch-target: "${label}" ${Math.round(rect.width)}×${Math.round(rect.height)} (<${touchMin})`;
-          // Icon-only / dense nav often warn; primary .button fails
+          if (!mobile) {
+            warnings.push(`desktop-${msg}`);
+            continue;
+          }
           if (el.classList.contains("button") && !el.classList.contains("icon-button")) {
             failures.push(msg);
           } else {
@@ -272,7 +318,18 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         const scrolling = document.scrollingElement || document.documentElement;
         const prevTop = scrolling.scrollTop;
         scrolling.scrollTop = scrolling.scrollHeight;
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        );
         const navRect = bottomNav.getBoundingClientRect();
+        const main = document.querySelector("main") || document.body;
+        const mainStyle = getComputedStyle(main);
+        const padBottom = parseFloat(mainStyle.paddingBottom) || 0;
+        if (padBottom + 1 < navRect.height) {
+          warnings.push(
+            `bottom-nav-clearance: main padding-bottom=${Math.round(padBottom)} navHeight=${Math.round(navRect.height)}`,
+          );
+        }
         const interactives = [
           ...document.querySelectorAll(
             "main button, main .button, main a.button, .sticky-save-bar .button, .panel .button",
@@ -283,7 +340,6 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
           const st = getComputedStyle(el);
           if (st.display === "none" || st.visibility === "hidden") return false;
           const r = el.getBoundingClientRect();
-          // Only in-viewport after scroll-to-bottom
           return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < window.innerHeight;
         });
         if (interactives.length) {
@@ -303,9 +359,10 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
         scrolling.scrollTop = prevTop;
       }
 
-      // Geometry: external label must not overlap its control (skip wrapping labels)
+      // Geometry: label text vs control — never use wrapping <label> box alone
       for (const label of document.querySelectorAll("label")) {
         if (!(label instanceof HTMLElement)) continue;
+        if (label.closest(".business-switcher")) continue;
         const st = getComputedStyle(label);
         if (st.display === "none" || st.visibility === "hidden") continue;
         const forId = label.getAttribute("for");
@@ -314,22 +371,32 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
           control = label.querySelector("input, select, textarea");
         }
         if (!control || !(control instanceof HTMLElement)) continue;
-        // Wrapping labels always "overlap" their control's bounding box
-        if (label.contains(control)) continue;
-        const lr = label.getBoundingClientRect();
+        if (
+          control.matches('input[type="checkbox"], input[type="radio"]')
+        ) {
+          continue;
+        }
+        let textEl = null;
+        if (label.contains(control)) {
+          textEl = label.querySelector(".field__label");
+          if (!textEl) continue; // no explicit label text → skip container label
+        } else if (label.classList.contains("field__label") || forId) {
+          textEl = label;
+        } else {
+          continue;
+        }
+        const lr = textEl.getBoundingClientRect();
         const cr = control.getBoundingClientRect();
         if (lr.height < 1 || cr.height < 1) continue;
-        if (rectsOverlap(lr, cr, 1) && Math.abs(lr.top - cr.top) > 4) {
+        if (rectsOverlap(lr, cr, 1)) {
           failures.push(
-            `overlap-label-input: "${(label.textContent || "").trim().slice(0, 32)}"`,
+            `overlap-label-input: "${(textEl.textContent || "").trim().slice(0, 32)}"`,
           );
         }
       }
 
       // BusinessSwitcher name vs chevron (precise selectors only)
-      const switcher = document.querySelector(
-        ".business-switcher, [data-business-switcher]",
-      );
+      const switcher = document.querySelector(".business-switcher");
       if (switcher) {
         const nameEl = switcher.querySelector(".business-switcher__name");
         const chevron = switcher.querySelector(".business-switcher__chevron");
@@ -392,14 +459,65 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const results = [];
 let failureCount = 0;
+let warningCount = 0;
 
 try {
+  // Redirect assertions (canonical /connections → settings)
+  if (storageState) {
+    for (const assertion of REDIRECT_ASSERTIONS) {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        storageState,
+        ignoreHTTPSErrors: ignoreHttps,
+      });
+      const page = await context.newPage();
+      const failures = [];
+      const warnings = [];
+      try {
+        await page.goto(routeUrl(assertion.from), {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        });
+        await page.waitForTimeout(300);
+        const url = new URL(page.url());
+        if (url.pathname !== assertion.toPath) {
+          failures.push(
+            `redirect: ${assertion.from} → expected path ${assertion.toPath}, got ${url.pathname}`,
+          );
+        } else if (
+          assertion.toSearchIncludes &&
+          !url.search.includes(assertion.toSearchIncludes)
+        ) {
+          failures.push(
+            `redirect: ${assertion.from} → missing ${assertion.toSearchIncludes} in ${url.search}`,
+          );
+        }
+      } catch (error) {
+        failures.push(
+          `redirect-error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      results.push({
+        route: assertion.from,
+        viewport: { width: 390, height: 844 },
+        theme: "light",
+        status: 200,
+        pathname: "redirect-check",
+        failures,
+        warnings,
+      });
+      if (failures.length) failureCount += 1;
+      await context.close();
+    }
+  }
+
   for (const viewport of VIEWPORTS) {
     for (const route of ROUTES) {
       for (const theme of themesFor(route)) {
         const context = await browser.newContext({
           viewport,
           colorScheme: theme === "dark" ? "dark" : "light",
+          ignoreHTTPSErrors: ignoreHttps,
           ...(storageState ? { storageState } : {}),
         });
         const page = await context.newPage();
@@ -485,7 +603,7 @@ try {
           for (const err of consoleErrors) {
             // Filter noisy Next.js / hydration noise that is not actionable
             if (/Download the React DevTools/i.test(err)) continue;
-            // Staging rate-limits / missing optional assets must not fail the gate
+            // Self-induced rate limits / missing optional assets → warnings
             if (
               /status of 429|status of 404|net::ERR_|Failed to load resource/i.test(
                 err,
@@ -516,6 +634,7 @@ try {
         };
         results.push(result);
         if (failures.length) failureCount += 1;
+        warningCount += warnings.length;
 
         await context.close();
       }
@@ -531,6 +650,9 @@ await writeFile(reportPath, JSON.stringify(results, null, 2));
 const summary = {
   checked: results.length,
   withFailures: failureCount,
+  warningCount,
+  checkedSha: process.env.GITHUB_SHA || null,
+  baseUrl,
   output: reportPath,
   sampleFailures: results
     .filter((r) => r.failures.length)

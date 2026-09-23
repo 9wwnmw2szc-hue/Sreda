@@ -130,6 +130,60 @@ async function setTheme(page, theme) {
   }, theme);
 }
 
+async function requireSample(page, selector, opts, label) {
+  const result = await sample(page, selector, opts);
+  expect(result, `missing required selector for ${label}: ${selector}`).not.toBeNull();
+  const ratio = ratioFromSample(result);
+  expect(ratio, `unparseable colors for ${label}`).not.toBeNull();
+  return ratio;
+}
+
+async function registerAndEnterApp(page, suffix) {
+  const user = `ctrst${suffix}`.slice(0, 28);
+  const pass = "AcceptTest!2026ui";
+  const response = await page.goto(baseURL + "/register", {
+    waitUntil: "domcontentloaded",
+    timeout: 90_000,
+  });
+  if (!response || response.status() >= 500) {
+    const err = new Error(`NETWORK_UNAVAILABLE: HTTP ${response?.status()}`);
+    err.name = "NetworkUnavailable";
+    throw err;
+  }
+  await page.locator("#account-login").waitFor({ state: "visible", timeout: 30_000 });
+  await page.waitForTimeout(1200);
+  await page.locator("#account-login").click();
+  await page.locator("#account-login").fill("");
+  await page.locator("#account-login").pressSequentially(user, { delay: 12 });
+  await page.locator("#account-password").fill(pass);
+  await page.locator("#account-confirmation").fill(pass);
+  await page.getByRole("button", { name: /создать аккаунт/i }).click();
+  const checkbox = page.locator("label.recovery-confirm input[type=checkbox]");
+  await checkbox.waitFor({ state: "attached", timeout: 45_000 });
+  await page.locator("label.recovery-confirm").click();
+  await page.getByRole("button", { name: /продолжить/i }).click();
+  await page.waitForFunction(
+    () => !location.pathname.includes("/register"),
+    null,
+    { timeout: 45_000 },
+  );
+  if (page.url().includes("business/new")) {
+    const name = page.locator("#business-name");
+    await name.waitFor({ state: "visible", timeout: 20_000 });
+    await page.waitForTimeout(600);
+    await name.click();
+    await name.fill("");
+    await name.pressSequentially(`Contrast ${suffix}`, { delay: 12 });
+    await page.getByRole("button", { name: /создать пространство/i }).click();
+    await page.waitForFunction(
+      () => !location.pathname.includes("/business/new"),
+      null,
+      { timeout: 60_000 },
+    );
+  }
+  return user;
+}
+
 for (const theme of ["light", "dark"]) {
   test.describe(`computed contrast — ${theme}`, () => {
     test.use({ colorScheme: theme === "dark" ? "dark" : "light" });
@@ -143,52 +197,50 @@ for (const theme of ["light", "dark"]) {
       await setTheme(page, theme);
       await page.waitForTimeout(200);
 
-      const checks = [];
-
-      const label = await sample(page, 'label[for="account-login"], .field__label, .account-card label');
-      const labelRatio = ratioFromSample(label);
-      if (labelRatio != null) {
-        checks.push({ name: "label", ratio: labelRatio, min: AA_NORMAL });
-      }
+      const labelRatio = await requireSample(
+        page,
+        'label[for="account-login"], .field__label',
+        {},
+        "register label",
+      );
+      expect(labelRatio).toBeGreaterThanOrEqual(AA_NORMAL);
 
       await page.locator("#account-login").fill("contrastuser");
-      const value = await sample(page, "#account-login", { fill: "contrastuser" });
-      const valueRatio = ratioFromSample(value);
-      if (valueRatio != null) {
-        checks.push({ name: "input-value", ratio: valueRatio, min: AA_NORMAL });
-      }
+      const valueRatio = await requireSample(
+        page,
+        "#account-login",
+        { fill: "contrastuser" },
+        "input value",
+      );
+      expect(valueRatio).toBeGreaterThanOrEqual(AA_NORMAL);
 
-      // Clear and check placeholder approximation via empty field color
       await page.locator("#account-login").fill("");
-      const ph = await sample(page, "#account-login", { placeholder: true });
-      const phRatio = ratioFromSample(ph);
-      if (phRatio != null) {
-        // placeholders may be softer; still require UI chrome minimum
-        checks.push({ name: "placeholder", ratio: phRatio, min: UI_CHROME_MIN });
-      }
+      const phRatio = await requireSample(
+        page,
+        "#account-login",
+        { placeholder: true },
+        "placeholder",
+      );
+      expect(phRatio).toBeGreaterThanOrEqual(UI_CHROME_MIN);
 
-      const helper = await sample(page, "#login-hint, .field-hint");
-      const helperRatio = ratioFromSample(helper);
-      if (helperRatio != null) {
-        checks.push({ name: "helper", ratio: helperRatio, min: UI_CHROME_MIN });
-      }
+      const helperRatio = await requireSample(
+        page,
+        "#login-hint, .field-hint",
+        {},
+        "helper",
+      );
+      expect(helperRatio).toBeGreaterThanOrEqual(UI_CHROME_MIN);
 
-      const primary = await sample(page, "button.button--primary, .button.button--primary");
-      const primaryRatio = ratioFromSample(primary);
-      if (primaryRatio != null) {
-        checks.push({ name: "primary-button", ratio: primaryRatio, min: AA_NORMAL });
-      }
-
-      expect(checks.length, "expected at least some contrast samples").toBeGreaterThan(0);
-      for (const c of checks) {
-        expect(
-          c.ratio,
-          `${theme} ${c.name} contrast ${c.ratio?.toFixed?.(2)} < ${c.min}`,
-        ).toBeGreaterThanOrEqual(c.min);
-      }
+      const primaryRatio = await requireSample(
+        page,
+        "button.button--primary",
+        {},
+        "primary button",
+      );
+      expect(primaryRatio).toBeGreaterThanOrEqual(AA_NORMAL);
     });
 
-    test(`login secondary / button (${theme})`, async ({ page }) => {
+    test(`login primary button (${theme})`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(baseURL + "/login", {
         waitUntil: "domcontentloaded",
@@ -196,19 +248,115 @@ for (const theme of ["light", "dark"]) {
       });
       await setTheme(page, theme);
       await page.waitForTimeout(200);
+      const ratio = await requireSample(
+        page,
+        "button.button--primary",
+        {},
+        "login CTA",
+      );
+      expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
 
-      const primary = await sample(page, "button.button--primary, .card .submit, .button");
-      const ratio = ratioFromSample(primary);
-      if (ratio != null) {
-        expect(ratio, `${theme} login CTA`).toBeGreaterThanOrEqual(AA_NORMAL);
+    test(`authenticated settings / connections / orders (${theme})`, async ({
+      page,
+    }, testInfo) => {
+      test.setTimeout(240_000);
+      await page.setViewportSize({ width: 390, height: 844 });
+      const suffix = Date.now().toString(36).slice(-6);
+      try {
+        await registerAndEnterApp(page, suffix);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.name === "NetworkUnavailable" ||
+            /NETWORK_UNAVAILABLE/i.test(error.message))
+        ) {
+          testInfo.skip(true, error.message);
+          return;
+        }
+        throw error;
       }
+      await setTheme(page, theme);
 
-      // status chips if present on page (may be absent on login)
-      const chip = await sample(page, ".status-chip--new, .status-chip");
-      const chipRatio = ratioFromSample(chip);
-      if (chipRatio != null) {
-        expect(chipRatio, `${theme} status chip`).toBeGreaterThanOrEqual(UI_CHROME_MIN);
-      }
+      // Settings business: label + helper
+      await page.goto(baseURL + "/settings?section=business", {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await setTheme(page, theme);
+      await page.waitForTimeout(400);
+      const settingsLabel = await requireSample(
+        page,
+        ".settings-panel .field__label, .settings-panel label, .settings-meta-list dt",
+        {},
+        "settings label",
+      );
+      expect(settingsLabel).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+      const settingsValue = await requireSample(
+        page,
+        ".settings-meta-list dd, .settings-panel .copyable-id__value, .settings-panel input",
+        {},
+        "settings value",
+      );
+      expect(settingsValue).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+      const settingsHelper = await requireSample(
+        page,
+        ".settings-panel .account-footnote, .settings-panel .field-hint, .settings-panel .text-body-sm",
+        {},
+        "settings helper",
+      );
+      expect(settingsHelper).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+      const settingsTab = await requireSample(
+        page,
+        ".settings-nav a.is-active, .settings-tabs a.is-active, a[aria-current='page']",
+        {},
+        "selected settings tab",
+      );
+      expect(settingsTab).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      // Connections section — input / placeholder / button required
+      await page.goto(baseURL + "/settings?section=connections", {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await setTheme(page, theme);
+      await page.waitForTimeout(600);
+      const connInput = await requireSample(
+        page,
+        ".connection-token-form input, .settings-panel input[type='text'], .settings-panel input:not([type]), .settings-panel input[type='password']",
+        {},
+        "connections input",
+      );
+      expect(connInput).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+      const connPh = await requireSample(
+        page,
+        ".connection-token-form input, .settings-panel input[type='text'], .settings-panel input:not([type]), .settings-panel input[type='password']",
+        { placeholder: true },
+        "connections placeholder",
+      );
+      expect(connPh).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+      const connBtn = await requireSample(
+        page,
+        ".connection-token-form .button, .settings-panel .button, .connections-card .button, button.button",
+        {},
+        "connections button",
+      );
+      expect(connBtn).toBeGreaterThanOrEqual(UI_CHROME_MIN);
+
+      // Orders — status chip or segment
+      await page.goto(baseURL + "/orders", {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      });
+      await setTheme(page, theme);
+      await page.waitForTimeout(400);
+      const segment = await requireSample(
+        page,
+        ".crm-segment .button--primary, .crm-segment .button",
+        {},
+        "orders segment",
+      );
+      expect(segment).toBeGreaterThanOrEqual(UI_CHROME_MIN);
     });
   });
 }
@@ -258,6 +406,7 @@ test("recovery codes contrast after registration", async ({ page }, testInfo) =>
     throw new Error(`PRODUCT_REGRESSION: recovery codes missing${msg ? `: ${msg}` : ""}`);
   }
   const sampleCode = await sample(page, ".recovery-codes code");
+  expect(sampleCode, "recovery code element").not.toBeNull();
   const ratio = ratioFromSample(sampleCode);
   expect(ratio, "recovery code contrast").not.toBeNull();
   expect(ratio).toBeGreaterThanOrEqual(AA_NORMAL);
