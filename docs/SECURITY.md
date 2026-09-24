@@ -2,7 +2,7 @@
 
 ## Authentication
 
-- better-auth username/password (`src/server/identity`), app name «Соты».
+- better-auth username/password (`src/server/identity`), app name «БизнеСоты».
 - Sessions: HttpOnly cookies, `cookieCache` disabled, DB-backed tokens, CSRF/Origin checks on mutating routes.
 - Password min length 10; change password revokes other sessions; login races check current password hash.
 - Rate limits on auth endpoints (DB + app-level counters).

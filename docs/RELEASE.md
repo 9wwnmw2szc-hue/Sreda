@@ -1,6 +1,6 @@
 # Release checklist
 
-Use for promoting a commit to **Sreda-staging** (`main`). Not a production go-live checklist.
+Use for promoting a commit to **Biznebiznesoty-staging** (`main`). Not a production go-live checklist.
 
 ## Before merge
 
@@ -11,7 +11,7 @@ Use for promoting a commit to **Sreda-staging** (`main`). Not a production go-li
 
 ## Staging deploy
 
-- [ ] Deploy `main` SHA to Railway **Sreda-staging** (web + both workers)
+- [ ] Deploy `main` SHA to Railway **Biznebiznesoty-staging** (web + both workers)
 - [ ] Pre-deploy migrate succeeds; ledger at expected migration (052+)
 - [ ] `/api/health/web` OK
 - [ ] With webhook flags on: `/api/health` OK (heartbeats present)

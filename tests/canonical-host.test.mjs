@@ -23,12 +23,13 @@ describe("canonical-host policy", () => {
   });
 
   it("normalizes hostnames and strips ports", () => {
-    assert.equal(normalizeHostname("BizneSoty.RU:443"), "biznesoty.ru");
+    assert.equal(normalizeHostname("Biznesoty.RU:443"), "biznesoty.ru");
     assert.equal(normalizeHostname(" biznesoty.online "), "biznesoty.online");
   });
 
   it("knows public aliases including punycode Cyrillic", () => {
     assert.equal(isPublicAliasHost("biznesoty.online"), true);
+    assert.equal(isPublicAliasHost("www.biznesoty.online"), true);
     assert.equal(isPublicAliasHost("www.biznesoty.ru"), true);
     assert.equal(isPublicAliasHost("xn--90aifd0ahuj5f.xn--p1ai"), true);
     assert.equal(isPublicAliasHost("biznesoty.ru"), false);

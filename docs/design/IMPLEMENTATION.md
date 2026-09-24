@@ -1,8 +1,8 @@
-# Среда: реализация утверждённого Dashboard
+# БизнеСоты: реализация утверждённого Dashboard
 
 ## Исходная точка
 
-Проект продолжает Sreda-transfer.zip из Cursor, исходная ветка cursor/sreda-stage1-foundation-04e7, commit 33008957e31d4135e4edfd519163df5f8c4ce93c. Next.js/React/TypeScript, маршруты, services и mock-слой сохранены. Новый GitHub-репозиторий: 9wwnmw2szc-hue/Sreda. Эта работа — frontend, не работающая интеграция с площадками.
+Проект продолжает Biznebiznesoty-transfer.zip из Cursor, исходная ветка cursor/sreda-stage1-foundation-04e7, commit 33008957e31d4135e4edfd519163df5f8c4ce93c. Next.js/React/TypeScript, маршруты, services и mock-слой сохранены. Новый GitHub-репозиторий: 9wwnmw2szc-hue/Biznesoty. Эта работа — frontend, не работающая интеграция с площадками.
 
 Актуальный пользовательский референс: [sreda-approved-desktop-mobile.png](sreda-approved-desktop-mobile.png). Старый APPROVED-DESIGN-REFERENCE в public/assets/sreda/decor относится к предыдущему варианту. Не использовать его как текущий источник композиции.
 

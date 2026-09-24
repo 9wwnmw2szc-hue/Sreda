@@ -122,12 +122,12 @@ export function QuickActions() {
     gates && business?.id === gates.id ? gates.byHref : undefined;
 
   return (
-    <section className="soty-quick" aria-labelledby="soty-quick-title">
-      <div className="soty-section-head">
-        <h2 id="soty-quick-title">Быстрые действия</h2>
+    <section className="biznesoty-quick" aria-labelledby="biznesoty-quick-title">
+      <div className="biznesoty-section-head">
+        <h2 id="biznesoty-quick-title">Быстрые действия</h2>
         <p>Переход к основным разделам</p>
       </div>
-      <ul className="soty-quick__grid">
+      <ul className="biznesoty-quick__grid">
         {ACTIONS.map(({ href, label, tone, Icon, desktopOnly }) => {
           const gate = byHref?.[href] ?? (isDemoMode ? "open" : "locked");
           if (gate === "locked") {
@@ -136,20 +136,20 @@ export function QuickActions() {
                 key={href}
                 className={
                   desktopOnly
-                    ? "soty-quick__item soty-quick__item--desktop"
-                    : "soty-quick__item"
+                    ? "biznesoty-quick__item biznesoty-quick__item--desktop"
+                    : "biznesoty-quick__item"
                 }
               >
                 <Link
                   href="/solutions"
-                  className={`soty-quick__btn soty-quick__btn--${tone} is-locked`}
+                  className={`biznesoty-quick__btn biznesoty-quick__btn--${tone} is-locked`}
                   aria-label={`${label}: подключить`}
                 >
-                  <span className="soty-quick__icon" aria-hidden>
+                  <span className="biznesoty-quick__icon" aria-hidden>
                     <Icon size={20} strokeWidth={1.75} />
                   </span>
-                  <span className="soty-quick__label">{label}</span>
-                  <Lock size={14} className="soty-quick__chevron" aria-hidden />
+                  <span className="biznesoty-quick__label">{label}</span>
+                  <Lock size={14} className="biznesoty-quick__chevron" aria-hidden />
                 </Link>
               </li>
             );
@@ -160,21 +160,21 @@ export function QuickActions() {
               key={href}
               className={
                 desktopOnly
-                  ? "soty-quick__item soty-quick__item--desktop"
-                  : "soty-quick__item"
+                  ? "biznesoty-quick__item biznesoty-quick__item--desktop"
+                  : "biznesoty-quick__item"
               }
             >
               <Link
                 href={muted ? "/solutions" : href}
-                className={`soty-quick__btn soty-quick__btn--${tone}${muted ? " is-muted" : ""}`}
+                className={`biznesoty-quick__btn biznesoty-quick__btn--${tone}${muted ? " is-muted" : ""}`}
               >
-                <span className="soty-quick__icon" aria-hidden>
+                <span className="biznesoty-quick__icon" aria-hidden>
                   <Icon size={20} strokeWidth={1.75} />
                 </span>
-                <span className="soty-quick__label">{label}</span>
+                <span className="biznesoty-quick__label">{label}</span>
                 <ChevronRight
                   size={16}
-                  className="soty-quick__chevron"
+                  className="biznesoty-quick__chevron"
                   aria-hidden
                 />
               </Link>

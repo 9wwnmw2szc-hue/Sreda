@@ -25,7 +25,7 @@ test("catalog and solution cards keep content-driven spacing from actions", asyn
   assert.match(css, /Content \/ action separation/);
   assert.match(css, /\.catalog-card \.button/);
   assert.match(css, /margin-top:\s*var\(--space-4\)/);
-  assert.match(css, /\.soty-solution-card__chevron[\s\S]*position:\s*static/);
+  assert.match(css, /\.biznesoty-solution-card__chevron[\s\S]*position:\s*static/);
   assert.match(css, /overflow-wrap:\s*anywhere/);
 });
 

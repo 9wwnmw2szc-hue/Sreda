@@ -1526,7 +1526,7 @@ function Configuration({
             <p className="account-footnote">
               Основной путь —{" "}
               <strong>Автоматическое расписание</strong>: рабочие дни и часы,
-              остальное Соты рассчитают сами.
+              остальное БизнеСоты рассчитают сами.
             </p>
           ) : null}
           <AutoSchedulePanel

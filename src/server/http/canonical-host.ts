@@ -1,5 +1,5 @@
 /**
- * Single-origin public host policy for «Соты».
+ * Single-origin public host policy for «БизнеСоты».
  *
  * Source of truth for the public origin is APP_URL (exact HTTPS origin).
  * Alias brand hosts and (after cutover) the Railway technical hostname
@@ -11,6 +11,7 @@
 export const PUBLIC_ALIAS_HOSTS = Object.freeze(
   new Set([
     "biznesoty.online",
+    "www.biznesoty.online",
     // бизнесоты.рф
     "xn--90aifd0ahuj5f.xn--p1ai",
     "www.biznesoty.ru",

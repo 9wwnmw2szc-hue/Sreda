@@ -382,7 +382,7 @@ export function IndustryOnboarding({ businessId }: { businessId: string }) {
     <div className="setup-page">
       <section className="panel stack-md">
         <p className="eyebrow">Шаг 3 из 3 · {data.preset?.label}</p>
-        <h1 className="text-page-title">Мы подготовили Соты для вашего бизнеса</h1>
+        <h1 className="text-page-title">Мы подготовили БизнеСоты для вашего бизнеса</h1>
         <p className="text-body">
           Это стартовый набор. Платные решения не подключаются автоматически —
           сохраняются только возможности и прогресс настройки.

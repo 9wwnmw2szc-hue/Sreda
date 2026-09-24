@@ -4,13 +4,13 @@ cd /opt/sreda
 image=${1:?Immutable registry image is required}
 [[ "$image" =~ ^cr\.yandex/[a-z0-9]+/sreda:[a-f0-9]{40}$ ]] || { echo 'Invalid image'; exit 1; }
 export SREDA_IMAGE="$image"
-args=(-f /opt/sreda/deploy/compose.yml)
-if grep -q '^TELEGRAM_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env; then
+args=(-f /opt/biznesoty/deploy/compose.yml)
+if grep -q '^TELEGRAM_WEBHOOKS_ENABLED=true$' /opt/biznesoty/app.env; then
   args+=(--profile telegram)
 else
   docker compose "${args[@]}" --profile telegram stop telegram-worker || true
 fi
-if grep -q '^VK_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env; then
+if grep -q '^VK_WEBHOOKS_ENABLED=true$' /opt/biznesoty/app.env; then
   args+=(--profile vk)
 else
   docker compose "${args[@]}" --profile vk stop vk-worker || true
@@ -24,7 +24,7 @@ docker compose "${args[@]}" run --rm migrate
 docker compose "${args[@]}" up -d --remove-orphans
 for attempt in {1..30}; do
   if docker compose "${args[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
-    printf 'SREDA_IMAGE=%s\n' "$image" > /opt/sreda/deploy/.env
+    printf 'SREDA_IMAGE=%s\n' "$image" > /opt/biznesoty/deploy/.env
     echo 'Release is healthy'
     exit 0
   fi

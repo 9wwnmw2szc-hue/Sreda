@@ -204,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soty-ui-gate-${{ github.sha }}
+          name: biznesoty-ui-gate-${{ github.sha }}
           path: |
             artifacts/responsive-audit/
             artifacts/ci-ui-app.json

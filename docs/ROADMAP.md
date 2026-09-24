@@ -6,7 +6,7 @@ Items intentionally **not** required to complete Closed Beta hardening after PR 
 |---|---|
 | **MAX messenger** | Present only as a frontend `Platform` / label. No adapter, webhook, or worker. Non-blocker for beta. |
 | **Full payment provider** | Billing page is placeholder; entitlements via activation + admin override. Provider-agnostic domain planned — see [BILLING.md](BILLING.md). |
-| **Production deploy** | Staging = Sreda-staging only. Yandex/compose path exists as preparation, not the beta ship target. |
+| **Production deploy** | Staging = Biznebiznesoty-staging only. Yandex/compose path exists as preparation, not the beta ship target. |
 | **Admin MFA** | Platform admin console without MFA; deferred (`docs/admin/README.md`). |
 | **Admin impersonation** | Explicit non-goal. |
 | **Moderation solution** | Catalog entry; not in owner activatable allowlist. |
@@ -18,7 +18,7 @@ Items intentionally **not** required to complete Closed Beta hardening after PR 
 ## Beta focus instead
 
 - Harden tenant isolation, staff notification verification, workers/health, and solution UX from PR #53.
-- Keep docs and staging checks aligned with migration **052** and Railway **Sreda-staging**.
+- Keep docs and staging checks aligned with migration **052** and Railway **Biznebiznesoty-staging**.
 - Expand real-channel E2E evidence on staging without enabling live payments or production bots.
 
 Snapshot: [BETA-STATE-2026-09-21.md](BETA-STATE-2026-09-21.md).

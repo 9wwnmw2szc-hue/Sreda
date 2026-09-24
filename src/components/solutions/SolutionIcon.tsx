@@ -37,7 +37,7 @@ export function SolutionIcon({
   const size = variant === "compact" ? COMPACT_PX : HERO_PX;
   return (
     <span
-      className={`soty-solution-icon soty-solution-icon--${variant} soty-solution-icon--${visual}${className ? ` ${className}` : ""}`}
+      className={`biznesoty-solution-icon biznesoty-solution-icon--${variant} biznesoty-solution-icon--${visual}${className ? ` ${className}` : ""}`}
       data-solution={visual}
       data-variant={variant}
     >

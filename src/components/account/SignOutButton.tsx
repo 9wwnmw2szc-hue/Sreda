@@ -7,15 +7,15 @@ import { isDemoMode } from "@/lib/dataMode";
 
 export type SignOutVariant = "outline" | "ghost" | "menu" | "sidebar";
 
-/** Clears client auth/workspace caches but keeps theme preference (`soty.theme`). */
+/** Clears client auth/workspace caches but keeps theme preference (`biznesoty.theme`). */
 export function clearClientAuthState() {
   try {
     for (const key of Object.keys(localStorage)) {
       if (
         key.startsWith("sreda.") ||
-        key.startsWith("soty.business") ||
-        key.startsWith("soty.workspace") ||
-        key === "soty.currentBusinessId"
+        key.startsWith("biznesoty.business") ||
+        key.startsWith("biznesoty.workspace") ||
+        key === "biznesoty.currentBusinessId"
       ) {
         localStorage.removeItem(key);
       }

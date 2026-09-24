@@ -53,3 +53,4 @@ next-env.d.ts
 /deploy/caddy.env
 *.dump
 test-results/
+artifacts/

@@ -1,6 +1,6 @@
-# Sreda: единые бизнес-решения — проверка перед выпуском
+# Biznesoty: единые бизнес-решения — проверка перед выпуском
 
-Дата: 16 сентября 2026. Рабочая ветка: `codex/unified-business-foundation`. Draft PR: https://github.com/9wwnmw2szc-hue/Sreda/pull/19 . Merge и production deploy не выполнялись.
+Дата: 16 сентября 2026. Рабочая ветка: `codex/unified-business-foundation`. Draft PR: https://github.com/9wwnmw2szc-hue/Biznesoty/pull/19 . Merge и production deploy не выполнялись.
 
 ## Исходное состояние и совместимость
 

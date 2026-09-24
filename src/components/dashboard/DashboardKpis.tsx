@@ -68,8 +68,8 @@ function SummaryBody({ businessId }: { businessId: string }) {
   const kpis = useMemo(() => (data.kpis ?? []).slice(0, 4), [data.kpis]);
   if (!kpis.length) {
     return (
-      <div className="soty-kpi-grid" aria-label="Показатели">
-        <div className="soty-kpi-card soty-kpi-card--empty">
+      <div className="biznesoty-kpi-grid" aria-label="Показатели">
+        <div className="biznesoty-kpi-card biznesoty-kpi-card--empty">
           <p>Показатели появятся после первых заказов, заявок и записей.</p>
           <Link href="/analytics" className="button button--outline button--sm">
             Открыть аналитику
@@ -80,7 +80,7 @@ function SummaryBody({ businessId }: { businessId: string }) {
     );
   }
   return (
-    <div className="soty-kpi-grid" aria-label="Показатели">
+    <div className="biznesoty-kpi-grid" aria-label="Показатели">
       {kpis.map((kpi) => {
         const Icon = pickIcon(kpi.id);
         const pct = kpi.delta?.percent;
@@ -88,24 +88,24 @@ function SummaryBody({ businessId }: { businessId: string }) {
           <Link
             key={kpi.id}
             href={data.href}
-            className={`soty-kpi-card soty-kpi-card--${toneClass(kpi.id)}`}
+            className={`biznesoty-kpi-card biznesoty-kpi-card--${toneClass(kpi.id)}`}
           >
-            <span className="soty-kpi-card__icon" aria-hidden>
+            <span className="biznesoty-kpi-card__icon" aria-hidden>
               <Icon size={18} strokeWidth={1.7} />
             </span>
-            <strong className="soty-kpi-card__value">{kpi.display}</strong>
-            <span className="soty-kpi-card__label">{kpi.label}</span>
+            <strong className="biznesoty-kpi-card__value">{kpi.display}</strong>
+            <span className="biznesoty-kpi-card__label">{kpi.label}</span>
             {pct != null && pct !== 0 ? (
               <span
-                className={`soty-kpi-card__trend ${pct > 0 ? "is-up" : "is-down"}`}
+                className={`biznesoty-kpi-card__trend ${pct > 0 ? "is-up" : "is-down"}`}
               >
                 {pct > 0 ? "↑" : "↓"} {pct > 0 ? "+" : ""}
                 {pct}%
               </span>
             ) : (
-              <span className="soty-kpi-card__trend is-flat">—</span>
+              <span className="biznesoty-kpi-card__trend is-flat">—</span>
             )}
-            <ChevronRight className="soty-kpi-card__chevron" size={16} />
+            <ChevronRight className="biznesoty-kpi-card__chevron" size={16} />
           </Link>
         );
       })}
@@ -115,7 +115,7 @@ function SummaryBody({ businessId }: { businessId: string }) {
 
 export function DashboardKpis({ businessId }: { businessId: string }) {
   return (
-    <Suspense fallback={<div className="soty-kpi-grid" aria-hidden />}>
+    <Suspense fallback={<div className="biznesoty-kpi-grid" aria-hidden />}>
       <SummaryBody businessId={businessId} />
     </Suspense>
   );

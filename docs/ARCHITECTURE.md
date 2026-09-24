@@ -1,4 +1,4 @@
-# Architecture — Соты
+# Architecture — БизнеСоты
 
 ## Model
 

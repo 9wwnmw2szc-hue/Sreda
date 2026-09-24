@@ -19,12 +19,12 @@ test("mobile header uses icon search and actions row", async () => {
     shell.slice(shell.indexOf("mobile-header")),
     /CommandSearch compact/,
   );
-  assert.match(search, /soty-command--mobile/);
-  assert.match(search, /soty-command__sheet/);
+  assert.match(search, /biznesoty-command--mobile/);
+  assert.match(search, /biznesoty-command__sheet/);
   assert.match(search, /aria-label="Поиск"/);
   assert.match(css, /\.mobile-header__actions/);
-  assert.match(css, /\.soty-command--mobile/);
-  assert.match(css, /\.soty-command__sheet/);
+  assert.match(css, /\.biznesoty-command--mobile/);
+  assert.match(css, /\.biznesoty-command__sheet/);
   assert.match(css, /\.notification-bell\s*\{[^}]*position:\s*relative/s);
 });
 

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "pr = local PR build; staging = live Sreda-staging (post-merge only)"
+        description: "pr = local PR build; staging = live Biznebiznesoty-staging (post-merge only)"
         required: true
         default: "pr"
         type: choice
@@ -141,7 +141,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soty-visual-audit-${{ github.sha }}
+          name: biznesoty-visual-audit-${{ github.sha }}
           path: |
             artifacts/visual-audit/
             artifacts/ci-ui-app.json

@@ -142,7 +142,7 @@ export async function routeBot(
     const welcome =
       (b.greeting && b.greeting.trim()) ||
       `Добро пожаловать в ${brand}!`;
-    // Bot represents the owner's business — never introduce as platform «Среда».
+    // Bot represents the owner's business — never introduce as platform «БизнеСоты».
     const safeWelcome = /бот\s+сервис/i.test(welcome)
       ? `Добро пожаловать в ${brand}!`
       : welcome;

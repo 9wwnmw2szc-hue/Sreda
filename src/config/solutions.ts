@@ -45,7 +45,7 @@ export const SOLUTION_VISUALS: Record<SolutionAccentCode, SolutionVisual> = {
   orders: visual("orders"),
 };
 
-/** Dashboard solution card order matching approved Soty references. */
+/** Dashboard solution card order matching approved Biznesoty references. */
 export const WORKSPACE_SOLUTION_ORDER: SolutionAccentCode[] = [
   "orders",
   "leads",

@@ -1,7 +1,7 @@
-# Среда — пакет передачи (transfer)
+# БизнеСоты — пакет передачи (transfer)
 
 Архив для ChatGPT Codex и переноса в новый репозиторий  
-https://github.com/9wwnmw2szc-hue/Sreda
+https://github.com/9wwnmw2szc-hue/Biznesoty
 
 ## Критично про дизайн
 
@@ -23,7 +23,7 @@ https://github.com/9wwnmw2szc-hue/Sreda
 |------|----------|
 | Origin | https://github.com/saakav/Chernoviki |
 | Открытый PR | https://github.com/saakav/Chernoviki/pull/1 |
-| Целевой репозиторий | https://github.com/9wwnmw2szc-hue/Sreda |
+| Целевой репозиторий | https://github.com/9wwnmw2szc-hue/Biznesoty |
 
 ## Ветка и commit
 
