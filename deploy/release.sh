@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /opt/sreda
+cd /opt/biznesoty
 image=${1:?Immutable registry image is required}
+# Legacy Yandex registry image name remains `sreda:<sha>` until the registry is renamed.
 [[ "$image" =~ ^cr\.yandex/[a-z0-9]+/sreda:[a-f0-9]{40}$ ]] || { echo 'Invalid image'; exit 1; }
 export SREDA_IMAGE="$image"
 args=(-f /opt/biznesoty/deploy/compose.yml)

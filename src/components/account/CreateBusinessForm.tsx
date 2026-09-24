@@ -29,7 +29,10 @@ export function CreateBusinessForm({ userId, hasBusinesses }: { userId: string; 
       const business = await apiRequest<Business>("/api/v1/businesses", {
         method: "POST", body, headers: { "Idempotency-Key": key.current },
       });
-      try { localStorage.setItem("sreda.currentBusinessId:" + userId, business.id); } catch { /* optional preference */ }
+      try {
+        localStorage.setItem("biznesoty.currentBusinessId:" + userId, business.id);
+        localStorage.removeItem("sreda.currentBusinessId:" + userId);
+      } catch { /* optional preference */ }
       window.location.replace("/onboarding");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось создать бизнес.");

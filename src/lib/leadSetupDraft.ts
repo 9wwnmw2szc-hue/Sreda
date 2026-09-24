@@ -45,7 +45,27 @@ export function newLeadSetupDraft(): LeadSetupDraft {
   };
 }
 export const leadSetupStorageKey = (businessId: string) =>
+  `biznesoty.leadSetup.v1:${businessId}`;
+export const legacyLeadSetupStorageKey = (businessId: string) =>
   `sreda.leadSetup.v1:${businessId}`;
+export function readLeadSetupDraftRaw(businessId: string): string | null {
+  try {
+    return (
+      localStorage.getItem(leadSetupStorageKey(businessId)) ||
+      localStorage.getItem(legacyLeadSetupStorageKey(businessId))
+    );
+  } catch {
+    return null;
+  }
+}
+export function writeLeadSetupDraftRaw(businessId: string, raw: string) {
+  try {
+    localStorage.setItem(leadSetupStorageKey(businessId), raw);
+    localStorage.removeItem(legacyLeadSetupStorageKey(businessId));
+  } catch {
+    /* optional preference */
+  }
+}
 export function parseLeadSetupDraft(raw: string | null): LeadSetupDraft {
   const fallback = newLeadSetupDraft();
   if (!raw) return fallback;

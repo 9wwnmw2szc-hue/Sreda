@@ -1,4 +1,4 @@
-{$SREDA_DOMAIN} {
-  encode zstd gzip
+{$BIZNESOTY_DOMAIN} {
+  encode gzip
   reverse_proxy app:3000
 }

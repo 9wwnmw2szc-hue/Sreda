@@ -13,6 +13,8 @@ export function clearClientAuthState() {
     for (const key of Object.keys(localStorage)) {
       if (
         key.startsWith("sreda.") ||
+        key.startsWith("biznesoty.currentBusinessId") ||
+        key.startsWith("biznesoty.leadSetup") ||
         key.startsWith("biznesoty.business") ||
         key.startsWith("biznesoty.workspace") ||
         key === "biznesoty.currentBusinessId"

@@ -19,7 +19,7 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
   const source = new URL(process.env.TEST_DATABASE_URL);
   assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(source.hostname), "Only local test PostgreSQL is allowed");
   assert.match(source.pathname, /test/i, "The source database must be explicitly named as a test database");
-  const databaseName = "sreda_http_test_" + randomBytes(8).toString("hex");
+  const databaseName = "biznesoty_http_test_" + randomBytes(8).toString("hex");
   const admin = new Pool({ connectionString: source.href, max: 1 });
   let db; let child; let proxy; let certificateDir; let created = false;
   let origin; let ca; let backendPort;
@@ -92,7 +92,7 @@ test("production HTTPS account and workspace lifecycle", { timeout: 120000 }, as
     db = new Kysely({ dialect: new PostgresDialect({ pool: new Pool({ connectionString: databaseUrl, max: 2 }) }) });
     await migrate(db, new URL("../../migrations", import.meta.url).pathname);
     await migrate(db, new URL("../../migrations", import.meta.url).pathname);
-    certificateDir = await mkdtemp(join(tmpdir(), "sreda-http-"));
+    certificateDir = await mkdtemp(join(tmpdir(), "biznesoty-http-"));
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", join(certificateDir, "key.pem"), "-out", join(certificateDir, "cert.pem"), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], { stdio: "ignore" });
     ca = await readFile(join(certificateDir, "cert.pem"));
     const probe = http.createServer();

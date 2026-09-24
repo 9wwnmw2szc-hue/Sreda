@@ -73,7 +73,7 @@ export function AdminShell({
           <div className="admin-sidebar__brand">
             <Shield size={18} strokeWidth={1.8} aria-hidden />
             <div>
-              <strong>Biznesoty Admin</strong>
+              <strong>БизнеСоты Admin</strong>
               <span>Панель управления</span>
             </div>
           </div>

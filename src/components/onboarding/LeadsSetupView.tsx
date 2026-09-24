@@ -19,7 +19,8 @@ import {
   LEAD_FIELDS,
   newLeadSetupDraft,
   parseLeadSetupDraft,
-  leadSetupStorageKey,
+  readLeadSetupDraftRaw,
+  writeLeadSetupDraftRaw,
   type LeadSetupDraft,
   type LeadFieldId,
   type SetupChannel,
@@ -32,9 +33,7 @@ const STEPS = ["Площадки", "Поля заявки", "Проверка", 
 function loadDraft(businessId: string) {
   if (!isDemoMode) return newLeadSetupDraft();
   try {
-    return parseLeadSetupDraft(
-      localStorage.getItem(leadSetupStorageKey(businessId)),
-    );
+    return parseLeadSetupDraft(readLeadSetupDraftRaw(businessId));
   } catch {
     return newLeadSetupDraft();
   }
@@ -218,10 +217,7 @@ function LeadsWizard({
     setTestSent(false);
     if (!isDemoMode) return;
     try {
-      localStorage.setItem(
-        leadSetupStorageKey(business.id),
-        JSON.stringify(next),
-      );
+      writeLeadSetupDraftRaw(business.id, JSON.stringify(next));
       setStorage("saved");
     } catch {
       setStorage("unavailable");

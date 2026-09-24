@@ -111,6 +111,7 @@ test("sign-out clears site data and keeps theme preference logic", async () => {
   assert.match(auth, /"cache"/);
   assert.match(button, /clearClientAuthState/);
   assert.match(button, /key\.startsWith\("sreda\."\)/);
+  assert.match(button, /key\.startsWith\("biznesoty\.currentBusinessId"\)/);
   assert.equal(button.includes('localStorage.removeItem("biznesoty.theme")'), false);
 });
 

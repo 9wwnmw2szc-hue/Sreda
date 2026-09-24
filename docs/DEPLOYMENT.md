@@ -46,10 +46,11 @@ GitHub (main)
 
 ### Workers
 
-- Telegram start: `node --import tsx scripts/telegram-worker.mts` (`npm run worker:telegram`)
-- VK start: `node --import tsx scripts/vk-worker.mts` (`npm run worker:vk`)
+- Telegram start: `npm run worker:telegram`
+- VK start: `npm run worker:vk`
 - No public HTTP domain required
 - Share the same `DATABASE_URL` / `APP_URL` / secrets as web (Railway variable references)
+- Pre-deploy also runs migrations (idempotent) so a worker can start before web on a fresh DB
 
 ### Recommended bring-up order
 
@@ -76,7 +77,11 @@ Existing Closed Beta may still live in Railway project **Sreda-staging** (legacy
 
 **AI (optional):** `AI_API_TOKEN`, `AI_MODEL`
 
-**Storage:** `ATTACHMENT_STORAGE`, `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, optional `ATTACHMENT_STORAGE_PATH`
+**Storage:** `ATTACHMENT_STORAGE`, `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, optional `ATTACHMENT_STORAGE_PATH`, `S3_URL_STYLE`
+
+**SMTP (optional):** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+
+Full authoritative list: [docs/ENV.md](ENV.md).
 
 ## Optional self-hosted / Yandex path
 
