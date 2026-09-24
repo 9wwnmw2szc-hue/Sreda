@@ -12,7 +12,20 @@ const manrope = Manrope({
   display: "swap",
 });
 
+function metadataBaseFromEnv(): URL | undefined {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    if (url.origin !== raw) return undefined;
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
 export const metadata: Metadata = {
+  metadataBase: metadataBaseFromEnv(),
   title: {
     default: APP_NAME,
     template: `%s · ${APP_NAME}`,
@@ -20,6 +33,9 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
   icons: {
     icon: BRAND_ASSETS.favicon,
+  },
+  alternates: {
+    canonical: "/",
   },
 };
 
