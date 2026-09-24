@@ -23,7 +23,7 @@ describe("canonical-host policy", () => {
   });
 
   it("normalizes hostnames and strips ports", () => {
-    assert.equal(normalizeHostname("Biznesoty.RU:443"), "biznesoty.ru");
+    assert.equal(normalizeHostname("BizneSoty.RU:443"), "biznesoty.ru");
     assert.equal(normalizeHostname(" biznesoty.online "), "biznesoty.online");
   });
 
