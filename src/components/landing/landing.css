@@ -891,23 +891,25 @@
   }
 
   .landing-hero {
-    grid-template-columns: minmax(0, 0.44fr) minmax(0, 0.56fr);
-    gap: 8px;
-    min-height: 680px;
-    padding-top: 88px;
-    padding-bottom: 48px;
+    grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+    gap: 0;
+    min-height: 820px;
+    padding-top: 64px;
+    padding-bottom: 0;
     align-items: start;
+    overflow: visible;
   }
 
   .landing-hero__copy {
-    padding-top: 48px;
-    max-width: 29.5rem;
+    padding-top: 64px;
+    max-width: 27.5rem;
+    z-index: 3;
   }
 
   .landing-hero__title {
-    font-size: 3.4rem;
-    max-width: 470px;
-    line-height: 1.06;
+    font-size: 3.5rem;
+    max-width: 460px;
+    line-height: 1.04;
   }
 
   .landing-hero__title-line {
@@ -915,19 +917,31 @@
   }
 
   .landing-hero__subtitle {
-    margin-top: 36px;
-    font-size: 1.2rem;
+    margin-top: 34px;
+    font-size: 1.175rem;
     max-width: 27rem;
   }
 
+  .landing-hero__cta {
+    margin-top: 46px;
+  }
+
   .landing-hero__visual {
-    margin-top: -72px;
-    margin-right: -36px;
+    margin-top: -48px;
+    margin-right: -64px;
+    margin-bottom: -120px;
+    width: calc(100% + 72px);
     max-width: none;
+    z-index: 1;
   }
 
   .landing-hero__img--desktop {
     display: block;
+    width: 100%;
+    height: auto;
+    min-height: 640px;
+    object-fit: contain;
+    object-position: right top;
   }
 
   .landing-hero__img--mobile {
@@ -935,8 +949,11 @@
   }
 
   .landing-benefits {
-    margin-top: 8px;
-    padding: 40px 0 20px;
+    position: relative;
+    z-index: 2;
+    margin-top: 48px;
+    padding: 20px 0 8px;
+    background: linear-gradient(180deg, transparent 0%, var(--landing-bg) 28%);
   }
 
   .landing-features__grid {
@@ -944,8 +961,9 @@
   }
 
   .landing-platform {
-    margin-top: 96px;
-    min-height: 320px;
+    margin-top: 56px;
+    min-height: 300px;
+    align-items: center;
   }
 
   .landing-footer__inner {

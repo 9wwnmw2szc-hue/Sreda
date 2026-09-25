@@ -17,12 +17,11 @@ export function PlatformSection() {
         <Image
           src={LANDING_ASSETS.platform}
           alt=""
-          width={1280}
-          height={720}
+          width={672}
+          height={382}
           className="landing-platform__img"
-          sizes="(max-width: 768px) 100vw, 60vw"
-        />
-      </div>
+          sizes="(max-width: 768px) 100vw, 55vw"
+        />      </div>
     </section>
   );
 }

@@ -35,22 +35,21 @@ export function HeroSection() {
         <Image
           src={LANDING_ASSETS.heroDesktop}
           alt=""
-          width={1152}
-          height={864}
+          width={722}
+          height={790}
           className="landing-hero__img landing-hero__img--desktop"
           priority
-          sizes="(max-width: 768px) 0px, min(58vw, 720px)"
+          sizes="(max-width: 768px) 0px, min(62vw, 760px)"
         />
         <Image
           src={LANDING_ASSETS.heroMobile}
           alt=""
-          width={1152}
-          height={864}
+          width={900}
+          height={675}
           className="landing-hero__img landing-hero__img--mobile"
           priority
           sizes="(min-width: 769px) 0px, 100vw"
-        />
-      </div>
+        />      </div>
     </section>
   );
 }
