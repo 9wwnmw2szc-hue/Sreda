@@ -951,7 +951,7 @@
   .landing-benefits {
     position: relative;
     z-index: 2;
-    margin-top: 8px;
+    margin-top: 56px;
     padding: 8px 0 4px;
     background: linear-gradient(180deg, transparent 0%, var(--landing-bg) 42%);
   }
