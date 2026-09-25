@@ -216,6 +216,102 @@ describe("canonical-host policy", () => {
     assert.equal(d.action, "reject");
   });
 
+  it("CASE landing root on canonical passes", () => {
+    const d = decideCanonicalHost({
+      method: "GET",
+      hostname: "biznesoty.ru",
+      pathname: "/",
+      search: "",
+      appUrl: CANONICAL,
+    });
+    assert.deepEqual(d, { action: "pass" });
+  });
+
+  it("CASE alias roots 308 to canonical landing", () => {
+    for (const hostname of [
+      "biznesoty.online",
+      "www.biznesoty.online",
+      "www.biznesoty.ru",
+      "xn--90aifd0ahuj5f.xn--p1ai",
+      "бизнесоты.рф",
+    ]) {
+      const d = decideCanonicalHost({
+        method: "GET",
+        hostname,
+        pathname: "/",
+        search: "",
+        appUrl: CANONICAL,
+      });
+      assert.equal(d.action, "redirect", hostname);
+      if (d.action === "redirect") {
+        assert.equal(d.status, 308);
+        assert.equal(d.location, "https://biznesoty.ru/");
+      }
+    }
+  });
+
+  it("CASE alias login/register preserve path", () => {
+    const login = decideCanonicalHost({
+      method: "GET",
+      hostname: "biznesoty.online",
+      pathname: "/login",
+      search: "",
+      appUrl: CANONICAL,
+    });
+    assert.equal(login.action, "redirect");
+    if (login.action === "redirect") {
+      assert.equal(login.location, "https://biznesoty.ru/login");
+    }
+
+    const register = decideCanonicalHost({
+      method: "GET",
+      hostname: "бизнесоты.рф",
+      pathname: "/register",
+      search: "",
+      appUrl: CANONICAL,
+    });
+    assert.equal(register.action, "redirect");
+    if (register.action === "redirect") {
+      assert.equal(register.location, "https://biznesoty.ru/register");
+    }
+  });
+
+  it("CASE alias login preserves query string", () => {
+    const d = decideCanonicalHost({
+      method: "GET",
+      hostname: "biznesoty.online",
+      pathname: "/login",
+      search: "?next=/orders",
+      appUrl: CANONICAL,
+    });
+    assert.equal(d.action, "redirect");
+    if (d.action === "redirect") {
+      assert.equal(d.location, "https://biznesoty.ru/login?next=/orders");
+    }
+  });
+
+  it("normalizes Unicode Cyrillic host to punycode alias", () => {
+    assert.equal(
+      normalizeHostname("бизнесоты.рф"),
+      "xn--90aifd0ahuj5f.xn--p1ai",
+    );
+    assert.equal(isPublicAliasHost("бизнесоты.рф"), true);
+  });
+
+  it("308-redirects www.biznesoty.online", () => {
+    const d = decideCanonicalHost({
+      method: "GET",
+      hostname: "www.biznesoty.online",
+      pathname: "/register",
+      search: "?ref=1",
+      appUrl: CANONICAL,
+    });
+    assert.equal(d.action, "redirect");
+    if (d.action === "redirect") {
+      assert.equal(d.location, "https://biznesoty.ru/register?ref=1");
+    }
+  });
+
   it("resolveRequestHostname prefers Host over forwarded", () => {
     const headers = new Headers({
       host: "biznesoty.ru",

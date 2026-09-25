@@ -41,8 +41,16 @@ export function normalizeHostname(raw: string | null | undefined): string {
   const first = raw.split(",")[0]?.trim().toLowerCase() ?? "";
   if (!first) return "";
   // Strip :port (IPv6 in brackets is not used for our public hosts).
-  if (first.startsWith("[")) return first;
-  return first.replace(/:\d+$/, "");
+  let host = first.startsWith("[") ? first : first.replace(/:\d+$/, "");
+  // Unicode brand hosts (e.g. бизнесоты.рф) → punycode ASCII form.
+  if (/[^\x00-\x7f]/.test(host)) {
+    try {
+      host = new URL(`http://${host}`).hostname.toLowerCase();
+    } catch {
+      /* keep original */
+    }
+  }
+  return host;
 }
 
 /**

@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: LANDING_COPY.title,
   description: LANDING_COPY.description,
+  // Resolves to https://biznesoty.ru/ when APP_URL metadataBase is set in root layout.
   alternates: { canonical: "/" },
   openGraph: {
     title: LANDING_COPY.title,
@@ -31,6 +32,10 @@ export const metadata: Metadata = {
     title: LANDING_COPY.title,
     description: LANDING_COPY.description,
     images: [LANDING_ASSETS.og],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

@@ -1,21 +1,72 @@
 # Deployment — БизнеСоты (biznesoty)
 
-## Canonical public origin
+## One product, three brand entry hosts
 
-**Production APP_URL:** `https://biznesoty.ru` (exact HTTPS origin, no trailing slash).
+There is **one** web app, **one** auth system, **one** dashboard.
+Brand domains are entry points — not separate sites.
 
-Redirect-only aliases (never APP_URL / never Better Auth `trustedOrigins`):
+### Canonical (APP_URL)
 
-| Host | Notes |
+```
+https://biznesoty.ru
+```
+
+Exact HTTPS origin, no trailing slash. This is the only production `APP_URL`
+and the only Better Auth `trustedOrigins` / `baseURL` origin.
+
+### Redirect-only aliases (308 GET/HEAD → canonical)
+
+| Host | Role |
 |---|---|
-| `www.biznesoty.ru` | → `biznesoty.ru` |
-| `biznesoty.online` | → `biznesoty.ru` |
-| `www.biznesoty.online` | → `biznesoty.ru` |
-| `бизнесоты.рф` / `xn--90aifd0ahuj5f.xn--p1ai` | → `biznesoty.ru` |
+| `www.biznesoty.ru` | apex www |
+| `biznesoty.online` | brand alias |
+| `www.biznesoty.online` | brand alias www |
+| `бизнесоты.рф` / `xn--90aifd0ahuj5f.xn--p1ai` | Cyrillic brand alias |
 
-Host policy: `src/server/http/canonical-host.ts` + Next.js `src/proxy.ts` (308 GET/HEAD; 403 unsafe methods on aliases). Exempt: `/api/health*`, `/api/telegram/*`, `/api/vk/*`, `/api/meta/webhook`.
+Behaviour (browser-safe methods only):
 
-**Do not set `APP_URL=https://biznesoty.ru` until DNS is verified and the TLS certificate is ready.**
+```
+https://biznesoty.online/login?next=/orders
+  → 308 https://biznesoty.ru/login?next=/orders
+
+https://бизнесоты.рф/register
+  → 308 https://biznesoty.ru/register
+
+https://www.biznesoty.ru/dashboard
+  → 308 https://biznesoty.ru/dashboard
+```
+
+Path and query are preserved. Unsafe methods (`POST`/`PUT`/`PATCH`/`DELETE`)
+on alias hosts are **403** (not body-preserving redirects).
+
+Never set as `APP_URL` and never add to Better Auth `trustedOrigins`:
+
+- `https://biznesoty.online`
+- `https://бизнесоты.рф`
+- `https://www.biznesoty.ru`
+- `https://www.biznesoty.online`
+
+Implementation: `src/server/http/canonical-host.ts` + Next.js `src/proxy.ts`.
+
+Exempt from canonical redirect (must keep working on Railway technical host):
+
+- `/api/health`, `/api/health/web`, `/api/health/live`
+- `/api/telegram/*`, `/api/vk/*`, `/api/meta/webhook`
+
+### Public user journey (canonical)
+
+```
+biznesoty.ru/          → public landing
+  → Войти              → /login
+  → Попробовать        → /register
+  → (auth success)     → /dashboard (existing app)
+```
+
+Alias hosts 308 into the same journey on `biznesoty.ru`.
+
+**Do not set `APP_URL=https://biznesoty.ru` until DNS is verified and the TLS certificate is READY.**
+
+Code being ready ≠ domains already attached in Railway/DNS.
 
 ## Railway (authoritative for Closed Beta / new environments)
 
@@ -61,7 +112,9 @@ GitHub (main)
 5. Confirm `GET /api/health/web` → 200.
 6. Create **telegram-worker** with the same env references; enable `TELEGRAM_WEBHOOKS_ENABLED` only when ready.
 7. Create **vk-worker** similarly.
-8. Wire domains / integrations / E2E.
+8. Attach custom domains in Railway (canonical + aliases); wait for TLS READY.
+9. Set `APP_URL=https://biznesoty.ru` only after step 8.
+10. Wire integrations / E2E.
 
 ### Historical note
 
