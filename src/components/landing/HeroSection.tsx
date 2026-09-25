@@ -35,17 +35,17 @@ export function HeroSection() {
         <Image
           src={LANDING_ASSETS.heroDesktop}
           alt=""
-          width={722}
-          height={790}
+          width={820}
+          height={1063}
           className="landing-hero__img landing-hero__img--desktop"
           priority
-          sizes="(max-width: 768px) 0px, min(62vw, 760px)"
+          sizes="(max-width: 768px) 0px, min(70vw, 860px)"
         />
         <Image
           src={LANDING_ASSETS.heroMobile}
           alt=""
-          width={900}
-          height={675}
+          width={960}
+          height={720}
           className="landing-hero__img landing-hero__img--mobile"
           priority
           sizes="(min-width: 769px) 0px, 100vw"

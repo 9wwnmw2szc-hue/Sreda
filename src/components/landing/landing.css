@@ -891,25 +891,25 @@
   }
 
   .landing-hero {
-    grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+    grid-template-columns: minmax(0, 0.36fr) minmax(0, 0.64fr);
     gap: 0;
-    min-height: 820px;
-    padding-top: 64px;
+    min-height: 780px;
+    padding-top: 36px;
     padding-bottom: 0;
     align-items: start;
     overflow: visible;
   }
 
   .landing-hero__copy {
-    padding-top: 64px;
-    max-width: 27.5rem;
+    padding-top: 56px;
+    max-width: 27rem;
     z-index: 3;
   }
 
   .landing-hero__title {
-    font-size: 3.5rem;
-    max-width: 460px;
-    line-height: 1.04;
+    font-size: 3.4rem;
+    max-width: 430px;
+    line-height: 1.02;
   }
 
   .landing-hero__title-line {
@@ -917,20 +917,20 @@
   }
 
   .landing-hero__subtitle {
-    margin-top: 34px;
-    font-size: 1.175rem;
-    max-width: 27rem;
+    margin-top: 28px;
+    font-size: 1.12rem;
+    max-width: 26rem;
   }
 
   .landing-hero__cta {
-    margin-top: 46px;
+    margin-top: 40px;
   }
 
   .landing-hero__visual {
-    margin-top: -48px;
-    margin-right: -64px;
-    margin-bottom: -120px;
-    width: calc(100% + 72px);
+    margin-top: -40px;
+    margin-right: -96px;
+    margin-bottom: -200px;
+    width: calc(100% + 120px);
     max-width: none;
     z-index: 1;
   }
@@ -939,7 +939,7 @@
     display: block;
     width: 100%;
     height: auto;
-    min-height: 640px;
+    min-height: 700px;
     object-fit: contain;
     object-position: right top;
   }
@@ -951,9 +951,9 @@
   .landing-benefits {
     position: relative;
     z-index: 2;
-    margin-top: 48px;
-    padding: 20px 0 8px;
-    background: linear-gradient(180deg, transparent 0%, var(--landing-bg) 28%);
+    margin-top: 8px;
+    padding: 8px 0 4px;
+    background: linear-gradient(180deg, transparent 0%, var(--landing-bg) 42%);
   }
 
   .landing-features__grid {
@@ -961,9 +961,22 @@
   }
 
   .landing-platform {
-    margin-top: 56px;
-    min-height: 300px;
+    margin-top: 28px;
+    min-height: 320px;
     align-items: center;
+    grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  }
+
+  .landing-platform__visual {
+    margin-right: -80px;
+    margin-top: -12px;
+    width: calc(100% + 96px);
+  }
+
+  .landing-platform__img {
+    min-height: 300px;
+    object-fit: cover;
+    object-position: left center;
   }
 
   .landing-footer__inner {
@@ -974,7 +987,16 @@
 }
 
 @media (min-width: 1280px) {
+  .landing {
+    --landing-container: min(calc(100% - 140px), 1080px);
+  }
+
   .landing-hero__visual {
-    margin-right: -48px;
+    margin-right: -64px;
+    width: calc(100% + 96px);
+  }
+
+  .landing-platform__visual {
+    margin-right: -56px;
   }
 }
