@@ -3,6 +3,9 @@ import { LandingPage } from "@/components/landing/LandingPage";
 import { APP_NAME, APP_DESCRIPTION } from "@/config/brand";
 import { LANDING_ASSETS, LANDING_COPY } from "@/components/landing/landing-config";
 
+/** Avoid static prerender of client landing chrome in this Next build pipeline. */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: LANDING_COPY.title,
   description: LANDING_COPY.description,
