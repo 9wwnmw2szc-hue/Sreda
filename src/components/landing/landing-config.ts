@@ -1,10 +1,9 @@
 /** Public landing design tokens — light premium only. */
 export const LANDING_ASSETS = {
-  heroDesktop: "/assets/landing/hero-desktop.webp",
-  heroMobile: "/assets/landing/hero-mobile.webp",
+  heroDesktop: "/assets/landing/hero-clean.webp",
   platform: "/assets/landing/platform-honeycombs.webp",
   og: "/assets/landing/og.jpg",
-  mark: "/assets/soty/brand/logo-mark.svg",
+  mark: "/assets/landing/logo-gold.svg",
 } as const;
 
 export const LANDING_COPY = {

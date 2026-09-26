@@ -39,6 +39,6 @@ test("landing uses light token palette and brand assets", async () => {
   assert.match(css, /--landing-bg:\s*#faf9f6/i);
   assert.match(css, /--landing-gold/);
   assert.doesNotMatch(css, /background:\s*#0[0-9a-f]{5}/i);
-  assert.match(config, /hero-desktop\.webp/);
+  assert.match(config, /hero-clean\.webp/);
   assert.match(config, /Все инструменты/);
 });
