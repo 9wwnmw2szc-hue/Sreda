@@ -1,33 +1,10 @@
 function HexIcon({ kind }: { kind: "sales" | "tasks" | "team" }) {
   return (
-    <svg className="landing-benefit__hex" viewBox="0 0 72 72" aria-hidden="true">
-      <path
-        className="landing-benefit__hex-stroke"
-        d="M36 6.5 61 21v30L36 65.5 11 51V21L36 6.5z"
-        fill="var(--landing-surface)"
-        stroke="var(--landing-gold)"
-        strokeWidth="2.2"
-      />
-      {kind === "sales" ? (
-        <g fill="none" stroke="var(--landing-gold)" strokeWidth="2.2" strokeLinecap="round">
-          <path d="M24 48V34M36 48V28M48 48V22" />
-          <path d="M22 50h28" />
-        </g>
-      ) : null}
-      {kind === "tasks" ? (
-        <g fill="none" stroke="var(--landing-gold)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M26 36.5 32.5 43 48 27.5" />
-          <path d="M24 24h24M24 48h24" opacity="0.35" />
-        </g>
-      ) : null}
-      {kind === "team" ? (
-        <g fill="none" stroke="var(--landing-gold)" strokeWidth="2.2" strokeLinecap="round">
-          <circle cx="36" cy="28" r="6" />
-          <circle cx="24" cy="42" r="4.5" />
-          <circle cx="48" cy="42" r="4.5" />
-          <path d="M28 50c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-        </g>
-      ) : null}
+    <svg className="landing-benefit__hex" viewBox="0 0 80 90" aria-hidden="true">
+      <path d="M35 3a10 10 0 0 1 10 0l27 16a10 10 0 0 1 5 9v34a10 10 0 0 1-5 9L45 87a10 10 0 0 1-10 0L8 71a10 10 0 0 1-5-9V28a10 10 0 0 1 5-9Z" fill="none" stroke="#c9a544" strokeWidth="1" />
+      {kind === "sales" ? <g fill="#cf9d27"><rect x="25" y="46" width="7" height="15" rx="1" /><rect x="37" y="37" width="7" height="24" rx="1" /><rect x="49" y="28" width="7" height="33" rx="1" /></g> : null}
+      {kind === "tasks" ? <path d="m26 45 10 10 20-23" fill="none" stroke="#cf9d27" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      {kind === "team" ? <g fill="#cf9d27"><circle cx="40" cy="35" r="7" /><circle cx="25" cy="39" r="5" /><circle cx="55" cy="39" r="5" /><path d="M30 61V52a10 10 0 0 1 20 0v9ZM19 57v-9a7 7 0 0 1 9-6l2 2a13 13 0 0 0-4 10v3ZM54 57v-3a13 13 0 0 0-4-10l2-2a7 7 0 0 1 9 6v9Z" /></g> : null}
     </svg>
   );
 }

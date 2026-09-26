@@ -24,10 +24,8 @@ export function HeroSection() {
             <span aria-hidden="true">→</span>
           </Link>
           <a href="#features" className="landing-btn landing-btn--secondary landing-btn--hero">
-            <span className="landing-btn__play" aria-hidden="true">
-              ▶
-            </span>
             {LANDING_COPY.demoCta}
+            <span className="landing-btn__play" aria-hidden="true">▶</span>
           </a>
         </div>
       </div>
@@ -35,21 +33,14 @@ export function HeroSection() {
         <Image
           src={LANDING_ASSETS.heroDesktop}
           alt=""
-          width={820}
-          height={1063}
-          className="landing-hero__img landing-hero__img--desktop"
-          priority
-          sizes="(max-width: 768px) 0px, min(70vw, 860px)"
+          width={1102}
+          height={1428}
+          className="landing-hero__img"
+          loading="eager"
+          fetchPriority="high"
+          sizes="(max-width: 767px) 100vw, (max-width: 1440px) 61vw, 880px"
         />
-        <Image
-          src={LANDING_ASSETS.heroMobile}
-          alt=""
-          width={960}
-          height={720}
-          className="landing-hero__img landing-hero__img--mobile"
-          priority
-          sizes="(min-width: 769px) 0px, 100vw"
-        />      </div>
+      </div>
     </section>
   );
 }
