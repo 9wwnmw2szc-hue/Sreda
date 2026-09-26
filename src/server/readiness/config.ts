@@ -57,6 +57,12 @@ export function stagingConfiguration(
       env[flag] === "true",
       "Enable in isolated staging and run the corresponding worker.",
     );
+  if (env.TELEGRAM_WEBHOOK_BASE_URL?.trim())
+    add(
+      "TELEGRAM_WEBHOOK_BASE_URL",
+      validUrl(env.TELEGRAM_WEBHOOK_BASE_URL, ["https:"], true),
+      "Set the exact HTTPS origin Telegram can reach, without a path or trailing slash.",
+    );
   add(
     "ATTACHMENT_STORAGE",
     env.ATTACHMENT_STORAGE === "s3",

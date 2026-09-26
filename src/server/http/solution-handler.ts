@@ -19,6 +19,7 @@ export function createSolutionHandler(options: {
   db: Kysely<Database>;
   auth: Identity;
   origin: string;
+  telegramWebhookOrigin?: string;
   secret: string;
   telegramEnabled?: boolean;
   vkEnabled?: boolean;
@@ -140,7 +141,7 @@ export function createSolutionHandler(options: {
           new TelegramService(
             options.db,
             options.secret,
-            options.origin,
+            options.telegramWebhookOrigin ?? options.origin,
             !!options.telegramEnabled,
           )
         ).start(session.user.id, id),

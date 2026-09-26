@@ -21,7 +21,12 @@ const db = new Kysely<Database>({
     pool: new Pool({ connectionString: config.databaseUrl, max: 3 }),
   }),
 });
-const service = new TelegramService(db, config.secret, config.origin, true);
+const service = new TelegramService(
+  db,
+  config.secret,
+  config.telegramWebhookOrigin,
+  true,
+);
 const metaEnabled =
   process.env.META_WEBHOOKS_ENABLED === "true" ||
   process.env.WHATSAPP_WEBHOOKS_ENABLED === "true" ||

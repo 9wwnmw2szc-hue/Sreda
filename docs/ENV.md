@@ -17,6 +17,7 @@ Names only. Never put real secrets in git.
 | Name | Notes |
 |---|---|
 | `TELEGRAM_WEBHOOKS_ENABLED` | `true` only when telegram-worker is live |
+| `TELEGRAM_WEBHOOK_BASE_URL` | Optional. Exact origin that Telegram reaches for `POST /api/telegram/<connectionId>`. Empty → `APP_URL`. Set when `APP_URL` is not routable from Telegram and a relay host proxies that path to the app. Must satisfy the same exact-HTTPS-origin rule as `APP_URL`. |
 | `VK_WEBHOOKS_ENABLED` | `true` only when vk-worker is live |
 
 ## Meta (optional)
