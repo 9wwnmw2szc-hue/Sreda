@@ -221,7 +221,7 @@ export function DashboardView() {
         : selection;
   const dialogTitle =
     visibleSelection?.type === "catalog"
-      ? `Что поручим Сотам?`
+      ? `Что поручим БизнеСотам?`
       : visibleSelection?.type === "solution"
         ? visibleSelection.item.solution.name
         : visibleSelection?.type === "lead"

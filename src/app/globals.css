@@ -66,7 +66,7 @@
   --radius-lg: 18px;
   --radius-xl: 22px;
   --glow-brand: 0 0 40px color-mix(in srgb, var(--brand-primary) 12%, transparent);
-  --sidebar-width: 176px;
+  --sidebar-width: 200px;
   --accent: var(--brand-primary);
   --focus-ring: color-mix(in srgb, var(--brand-primary) 70%, #20252B 30%);
 
@@ -378,11 +378,14 @@ ul {
 }
 .brand strong {
   display: block;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.15;
-  letter-spacing: -1.2px;
+  letter-spacing: -0.5px;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand small {
   display: block;
@@ -542,8 +545,8 @@ ul {
   padding: 0;
 }
 .sidebar--mobile .brand strong {
-  font-size: 24px;
-  letter-spacing: -0.9px;
+  font-size: 18px;
+  letter-spacing: -0.4px;
 }
 .sidebar--mobile .brand__leaf {
   width: 36px;

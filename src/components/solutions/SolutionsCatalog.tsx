@@ -151,7 +151,7 @@ export function SolutionsCatalog({ solutions }: { solutions: Solution[] }) {
       </div>
       <header className="solutions-intro">
         <div>
-          <h1>Что поручим Сотам?</h1>
+          <h1>Что поручим БизнеСотам?</h1>
           <p>
             Выберите задачу. БизнеСоты помогут с заявками, заказами, записью,
             сообщениями и публикациями.
