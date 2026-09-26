@@ -260,7 +260,21 @@ Production: health telegram=ok согласован с живым worker. Рас
 
 ## 18. BUILD / TYPECHECK / TEST
 
-См. результаты прогона в конце отчёта / CI на PR.
+Прогон на ветке аудита (2026-09-26):
+
+| Команда | Результат |
+|---|---|
+| `npm run typecheck` | PASS |
+| `npm run lint` | PASS (4 pre-existing warnings в billing stubs) |
+| `NODE_ENV=production npm run build` | PASS |
+| `npm test` | 381 pass / 2 fail / 11 skip |
+
+2 failing unit tests (также известны на `main`, не регрессия этого PR):
+
+- `dashboard lead service reads real API data…`
+- `lead page client saves statuses…`
+
+Исправление lead-тестов **не** входило в scope infra-compat; не смешивались с deploy-фиксами.
 
 ---
 
