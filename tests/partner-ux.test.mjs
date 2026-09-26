@@ -305,6 +305,24 @@ test("settings sections and sidebar order match the product map", async () => {
   assert.match(sidebar, /"\/solutions"/);
 });
 
+test("disconnect confirmation opens a real modal, not an inline panel", async () => {
+  const view = await read("../src/components/connections/ConnectionsView.tsx");
+  // The confirmation must be a native <dialog> opened with showModal(): an inline
+  // block rendered after all four platform sections stays below the fold, so
+  // clicking «Отключить» looked like a dead button.
+  assert.match(view, /<dialog[\s\S]*className="sign-out-dialog"/);
+  assert.match(view, /dialog\.showModal\(\)/);
+  assert.match(view, /if \(dialog\.open\) dialog\.close\(\)/);
+  assert.match(view, /aria-labelledby=\{confirmTitleId\}/);
+  assert.match(view, /aria-describedby=\{confirmDescId\}/);
+  assert.doesNotMatch(view, /role="dialog"[\s\S]{0,80}aria-modal="true"/);
+  assert.doesNotMatch(view, /className="panel crm-panel"\s*role="dialog"/);
+  const triggers = view.match(/aria-haspopup="dialog"/g) ?? [];
+  assert.equal(triggers.length, 2, "Telegram/VK and Meta «Отключить» triggers");
+  assert.match(view, /method: "DELETE"/);
+  assert.match(view, /Отключаем…/);
+});
+
 test("solution icons keep true alpha and no baked plate RGB", async () => {
   const root = new URL("../public/assets/soty/v2/", import.meta.url);
   const files = [
