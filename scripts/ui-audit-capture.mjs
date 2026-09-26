@@ -1,5 +1,5 @@
 /**
- * Canonical screenshot / visual audit pipeline for «Соты».
+ * Canonical screenshot / visual audit pipeline for «БизнеСоты».
  *
  * Creates a throwaway account via /register (no AUDIT_USER/AUDIT_PASS required),
  * then captures authenticated + public routes across viewports and themes.

@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins/username";
 import type { Kysely } from "kysely";
+import { APP_NAME } from "@/config/brand";
 import type { Database } from "../db/schema.ts";
 
 export function createIdentity(options: {
@@ -9,7 +10,7 @@ export function createIdentity(options: {
   secret: string;
 }) {
   return betterAuth({
-    appName: "Соты",
+    appName: APP_NAME,
     baseURL: options.origin,
     basePath: "/api/auth",
     secret: options.secret,

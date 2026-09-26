@@ -1,4 +1,4 @@
-# Soty Admin Panel
+# BizneSoty Admin Panel
 
 Platform staff console served by the **same web service** at path `/admin` (not a separate Railway service).
 

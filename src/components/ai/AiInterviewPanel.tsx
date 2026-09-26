@@ -246,7 +246,7 @@ export function AiInterviewPanel({
         <p>Загружаем интервью…</p>
       ) : showSummary && summary ? (
         <div className="stack-md">
-          <h4>Вот как Соты поняли ваш бизнес</h4>
+          <h4>Вот как БизнеСоты поняли ваш бизнес</h4>
           {state?.aiFallback ? (
             <p className="account-notice" role="status">
               AI временно недоступен или вернул неполный ответ. Резюме собрано из

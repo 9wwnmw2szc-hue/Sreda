@@ -29,7 +29,7 @@
 .recovery-confirm input[type="checkbox"] { width:22px; height:22px; min-height:22px; padding:0; margin:0; flex:0 0 22px; border-radius:5px; accent-color:var(--accent); }
 .recovery-confirm span { min-width:0; }
 :root {
-  /* Soty brand — light theme */
+  /* BizneSoty brand — light theme */
   --brand-primary: #F6C344;
   --brand-primary-hover: #E8B534;
   --brand-primary-text: #20252B;
@@ -66,7 +66,7 @@
   --radius-lg: 18px;
   --radius-xl: 22px;
   --glow-brand: 0 0 40px color-mix(in srgb, var(--brand-primary) 12%, transparent);
-  --sidebar-width: 176px;
+  --sidebar-width: 200px;
   --accent: var(--brand-primary);
   --focus-ring: color-mix(in srgb, var(--brand-primary) 70%, #20252B 30%);
 
@@ -378,11 +378,14 @@ ul {
 }
 .brand strong {
   display: block;
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.15;
-  letter-spacing: -1.2px;
+  letter-spacing: -0.5px;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .brand small {
   display: block;
@@ -542,8 +545,8 @@ ul {
   padding: 0;
 }
 .sidebar--mobile .brand strong {
-  font-size: 24px;
-  letter-spacing: -0.9px;
+  font-size: 18px;
+  letter-spacing: -0.4px;
 }
 .sidebar--mobile .brand__leaf {
   width: 36px;
@@ -1850,7 +1853,7 @@ ul {
 }
 @media (min-width: 1550px) {
   :root {
-    --sidebar-width: 244px;
+    --sidebar-width: 264px;
     --right-panel-width: 280px;
   }
   .dashboard-topbar {
@@ -1898,7 +1901,7 @@ ul {
 }
 @media (min-width: 1100px) and (max-width: 1359px) {
   :root {
-    --sidebar-width: 200px;
+    --sidebar-width: 224px;
     --right-panel-width: 224px;
   }
   .sidebar {
@@ -1908,7 +1911,8 @@ ul {
     padding-inline: 4px;
   }
   .brand strong {
-    font-size: 31px;
+    font-size: 18px;
+    letter-spacing: -0.4px;
   }
   .brand__leaf {
     width: 40px;
@@ -2050,8 +2054,8 @@ ul {
     min-width: 0;
   }
   .brand--compact strong {
-    font-size: 27px;
-    letter-spacing: -1px;
+    font-size: 18px;
+    letter-spacing: -0.4px;
   }
   .brand--compact .brand__leaf,
   .brand--compact .brand__mark {
@@ -3661,7 +3665,7 @@ ul {
     padding:calc(20px + env(safe-area-inset-top, 0px)) 16px 20px;
   }
   .account-story::before { display:none; }
-  .account-story .brand strong { font-size:28px; }
+  .account-story .brand strong { font-size:20px; letter-spacing:-0.4px; }
   .account-story__copy { margin-top:16px; }
   .account-story__copy .eyebrow { display:none; }
   .account-story .brand small { display:none; }
@@ -4638,7 +4642,7 @@ ul {
 }
 
 /* ==========================================================================
-   Soty rebrand — new dashboard / shell components
+   BizneSoty rebrand — new dashboard / shell components
    (legacy botanical scene styles kept above for gradual migration)
    ========================================================================== */
 
@@ -6183,7 +6187,7 @@ body {
   border-color: var(--border-default);
 }
 
-/* ===== Approved Soty visual direction (desktop + mobile) ===== */
+/* ===== Approved BizneSoty visual direction (desktop + mobile) ===== */
 .soty-section-head {
   display: grid;
   gap: 4px;
@@ -7680,7 +7684,7 @@ a.soty-activity__row {
 /* Tablet landscape: restore desktop shell from 900px */
 @media (min-width: 900px) and (max-width: 1099px) {
   :root {
-    --sidebar-width: 216px;
+    --sidebar-width: 228px;
     --content-gutter: 20px;
   }
 
@@ -7727,7 +7731,7 @@ a.soty-activity__row {
 
 @media (min-width: 1100px) {
   :root {
-    --sidebar-width: 220px;
+    --sidebar-width: 236px;
     --content-gutter: 28px;
   }
 
@@ -7742,7 +7746,7 @@ a.soty-activity__row {
 
 @media (min-width: 1440px) {
   :root {
-    --sidebar-width: 248px;
+    --sidebar-width: 260px;
   }
 }
 

@@ -269,7 +269,7 @@ function LeadsWizard({
         <div>
           <span className="eyebrow">Готовое решение</span>
           <h1>Приём заявок</h1>
-          <p>Клиенты оставляют заявку. Вы видите её в Сотах.</p>
+          <p>Клиенты оставляют заявку. Вы видите её в БизнеСотах.</p>
         </div>
         <div className="setup-price">
           <strong>{price} ₽</strong>

@@ -1,5 +1,5 @@
 /**
- * Single-origin public host policy for «Соты».
+ * Single-origin public host policy for «БизнеСоты».
  *
  * Source of truth for the public origin is APP_URL (exact HTTPS origin).
  * Alias brand hosts and (after cutover) the Railway technical hostname

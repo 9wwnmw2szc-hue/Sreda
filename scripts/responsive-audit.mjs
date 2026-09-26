@@ -1,5 +1,5 @@
 /**
- * Systemic responsive / UI audit for «Соты».
+ * Systemic responsive / UI audit for «БизнеСоты».
  * Env:
  *   AUDIT_BASE_URL       default http://127.0.0.1:3000
  *   AUDIT_STORAGE_STATE  Playwright storageState JSON path (auth)

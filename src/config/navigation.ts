@@ -25,7 +25,7 @@ export interface NavItem {
   badge?: number;
 }
 
-/** Desktop sidebar primary navigation — order matches Soty design. */
+/** Desktop sidebar primary navigation — order matches BizneSoty design. */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Главная", icon: Home },
   { href: "/solutions", label: "Решения", icon: Sparkles },
