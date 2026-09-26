@@ -6,6 +6,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request:Request,{params}:{params:Promise<{id:string}>}) {
  return respond(request, async () =>{
   const r=getRuntime();
-  return json(await new TelegramService(r.db,r.secret,r.origin,r.telegramEnabled,fetch,new CommunicationService(r.db)).receive((await params).id,request.headers.get("x-telegram-bot-api-secret-token")??"",await readJson(request,65536)));
+  return json(await new TelegramService(r.db,r.secret,r.telegramWebhookOrigin,r.telegramEnabled,fetch,new CommunicationService(r.db)).receive((await params).id,request.headers.get("x-telegram-bot-api-secret-token")??"",await readJson(request,65536)));
  });
 }

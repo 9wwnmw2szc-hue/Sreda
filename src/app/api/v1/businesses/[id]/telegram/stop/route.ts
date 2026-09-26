@@ -17,7 +17,7 @@ export async function POST(
       await new TelegramService(
         r.db,
         r.secret,
-        r.origin,
+        r.telegramWebhookOrigin,
         r.telegramEnabled,
       ).stop(user.id, (await params).id),
     );
