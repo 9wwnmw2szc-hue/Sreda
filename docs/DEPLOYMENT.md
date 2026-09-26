@@ -1,59 +1,150 @@
-# Deployment
+# Deployment — БизнеСоты (biznesoty)
 
-## Closed Beta staging (authoritative for this beta)
+## One product, three brand entry hosts
 
-| Item | Value |
+There is **one** web app, **one** auth system, **one** dashboard.
+Brand domains are entry points — not separate sites.
+
+### Canonical (APP_URL)
+
+```
+https://biznesoty.ru
+```
+
+Exact HTTPS origin, no trailing slash. This is the only production `APP_URL`
+and the only Better Auth `trustedOrigins` / `baseURL` origin.
+
+### Redirect-only aliases (308 GET/HEAD → canonical)
+
+| Host | Role |
 |---|---|
-| Project | **Sreda-staging** (Railway) |
-| Git branch | **main** |
-| Services | web, telegram-worker, vk-worker, Postgres, private S3 |
-| Image | Dockerfile at repo root (`node:22`, `NEXT_PUBLIC_DATA_SOURCE=api`) |
+| `www.biznesoty.ru` | apex www |
+| `biznesoty.online` | brand alias |
+| `www.biznesoty.online` | brand alias www |
+| `бизнесоты.рф` / `xn--90aifd0ahuj5f.xn--p1ai` | Cyrillic brand alias |
 
-Railway configs:
+Behaviour (browser-safe methods only):
 
-- `deploy/railway/web.json` — migrate pre-deploy, `npm start -- --hostname 0.0.0.0`, health `/api/health/web`
-- `deploy/railway/worker.json` — telegram-worker
-- `deploy/railway/vk-worker.json` — vk-worker
+```
+https://biznesoty.online/login?next=/orders
+  → 308 https://biznesoty.ru/login?next=/orders
 
-Shared variables: `APP_URL` (HTTPS origin, no trailing slash), `DATABASE_URL`, `BETTER_AUTH_SECRET`, S3_*, optional AI_*, webhook enable flags after bots exist.
+https://бизнесоты.рф/register
+  → 308 https://biznesoty.ru/register
 
-### Public brand domains (prepared; cutover is owner-gated)
+https://www.biznesoty.ru/dashboard
+  → 308 https://biznesoty.ru/dashboard
+```
 
-Canonical public origin (after DNS + TLS ready): **`https://biznesoty.ru`**
+Path and query are preserved. Unsafe methods (`POST`/`PUT`/`PATCH`/`DELETE`)
+on alias hosts are **403** (not body-preserving redirects).
 
-Redirect-only aliases (never APP_URL / never Better Auth trustedOrigins):
+Never set as `APP_URL` and never add to Better Auth `trustedOrigins`:
 
 - `https://biznesoty.online`
-- `https://бизнесоты.рф` (punycode `xn--90aifd0ahuj5f.xn--p1ai`)
-- `https://www.biznesoty.ru` (optional)
+- `https://бизнесоты.рф`
+- `https://www.biznesoty.ru`
+- `https://www.biznesoty.online`
 
-Host policy lives in `src/server/http/canonical-host.ts` and Next.js `src/proxy.ts`:
+Implementation: `src/server/http/canonical-host.ts` + Next.js `src/proxy.ts`.
 
-- Browser GET/HEAD on aliases → **308** to `APP_URL` (path + query preserved)
-- Unsafe methods on aliases → **403** (CSRF/origin not weakened)
-- `/api/health*` and provider webhooks (`/api/telegram/*`, `/api/vk/*`, `/api/meta/webhook`) skip host redirect so Railway healthchecks and existing webhook URLs keep working during migration
-- After `APP_URL` switches to `https://biznesoty.ru`, browser hits to `*.up.railway.app` redirect to the brand host; webhook paths on Railway remain reachable until bots are re-registered
+Exempt from canonical redirect (must keep working on Railway technical host):
 
-**Do not set `APP_URL=https://biznesoty.ru` until Railway shows the custom domain verified and certificate ready.** Until then keep the current Railway origin.
+- `/api/health`, `/api/health/web`, `/api/health/live`
+- `/api/telegram/*`, `/api/vk/*`, `/api/meta/webhook`
 
-**Note:** attaching `biznesoty.ru` to project **Sreda-staging** means the public brand points at staging infrastructure until a future production move. Sessions cookies from the Railway hostname will not transfer — users may need to sign in again after cutover.
+### Public user journey (canonical)
 
-Diagnostics: `npm run staging:check` and optional `--database` (read-only checksums/heartbeats).
+```
+biznesoty.ru/          → public landing
+  → Войти              → /login
+  → Попробовать        → /register
+  → (auth success)     → /dashboard (existing app)
+```
 
-**This document does not authorize production deploy.** Staging only for Closed Beta hardening.
+Alias hosts 308 into the same journey on `biznesoty.ru`.
 
-## Optional self-hosted / Yandex path (prepared, not beta default)
+**Do not set `APP_URL=https://biznesoty.ru` until DNS is verified and the TLS certificate is READY.**
+
+Code being ready ≠ domains already attached in Railway/DNS.
+
+## Railway (authoritative for Closed Beta / new environments)
+
+```
+GitHub (main)
+  → Railway project
+      → PostgreSQL (shared)
+      → web
+      → telegram-worker
+      → vk-worker
+```
+
+### Config files in repo
+
+| Service | Config |
+|---|---|
+| web | `deploy/railway/web.json` |
+| telegram-worker | `deploy/railway/telegram-worker.json` (also `worker.json` compatibility copy) |
+| vk-worker | `deploy/railway/vk-worker.json` |
+
+### Web (`deploy/railway/web.json`)
+
+- Build: Dockerfile
+- Pre-deploy: `node --import tsx scripts/db-migrate.mts`
+- Start: `npm run start -- --hostname 0.0.0.0` (respects Railway `PORT`)
+- Health: `/api/health/web` (timeout 120s)
+- Restart: ON_FAILURE, max 5
+
+### Workers
+
+- Telegram start: `npm run worker:telegram`
+- VK start: `npm run worker:vk`
+- No public HTTP domain required
+- Share the same `DATABASE_URL` / `APP_URL` / secrets as web (Railway variable references)
+- Pre-deploy also runs migrations (idempotent) so a worker can start before web on a fresh DB
+
+### Recommended bring-up order
+
+1. Create PostgreSQL service.
+2. Create **web**; set `DATABASE_URL` as a **Railway reference** to Postgres (do not paste passwords into docs).
+3. Set remaining env (see `.env.example` / section below) — never commit secrets.
+4. Deploy web (migrations run in preDeploy).
+5. Confirm `GET /api/health/web` → 200.
+6. Create **telegram-worker** with the same env references; enable `TELEGRAM_WEBHOOKS_ENABLED` only when ready.
+7. Create **vk-worker** similarly.
+8. Attach custom domains in Railway (canonical + aliases); wait for TLS READY.
+9. Set `APP_URL=https://biznesoty.ru` only after step 8.
+10. Wire integrations / E2E.
+
+### Historical note
+
+Existing Closed Beta may still live in Railway project **Sreda-staging** (legacy project name). Attaching `biznesoty.ru` there means the public brand points at staging until a future production move. Session cookies from `*.up.railway.app` do not transfer to `biznesoty.ru` — users may need to sign in again after cutover.
+
+## Required environment names (values never documented here)
+
+**Core:** `APP_URL`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_DATA_SOURCE`
+
+**Workers / channels:** `TELEGRAM_WEBHOOKS_ENABLED`, `VK_WEBHOOKS_ENABLED`
+
+**Meta (optional):** `META_WEBHOOKS_ENABLED`, `WHATSAPP_WEBHOOKS_ENABLED`, `INSTAGRAM_WEBHOOKS_ENABLED`, `META_APP_ID`, `META_APP_SECRET`, `META_WEBHOOK_VERIFY_TOKEN`, `META_WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID`, `META_INSTAGRAM_LOGIN_CONFIG_ID`
+
+**AI (optional):** `AI_API_TOKEN`, `AI_MODEL`
+
+**Storage:** `ATTACHMENT_STORAGE`, `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, optional `ATTACHMENT_STORAGE_PATH`, `S3_URL_STYLE`
+
+**SMTP (optional):** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`
+
+Full authoritative list: [docs/ENV.md](ENV.md).
+
+## Optional self-hosted / Yandex path
 
 - Compose + Caddy under `deploy/`
-- Manual workflow `.github/workflows/deploy-yandex.yml` (workflow_dispatch, `main` only, requires prior Verify success)
-- `deploy/release.sh` pulls immutable `cr.yandex/.../sreda:<sha>` image, migrates, health-checks
-- Profiles enable telegram/vk workers based on `app.env` flags
-
-Treat Yandex as a future production candidate once beta exit criteria are met — not the current ship path.
+- Manual workflow `.github/workflows/deploy-yandex.yml`
+- Install prefix examples use `/opt/biznesoty/`
 
 ## Pre-deploy habits
 
 1. Merge only through CI Verify on the commit you deploy.
 2. Migrate on a DB copy first when schema changes are risky.
 3. Toggle webhooks off during worker cutovers if dual-process overlap is possible.
-4. Keep staging bots/tokens isolated from any future production bots (one webhook URL per bot).
+4. Keep staging bots/tokens isolated from any future production bots.

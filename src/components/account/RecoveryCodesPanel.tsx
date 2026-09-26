@@ -77,7 +77,7 @@ export function RecoveryCodesPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "soty-recovery-codes.txt";
+    a.download = "biznesoty-recovery-codes.txt";
     a.click();
     URL.revokeObjectURL(url);
     setNotice("Файл сохранён. Храните его отдельно от мессенджеров.");

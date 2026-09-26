@@ -1,5 +1,5 @@
 /**
- * Canonical screenshot / visual audit pipeline for «Соты».
+ * Canonical screenshot / visual audit pipeline for «БизнеСоты».
  *
  * Creates a throwaway account via /register (no AUDIT_USER/AUDIT_PASS required),
  * then captures authenticated + public routes across viewports and themes.
@@ -120,7 +120,7 @@ async function bodyOverflowX(page) {
 async function applyTheme(page, theme) {
   await page.addInitScript((t) => {
     try {
-      localStorage.setItem("soty.theme", t);
+      localStorage.setItem("biznesoty.theme", t);
       document.documentElement.setAttribute("data-theme", t);
       document.documentElement.style.colorScheme = t;
     } catch {
@@ -480,7 +480,7 @@ try {
         await page.waitForTimeout(350);
         await page.evaluate((t) => {
           try {
-            localStorage.setItem("soty.theme", t);
+            localStorage.setItem("biznesoty.theme", t);
             document.documentElement.setAttribute("data-theme", t);
           } catch {
             /* ignore */
@@ -549,7 +549,7 @@ try {
           .catch(() => null);
         await page.evaluate((t) => {
           try {
-            localStorage.setItem("soty.theme", t);
+            localStorage.setItem("biznesoty.theme", t);
             document.documentElement.setAttribute("data-theme", t);
             document.documentElement.style.colorScheme = t;
           } catch {

@@ -170,7 +170,7 @@ export function CommandSearch({
   }
 
   const field = (
-    <label className="soty-command__field">
+    <label className="biznesoty-command__field">
       <Search size={18} strokeWidth={1.7} aria-hidden />
       <input
         ref={inputRef}
@@ -195,7 +195,7 @@ export function CommandSearch({
       {mobile && expanded ? (
         <button
           type="button"
-          className="soty-command__close"
+          className="biznesoty-command__close"
           aria-label="Закрыть поиск"
           onClick={closeAll}
         >
@@ -207,10 +207,10 @@ export function CommandSearch({
 
   const results =
     open || (mobile && expanded) ? (
-      <ul id={listId} className="soty-command__list" role="listbox">
-        {loading ? <li className="soty-command__empty">Ищем…</li> : null}
+      <ul id={listId} className="biznesoty-command__list" role="listbox">
+        {loading ? <li className="biznesoty-command__empty">Ищем…</li> : null}
         {error ? (
-          <li className="soty-command__empty" role="alert">
+          <li className="biznesoty-command__empty" role="alert">
             {error}
           </li>
         ) : null}
@@ -218,10 +218,10 @@ export function CommandSearch({
           <li key={`${hit.type}:${hit.id}`}>
             <button
               type="button"
-              className={`soty-command__item soty-command__item--${HIT_TONE[hit.type]}`}
+              className={`biznesoty-command__item biznesoty-command__item--${HIT_TONE[hit.type]}`}
               onClick={() => go(hit.href)}
             >
-              <span className="soty-command__icon" aria-hidden>
+              <span className="biznesoty-command__icon" aria-hidden>
                 {hit.type === "product" ? (
                   <Package size={16} strokeWidth={1.7} />
                 ) : hit.type === "client" ? (
@@ -234,7 +234,7 @@ export function CommandSearch({
                   <ShoppingBag size={16} strokeWidth={1.7} />
                 )}
               </span>
-              <span className="soty-command__meta">
+              <span className="biznesoty-command__meta">
                 <strong>{hit.label}</strong>
                 <small>
                   {HIT_LABEL[hit.type]}
@@ -248,10 +248,10 @@ export function CommandSearch({
           <li key={href}>
             <button
               type="button"
-              className={`soty-command__item soty-command__item--${tone}`}
+              className={`biznesoty-command__item biznesoty-command__item--${tone}`}
               onClick={() => go(href)}
             >
-              <span className="soty-command__icon" aria-hidden>
+              <span className="biznesoty-command__icon" aria-hidden>
                 <Icon size={16} strokeWidth={1.7} />
               </span>
               <span>{label}</span>
@@ -259,7 +259,7 @@ export function CommandSearch({
           </li>
         ))}
         {!loading && !error && !hits.length && !commands.length ? (
-          <li className="soty-command__empty">Ничего не найдено</li>
+          <li className="biznesoty-command__empty">Ничего не найдено</li>
         ) : null}
       </ul>
     ) : null;
@@ -267,13 +267,13 @@ export function CommandSearch({
   if (mobile) {
     return (
       <div
-        className={`soty-command soty-command--mobile${expanded ? " is-expanded" : ""}`}
+        className={`biznesoty-command biznesoty-command--mobile${expanded ? " is-expanded" : ""}`}
         ref={rootRef}
       >
         {!expanded ? (
           <button
             type="button"
-            className="icon-button soty-command__trigger"
+            className="icon-button biznesoty-command__trigger"
             aria-label="Поиск"
             aria-expanded={false}
             onClick={() => {
@@ -284,7 +284,7 @@ export function CommandSearch({
             <Search size={20} strokeWidth={1.7} aria-hidden />
           </button>
         ) : (
-          <div className="soty-command__sheet" role="search">
+          <div className="biznesoty-command__sheet" role="search">
             {field}
             {results}
           </div>
@@ -295,7 +295,7 @@ export function CommandSearch({
 
   return (
     <div
-      className={`soty-command${compact ? " soty-command--compact" : ""}`}
+      className={`biznesoty-command${compact ? " biznesoty-command--compact" : ""}`}
       ref={rootRef}
     >
       {field}

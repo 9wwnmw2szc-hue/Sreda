@@ -1,0 +1,275 @@
+{\rtf1\ansi\ansicpg1251\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;\f1\froman\fcharset0 Times-Bold;\f2\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww14000\viewh20000\viewkind0
+\deftab720
+\pard\pardeftab720\sa240\partightenfactor0
+\cf2
+{\f1\b\fs36 FINAL NETWORK ROUTING AUDIT \u8212? \u171?\u1041?\u1080?\u1079?\u1085?\u1077?\u1057?\u1086?\u1090?\u1099?\u187? (Sreda)\par}
+
+{\f0\fs22 \u1044?\u1072?\u1090?\u1072? \u1092?\u1080?\u1082?\u1089?\u1072?\u1094?\u1080?\u1080? DNS: 2026-09-25\par}
+
+{\f0\fs22 \u1056?\u1077?\u1087?\u1086?\u1079?\u1080?\u1090?\u1086?\u1088?\u1080?\u1081?: https://github.com/kavkauzdenov/Sreda\par}
+
+{\f0\fs22 \u1057?\u1090?\u1072?\u1090?\u1091?\u1089?: \u1058?\u1054?\u1051?\u1068?\u1050?\u1054? \u1040?\u1059?\u1044?\u1048?\u1058?. \u1048?\u1079?\u1084?\u1077?\u1085?\u1077?\u1085?\u1080?\u1103? \u1074? WireGuard / .env / production \u1053?\u1045? \u1074?\u1085?\u1086?\u1089?\u1080?\u1083?\u1080?\u1089?\u1100?.\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 A. Server-side external endpoints\par}
+
+{\f0\fs22 \u1058?\u1072?\u1073?\u1083?\u1080?\u1094?\u1072? \u1087?\u1086? \u1082?\u1072?\u1078?\u1076?\u1086?\u1084?\u1091? hostname:\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 api.telegram.org\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/telegram/api.ts; attachments/send.ts; attachments/service.ts (/file/bot\u8230?); connections/service.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: Bot API + file download; redirect: "error"\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1044?\u1040?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: 149.154.166.110\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1044?\u1040?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 core.telegram.org\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: \u1085?\u1077? \u1074?\u1099?\u1079?\u1099?\u1074?\u1072?\u1077?\u1090?\u1089?\u1103? Bot API \u1085?\u1072?\u1087?\u1088?\u1103?\u1084?\u1091?\u1102?; diagnostic redirect \u1089? \u1082?\u1086?\u1088?\u1085?\u1077?\u1074?\u1086?\u1075?\u1086? URL\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: \u1085?\u1077? production Bot API path\par}
+
+{\f0\fs22 Server-side?: \u1085?\u1077?\u1090? \u1076?\u1083?\u1103? Bot API\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1091?\u1078?\u1077? \u1074? AllowedIPs\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: 149.154.167.99\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1044?\u1040?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 graph.facebook.com\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/meta/api.ts, meta/config.ts (v25.0); OAuth exchangeOAuthCode; WA/IG Graph\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: Meta Graph \u8212? OAuth, WhatsApp Cloud API, Instagram Messaging\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1044?\u1040?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: 31.13.66.4 (\u1088?\u1072?\u1085?\u1077?\u1077? \u1090?\u1072?\u1082?\u1078?\u1077? 57.144.74.141)\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1053?\u1045?\u1058? (\u1089?\u1077?\u1081?\u1095?\u1072?\u1089? 31.13.72.8/52/174)\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 api.openai.com\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/ai/posts.ts \u8594? ai/interview.ts, ai/assist.ts, analytics/ai/analyst.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: POST /v1/responses\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1044?\u1040?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: 162.159.140.245, 172.66.0.243\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1044?\u1040?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 api.vk.com\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/vk/api.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: VK API\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1053?\u1045?\u1058? (\u1087?\u1086? \u1058?\u1047?)\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: 87.240.129.140, 87.240.137.130/206/207/208, 87.240.139.193, 87.240.190.70/75, 93.186.225.205\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1085?\u1077? \u1085?\u1091?\u1078?\u1085?\u1086? \u1076?\u1083?\u1103? NL\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 *.userapi.com / *.vkuser.net / *.vkuserlive.net / *.vkuseraudio.* / vk.com\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: attachments/send.ts, attachments/service.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: \u1076?\u1080?\u1085?\u1072?\u1084?\u1080?\u1095?\u1077?\u1089?\u1082?\u1080?\u1077? VK media URL\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1053?\u1045?\u1058?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: \u1076?\u1080?\u1085?\u1072?\u1084?\u1080?\u1095?\u1077?\u1089?\u1082?\u1080?\u1077?\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u1085?\u1077? \u1085?\u1091?\u1078?\u1085?\u1086? \u1076?\u1083?\u1103? NL\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 S3_ENDPOINT (env)\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/attachments/storage.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: object storage\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1086?\u1073?\u1099?\u1095?\u1085?\u1086? \u1053?\u1045?\u1058?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: \u1080?\u1079? env\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u8212?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 SMTP_HOST (env)\par}
+
+{\f0\fs22 \u1043?\u1076?\u1077? \u1080?\u1089?\u1087?\u1086?\u1083?\u1100?\u1079?\u1091?\u1077?\u1090?\u1089?\u1103?: src/server/identity/mail.ts\par}
+
+{\f0\fs22 \u1053?\u1072?\u1079?\u1085?\u1072?\u1095?\u1077?\u1085?\u1080?\u1077?: nodemailer\par}
+
+{\f0\fs22 Server-side?: \u1076?\u1072?\par}
+
+{\f0\fs22 \u1063?\u1077?\u1088?\u1077?\u1079? NL?: \u1086?\u1073?\u1099?\u1095?\u1085?\u1086? \u1053?\u1045?\u1058?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? IP: \u1080?\u1079? env\par}
+
+{\f0\fs22 \u1042? AllowedIPs?: \u8212?\par}
+
+{\f0\fs22 \par}
+
+{\f0\fs22 \u1055?\u1088?\u1080?\u1084?\u1077?\u1095?\u1072?\u1085?\u1080?\u1077?: WhatsApp / Instagram server-side = graph.facebook.com (\u1086?\u1090?\u1076?\u1077?\u1083?\u1100?\u1085?\u1099?\u1093? server host whatsapp.com / instagram.com \u1074? \u1082?\u1086?\u1076?\u1077? \u1085?\u1077?\u1090?).\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 B. Client-side endpoints\par}
+
+{\f0\fs22 \u1053?\u1077? \u1086?\u1090?\u1085?\u1086?\u1089?\u1103?\u1090?\u1089?\u1103? \u1082? egress RU VPS:\par}
+
+{\f0\fs22 \bullet  https://connect.facebook.net/ru_RU/sdk.js \u8212? ConnectionsView.tsx \u8212? FB JS SDK \u1074? \u1073?\u1088?\u1072?\u1091?\u1079?\u1077?\u1088?\u1077?\par}
+
+{\f0\fs22 \bullet  *.facebook.com (postMessage origin) \u8212? ConnectionsView.tsx \u8212? Embedded Signup / Login UI\par}
+
+{\f0\fs22 \bullet  https://t.me/... \u8212? UI-\u1089?\u1089?\u1099?\u1083?\u1082?\u1080? \u8212? \u1091?\u1089?\u1090?\u1088?\u1086?\u1081?\u1089?\u1090?\u1074?\u1086? \u1087?\u1086?\u1083?\u1100?\u1079?\u1086?\u1074?\u1072?\u1090?\u1077?\u1083?\u1103?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 C. Missing routes\par}
+
+{\f0\fs22 \u1055?\u1086?\u1090?\u1077?\u1085?\u1094?\u1080?\u1072?\u1083?\u1100?\u1085?\u1086? \u1076?\u1086?\u1073?\u1072?\u1074?\u1080?\u1090?\u1100? \u1074? WireGuard AllowedIPs (\u1053?\u1045? \u1076?\u1086?\u1073?\u1072?\u1074?\u1083?\u1103?\u1083?\u1086?\u1089?\u1100? \u1072?\u1074?\u1090?\u1086?\u1084?\u1072?\u1090?\u1080?\u1095?\u1077?\u1089?\u1082?\u1080?):\par}
+
+{\f0\fs22 \bullet  31.13.66.4/32 \u8212? graph.facebook.com \u8212? \u1090?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? A\par}
+
+{\f0\fs22 \bullet  57.144.74.141/32 (\u1086?\u1087?\u1094?\u1080?\u1086?\u1085?\u1072?\u1083?\u1100?\u1085?\u1086?) \u8212? graph.facebook.com \u8212? \u1088?\u1072?\u1085?\u1077?\u1077? \u1085?\u1072?\u1073?\u1083?\u1102?\u1076?\u1072?\u1083?\u1089?\u1103? \u1076?\u1088?\u1091?\u1075?\u1080?\u1084? \u1088?\u1077?\u1079?\u1086?\u1083?\u1074?\u1077?\u1088?\u1086?\u1084?\par}
+
+{\f0\fs22 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1077? 31.13.72.8/52/174 \u1053?\u1045? \u1089?\u1086?\u1074?\u1087?\u1072?\u1076?\u1072?\u1102?\u1090? \u1089? \u1072?\u1082?\u1090?\u1091?\u1072?\u1083?\u1100?\u1085?\u1099?\u1084? Graph A.\par}
+
+{\f0\fs22 VK IP \u1074? NL \u1053?\u1045? \u1087?\u1088?\u1077?\u1076?\u1083?\u1072?\u1075?\u1072?\u1102?\u1090?\u1089?\u1103?.\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 D. Dynamic DNS risk\par}
+
+{\f0\fs22 \bullet  api.telegram.org \u8212? \u1089?\u1088?\u1077?\u1076?\u1085?\u1103?\u1103?; \u1089?\u1077?\u1081?\u1095?\u1072?\u1089? \u1089?\u1086?\u1074?\u1087?\u1072?\u1076?\u1072?\u1077?\u1090? \u1089? AllowedIPs\par}
+
+{\f0\fs22 \bullet  graph.facebook.com \u8212? \u1054?\u1063?\u1045?\u1053?\u1068? \u1042?\u1067?\u1057?\u1054?\u1050?\u1040?\u1071? \u8212? AllowedIPs \u1091?\u1089?\u1090?\u1072?\u1088?\u1077?\u1083?\u1080?; A \u1091?\u1078?\u1077? \u1084?\u1077?\u1085?\u1103?\u1083?\u1089?\u1103?\par}
+
+{\f0\fs22 \bullet  api.openai.com \u8212? \u1089?\u1088?\u1077?\u1076?\u1085?\u1077?-\u1074?\u1099?\u1089?\u1086?\u1082?\u1072?\u1103? (Cloudflare Anycast; \u1086?\u1073?\u1072? IP \u1089?\u1077?\u1081?\u1095?\u1072?\u1089? \u1074? AllowedIPs)\par}
+
+{\f0\fs22 \bullet  VK upload hosts \u8212? \u1074?\u1099?\u1089?\u1086?\u1082?\u1072?\u1103? \u1076?\u1080?\u1085?\u1072?\u1084?\u1080?\u1082?\u1072?, NL \u1085?\u1077? \u1085?\u1091?\u1078?\u1077?\u1085?\par}
+
+{\f0\fs22 \bullet  S3_ENDPOINT / SMTP_HOST \u8212? \u1079?\u1072?\u1074?\u1080?\u1089?\u1080?\u1090? \u1086?\u1090? \u1087?\u1088?\u1086?\u1074?\u1072?\u1081?\u1076?\u1077?\u1088?\u1072?\par}
+
+{\f0\fs22 \u1045?\u1089?\u1090?\u1100? AAAA \u1091? Telegram/Meta/OpenAI \u8212? IPv6 \u1084?\u1086?\u1078?\u1077?\u1090? \u1086?\u1073?\u1086?\u1081?\u1090?\u1080? WG /32 A-\u1084?\u1072?\u1088?\u1096?\u1088?\u1091?\u1090?\u1099?.\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 E. Production risks\par}
+
+{\f0\fs22 \bullet  \u1057?\u1084?\u1077?\u1085?\u1072? DNS Meta: Graph \u1085?\u1077? \u1074? \u1090?\u1077?\u1082?\u1091?\u1097?\u1080?\u1093? AllowedIPs \u8594? WA/IG/OAuth server egress \u1084?\u1086?\u1078?\u1077?\u1090? \u1080?\u1076?\u1090?\u1080? \u1084?\u1080?\u1084?\u1086? NL\par}
+
+{\f0\fs22 \bullet  CDN/Anycast: \u1086?\u1076?\u1080?\u1085? hostname \u8594? \u1088?\u1072?\u1079?\u1085?\u1099?\u1077? A\par}
+
+{\f0\fs22 \bullet  \u1053?\u1077?\u1089?\u1082?\u1086?\u1083?\u1100?\u1082?\u1086? A (OpenAI \u8212? 2; VK \u8212? \u1084?\u1085?\u1086?\u1075?\u1086?)\par}
+
+{\f0\fs22 \bullet  IPv6 \u1086?\u1073?\u1093?\u1086?\u1076? WireGuard\par}
+
+{\f0\fs22 \bullet  Telegram redirect: "error" \u8594? Bot API \u1053?\u1045? \u1093?\u1086?\u1076?\u1080?\u1090? \u1085?\u1072? core.telegram.org \u1074? production path\par}
+
+{\f0\fs22 \bullet  Browser OAuth/SDK \u8800? server Graph\par}
+
+{\f0\fs22 \bullet  \u1042?\u1093?\u1086?\u1076?\u1103?\u1097?\u1080?\u1077? webhooks \u1085?\u1072? biznesoty.ru \u1085?\u1077? \u1090?\u1088?\u1077?\u1073?\u1091?\u1102?\u1090? NL egress\par}
+
+{\f0\fs22 \bullet  VK media \u8212? \u1076?\u1080?\u1085?\u1072?\u1084?\u1080?\u1095?\u1077?\u1089?\u1082?\u1080?\u1077? host; \u1076?\u1077?\u1088?\u1078?\u1072?\u1090?\u1100? \u1087?\u1088?\u1103?\u1084?\u1099?\u1084?\u1080?\par}
+
+{\f0\fs22 \bullet  \u1057?\u1077?\u1082?\u1088?\u1077?\u1090?\u1099? / webhook flags / DB \u1085?\u1077? \u1090?\u1088?\u1086?\u1075?\u1072?\u1083?\u1080?\u1089?\u1100?\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs36 FINAL NETWORK ROUTING PLAN\par}
+
+{\f0\fs22 hostname \u8594? IP \u8594? \u1087?\u1088?\u1080?\u1095?\u1080?\u1085?\u1072? \u8594? \u1095?\u1077?\u1088?\u1077?\u1079? NL / \u1085?\u1072?\u1087?\u1088?\u1103?\u1084?\u1091?\u1102?\par}
+
+{\f0\fs22 \par}
+
+{\f2\fs20 api.telegram.org \u8594? 149.154.166.110 \u8594? Bot API + files \u8594? \u1095?\u1077?\u1088?\u1077?\u1079? NL (\u1091?\u1078?\u1077? \u1074? AllowedIPs)\par}
+
+{\f2\fs20 core.telegram.org \u8594? 149.154.167.99 \u8594? diagnostic only \u8594? \u1095?\u1077?\u1088?\u1077?\u1079? NL ok; \u1085?\u1077? \u1086?\u1073?\u1103?\u1079?\u1072?\u1090?\u1077?\u1083?\u1077?\u1085? \u1076?\u1083?\u1103? Bot API\par}
+
+{\f2\fs20 graph.facebook.com \u8594? 31.13.66.4 (+ \u1088?\u1072?\u1085?\u1077?\u1077? 57.144.74.141) \u8594? Meta / WA / IG / OAuth \u8594? \u1095?\u1077?\u1088?\u1077?\u1079? NL \u8212? AllowedIPs \u1085?\u1091?\u1078?\u1085?\u1086? \u1086?\u1073?\u1085?\u1086?\u1074?\u1080?\u1090?\u1100?\par}
+
+{\f2\fs20 api.openai.com \u8594? 162.159.140.245, 172.66.0.243 \u8594? AI Responses \u8594? \u1095?\u1077?\u1088?\u1077?\u1079? NL (\u1091?\u1078?\u1077? \u1074? AllowedIPs)\par}
+
+{\f2\fs20 api.vk.com + VK CDN \u8594? 87.240.* / dynamic \u8594? VK \u8594? \u1085?\u1072?\u1087?\u1088?\u1103?\u1084?\u1091?\u1102?\par}
+
+{\f2\fs20 S3_ENDPOINT / SMTP_HOST \u8594? env \u8594? storage / mail \u8594? \u1085?\u1072?\u1087?\u1088?\u1103?\u1084?\u1091?\u1102?\par}
+
+{\f2\fs20 connect.facebook.net \u8594? browser \u8594? FB SDK \u8594? \u1085?\u1077? server egress\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 \u1063?\u1090?\u1086? \u1091?\u1078?\u1077? \u1088?\u1072?\u1073?\u1086?\u1090?\u1072?\u1077?\u1090?\par}
+
+{\f0\fs22 \bullet  WireGuard RU\u8596?NL \u1080? \u1089?\u1093?\u1077?\u1084?\u1072? container \u8594? RU \u8594? WG \u8594? NL \u8594? Internet \u1091?\u1078?\u1077? \u1087?\u1086?\u1076?\u1090?\u1074?\u1077?\u1088?\u1078?\u1076?\u1077?\u1085?\u1099? \u1088?\u1072?\u1085?\u1077?\u1077?\par}
+
+{\f0\fs22 \bullet  Telegram A \u1080? OpenAI A \u1089?\u1086?\u1074?\u1087?\u1072?\u1076?\u1072?\u1102?\u1090? \u1089? AllowedIPs\par}
+
+{\f0\fs22 \bullet  \u1042? \u1082?\u1086?\u1076?\u1077? Telegram/Meta/OpenAI \u8212? redirect: "error"\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 \u1063?\u1090?\u1086? \u1085?\u1077?\u1086?\u1073?\u1093?\u1086?\u1076?\u1080?\u1084?\u1086? \u1080?\u1079?\u1084?\u1077?\u1085?\u1080?\u1090?\u1100?\par}
+
+{\f0\fs22 \u1058?\u1086?\u1083?\u1100?\u1082?\u1086? \u1087?\u1086?\u1089?\u1083?\u1077? \u1086?\u1090?\u1076?\u1077?\u1083?\u1100?\u1085?\u1086?\u1075?\u1086? \u1087?\u1086?\u1076?\u1090?\u1074?\u1077?\u1088?\u1078?\u1076?\u1077?\u1085?\u1080?\u1103?:\par}
+
+{\f0\fs22 1. \u1042? RU AllowedIPs \u1076?\u1086?\u1073?\u1072?\u1074?\u1080?\u1090?\u1100? \u1072?\u1082?\u1090?\u1091?\u1072?\u1083?\u1100?\u1085?\u1099?\u1077? Graph IP: \u1084?\u1080?\u1085?\u1080?\u1084?\u1091?\u1084? 31.13.66.4/32 (\u1080? \u1087?\u1088?\u1080? \u1085?\u1077?\u1086?\u1073?\u1093?\u1086?\u1076?\u1080?\u1084?\u1086?\u1089?\u1090?\u1080? 57.144.74.141/32); \u1088?\u1077?\u1096?\u1080?\u1090?\u1100? \u1089?\u1091?\u1076?\u1100?\u1073?\u1091? \u1089?\u1090?\u1072?\u1088?\u1099?\u1093? 31.13.72.*\par}
+
+{\f0\fs22 2. wg-quick down/up \u1080? \u1087?\u1088?\u1086?\u1074?\u1077?\u1088?\u1082?\u1072? \u1080?\u1079? deploy-app-1: fetch("https://graph.facebook.com/v25.0/") \u1095?\u1077?\u1088?\u1077?\u1079? NL\par}
+
+{\f0\fs22 3. \u1055?\u1083?\u1072?\u1085? \u1084?\u1086?\u1085?\u1080?\u1090?\u1086?\u1088?\u1080?\u1085?\u1075?\u1072? \u1089?\u1084?\u1077?\u1085?\u1099? DNS Meta/OpenAI/Telegram\par}
+
+{\f0\fs22 4. IPv6: disable egress IPv6 \u1089? app-\u1093?\u1086?\u1089?\u1090?\u1072? \u1080?\u1083?\u1080? \u1086?\u1090?\u1076?\u1077?\u1083?\u1100?\u1085?\u1072?\u1103? \u1084?\u1072?\u1088?\u1096?\u1088?\u1091?\u1090?\u1080?\u1079?\u1072?\u1094?\u1080?\u1103?\par}
+
+{\f0\fs22 \par}
+
+{\f0\fs22 \u1062?\u1077?\u1083?\u1100?: Telegram / Meta(WA+IG) / OpenAI \u8594? NL; \u1041?\u1044? \u1074? \u1056?\u1060?; VK \u1080? \u1086?\u1073?\u1099?\u1095?\u1085?\u1099?\u1081? RU-\u1090?\u1088?\u1072?\u1092?\u1080?\u1082? \u1087?\u1088?\u1103?\u1084?\u1099?\u1077?; production \u1073?\u1077?\u1079? \u1083?\u1080?\u1096?\u1085?\u1077?\u1081? \u1086?\u1089?\u1090?\u1072?\u1085?\u1086?\u1074?\u1082?\u1080?.\par}
+
+{\f0\fs22 \par}
+
+{\f1\b\fs28 \u1058?\u1077?\u1082?\u1091?\u1097?\u1080?\u1081? AllowedIPs (baseline \u1080?\u1079? \u1087?\u1088?\u1086?\u1084?\u1087?\u1090?\u1072?, \u1073?\u1077?\u1079? \u1080?\u1079?\u1084?\u1077?\u1085?\u1077?\u1085?\u1080?\u1081?)\par}
+
+{\f2\fs20 AllowedIPs = 10.66.66.1/32, 149.154.166.110/32, 149.154.167.99/32, 31.13.72.174/32, 31.13.72.52/32, 31.13.72.8/32, 162.159.140.245/32, 172.66.0.243/32\par}
+
+}

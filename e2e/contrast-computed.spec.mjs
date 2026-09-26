@@ -112,7 +112,7 @@ function ratioFromSample(sampleResult) {
 async function setTheme(page, theme) {
   await page.addInitScript((t) => {
     try {
-      localStorage.setItem("soty.theme", t);
+      localStorage.setItem("biznesoty.theme", t);
       document.documentElement.setAttribute("data-theme", t);
       document.documentElement.style.colorScheme = t;
     } catch {
@@ -121,7 +121,7 @@ async function setTheme(page, theme) {
   }, theme);
   await page.evaluate((t) => {
     try {
-      localStorage.setItem("soty.theme", t);
+      localStorage.setItem("biznesoty.theme", t);
       document.documentElement.setAttribute("data-theme", t);
       document.documentElement.style.colorScheme = t;
     } catch {

@@ -1,15 +1,15 @@
 /**
- * Systemic responsive / UI audit for «Соты».
+ * Systemic responsive / UI audit for «БизнеСоты».
  * Env:
  *   AUDIT_BASE_URL       default http://127.0.0.1:3000
  *   AUDIT_STORAGE_STATE  Playwright storageState JSON path (auth)
- *   AUDIT_OUTPUT         report directory (default /tmp/soty-responsive-audit)
+ *   AUDIT_OUTPUT         report directory (default /tmp/biznesoty-responsive-audit)
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.AUDIT_BASE_URL ?? "http://127.0.0.1:3000";
-const output = process.env.AUDIT_OUTPUT ?? "/tmp/soty-responsive-audit";
+const output = process.env.AUDIT_OUTPUT ?? "/tmp/biznesoty-responsive-audit";
 const storageState = process.env.AUDIT_STORAGE_STATE;
 
 const VIEWPORTS = [
@@ -123,7 +123,7 @@ function themesFor(route) {
 async function applyTheme(page, theme) {
   await page.addInitScript((t) => {
     try {
-      localStorage.setItem("soty.theme", t);
+      localStorage.setItem("biznesoty.theme", t);
       document.documentElement.dataset.theme = t;
       document.documentElement.style.colorScheme = t;
     } catch {
@@ -475,9 +475,9 @@ async function collectMetrics(page, { mobile, protectedWithAuth }) {
 
       // Mobile search field vs close
       const searchField = document.querySelector(
-        ".soty-command__field, .soty-command__sheet .soty-command__field",
+        ".biznesoty-command__field, .biznesoty-command__sheet .biznesoty-command__field",
       );
-      const searchClose = document.querySelector(".soty-command__close");
+      const searchClose = document.querySelector(".biznesoty-command__close");
       if (searchField && searchClose) {
         const fr = searchField.getBoundingClientRect();
         const cr = searchClose.getBoundingClientRect();
@@ -614,7 +614,7 @@ try {
           // Re-apply theme after navigation in case bootstrap overwrote it
           await page.evaluate((t) => {
             try {
-              localStorage.setItem("soty.theme", t);
+              localStorage.setItem("biznesoty.theme", t);
               document.documentElement.dataset.theme = t;
               document.documentElement.style.colorScheme = t;
             } catch {

@@ -72,7 +72,7 @@ function AdminLoginForm() {
         >
           <Shield size={22} strokeWidth={1.8} aria-hidden />
           <div>
-            <h1>Soty Admin</h1>
+            <h1>БизнеСоты Admin</h1>
             <p className="admin-page-desc" style={{ margin: 0 }}>
               Вход для сотрудников платформы
             </p>

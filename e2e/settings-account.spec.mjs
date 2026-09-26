@@ -71,20 +71,20 @@ test.describe("Settings / Account mobile UX", () => {
     // Dashboard header at 390
     await page.goto(baseURL + "/dashboard", { waitUntil: "domcontentloaded" });
     await expect(page.locator(".mobile-header")).toBeVisible();
-    await expect(page.locator(".soty-command--mobile")).toBeVisible();
+    await expect(page.locator(".biznesoty-command--mobile")).toBeVisible();
     await page.screenshot({
       path: path.join(outDir, `dashboard-header-390.png`),
       fullPage: false,
     });
 
     // Open mobile search sheet
-    await page.locator(".soty-command__trigger").click();
-    await expect(page.locator(".soty-command__sheet")).toBeVisible();
+    await page.locator(".biznesoty-command__trigger").click();
+    await expect(page.locator(".biznesoty-command__sheet")).toBeVisible();
     await page.screenshot({
       path: path.join(outDir, `search-sheet-390.png`),
       fullPage: false,
     });
-    await page.locator(".soty-command__close").click();
+    await page.locator(".biznesoty-command__close").click();
 
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });

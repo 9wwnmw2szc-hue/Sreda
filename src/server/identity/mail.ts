@@ -17,7 +17,7 @@ export async function sendCode(email: string, code: string) {
   });
   try {
     await transport.sendMail({
-      from, to: email, subject: "Код входа в Соты",
+      from, to: email, subject: "Код входа в БизнеСоты",
       text: `Ваш код входа: ${code}\n\nОн действует 5 минут. Если вы не запрашивали вход, просто проигнорируйте письмо.`,
     });
   } finally {

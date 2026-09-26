@@ -229,7 +229,7 @@ export function DashboardView() {
           : "Предпросмотр публикации";
 
   return (
-    <div className="dashboard-root soty-dashboard">
+    <div className="dashboard-root biznesoty-dashboard">
       <div className="mobile-business-switcher">
         <BusinessSwitcher
           businesses={data.businesses}
@@ -313,13 +313,13 @@ export function DashboardView() {
         </section>
       ) : (
         <>
-          <header className="soty-hero">
-            <div className="soty-hero__copy">
-              <p className="soty-hero__eyebrow">{APP_NAME}</p>
+          <header className="biznesoty-hero">
+            <div className="biznesoty-hero__copy">
+              <p className="biznesoty-hero__eyebrow">{APP_NAME}</p>
               <h1>Ваш бизнес — в порядке</h1>
               <p>Все инструменты в одном месте. Выбрал → подключил → настроил → работает.</p>
             </div>
-            <div className="soty-hero__tools desktop-only">
+            <div className="biznesoty-hero__tools desktop-only">
               <CommandSearch />
             </div>
           </header>
@@ -373,19 +373,19 @@ export function DashboardView() {
             <>
               <QuickActions />
               <DashboardAiHint hint={nextSetupHint} />
-              <section className="soty-pulse" aria-labelledby="soty-pulse-title">
-                <div className="soty-section-head">
-                  <h2 id="soty-pulse-title">Пульс бизнеса</h2>
+              <section className="biznesoty-pulse" aria-labelledby="biznesoty-pulse-title">
+                <div className="biznesoty-section-head">
+                  <h2 id="biznesoty-pulse-title">Пульс бизнеса</h2>
                   <p>Ключевые показатели за период</p>
                 </div>
                 {data.businessId ? (
                   <DashboardKpis businessId={data.businessId} />
                 ) : null}
               </section>
-              <section className="soty-solutions" aria-labelledby="soty-solutions-title">
-                <div className="soty-section-head soty-section-head--row">
+              <section className="biznesoty-solutions" aria-labelledby="biznesoty-solutions-title">
+                <div className="biznesoty-section-head biznesoty-section-head--row">
                   <div>
-                    <h2 id="soty-solutions-title">Решения</h2>
+                    <h2 id="biznesoty-solutions-title">Решения</h2>
                     <p>Инструменты, которые ведут клиентов</p>
                   </div>
                   <button
@@ -398,7 +398,7 @@ export function DashboardView() {
                 </div>
                 <SolutionCards items={data.workspaceItems} />
               </section>
-              <div className="soty-panels">
+              <div className="biznesoty-panels">
                 {data.businessId ? (
                   <ActivityFeed businessId={data.businessId} />
                 ) : null}
@@ -406,10 +406,10 @@ export function DashboardView() {
                   <TodaySchedule businessId={data.businessId} />
                 ) : null}
               </div>
-              <aside className="soty-hive desktop-only" aria-label="Живые соты">
-                <div className="soty-hive__glow" aria-hidden />
+              <aside className="biznesoty-hive desktop-only" aria-label="Живые соты">
+                <div className="biznesoty-hive__glow" aria-hidden />
                 <svg
-                  className="soty-hive__pattern"
+                  className="biznesoty-hive__pattern"
                   viewBox="0 0 240 120"
                   aria-hidden
                 >
@@ -427,13 +427,13 @@ export function DashboardView() {
                     <path d="M112 60 l18 10 v20 l-18 10 l-18-10 v-20 z" />
                   </g>
                 </svg>
-                <div className="soty-hive__copy">
+                <div className="biznesoty-hive__copy">
                   <strong>Живые соты</strong>
                   <p>
                     Структура, рост и связь инструментов — ваш бизнес работает
                     как единая система.
                   </p>
-                  <p className="soty-hive__motto">
+                  <p className="biznesoty-hive__motto">
                     Выбрал → подключил → настроил → работает
                   </p>
                 </div>

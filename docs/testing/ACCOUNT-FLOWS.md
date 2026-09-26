@@ -14,12 +14,12 @@ Production HTTPS-сценарий, обычные PostgreSQL-тесты, lint, b
 ```sh
 npm ci
 npm run build
-TEST_DATABASE_URL=postgresql://sreda:ci-only-password@localhost:5432/sreda_test npm run test:http
+TEST_DATABASE_URL=postgresql://biznesoty:ci-only-password@localhost:5432/biznesoty_test npm run test:http
 ```
 
 Указанный пароль — пример для локального тестового PostgreSQL из CI, не рабочий секрет.
 Runner допускает только loopback-адрес и исходную базу с `test` в имени.
-Он создаёт новую базу `sreda_http_test_<случайный суффикс>` и применяет миграции дважды для проверки повторного запуска.
+Он создаёт новую базу `biznesoty_http_test_<случайный суффикс>` и применяет миграции дважды для проверки повторного запуска.
 Тест не очищает исходную базу. В конце удаляется только созданная им база.
 Секрет авторизации, пароли и сертификат HTTPS генерируются на запуск и не сохраняются в репозитории.
 Проверка сертификата не выключается: клиент доверяет только временному тестовому сертификату.

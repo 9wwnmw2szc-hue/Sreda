@@ -68,7 +68,7 @@ export function TodaySchedule({ businessId }: { businessId: string }) {
   }, [businessId]);
 
   return (
-    <section className="panel soty-schedule-panel">
+    <section className="panel biznesoty-schedule-panel">
       <div className="panel-heading">
         <h2>Сегодня в расписании</h2>
         <Link href="/bookings" className="text-link">
@@ -87,14 +87,14 @@ export function TodaySchedule({ businessId }: { businessId: string }) {
           </Link>
         </div>
       ) : (
-        <ol className="soty-timeline">
+        <ol className="biznesoty-timeline">
           {rows.map((row, index) => {
             const badge = relativeBadge(row.starts_at);
             return (
-              <li key={row.id} className="soty-timeline__item">
+              <li key={row.id} className="biznesoty-timeline__item">
                 <time dateTime={row.starts_at}>{timeLabel(row.starts_at)}</time>
-                <span className="soty-timeline__rail" aria-hidden />
-                <div className="soty-timeline__card">
+                <span className="biznesoty-timeline__rail" aria-hidden />
+                <div className="biznesoty-timeline__card">
                   <span
                     className={`initial-avatar initial-avatar--${index % 3}`}
                   >

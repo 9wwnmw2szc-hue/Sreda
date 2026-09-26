@@ -2,7 +2,7 @@
 
 ## Staging (Railway Postgres)
 
-Closed Beta staging (**Sreda-staging**) uses Railway-managed PostgreSQL shared by web and workers.
+Closed Beta staging (**Biznebiznesoty-staging**) uses Railway-managed PostgreSQL shared by web and workers.
 
 Recommended practice:
 
@@ -14,7 +14,7 @@ Recommended practice:
 
 `deploy/backup.sh` (used with compose on a VM, not required for Railway-only staging):
 
-1. `pg_dump -Fc` from compose service `db` into `/opt/sreda/backups/sreda-<UTC>.dump`
+1. `pg_dump -Fc` from compose service `db` into `/opt/biznesoty/backups/sreda-<UTC>.dump`
 2. `pg_restore --list` validates archive structure
 3. Upload to Object Storage (`s3://…` via Yandex endpoint in the script)
 

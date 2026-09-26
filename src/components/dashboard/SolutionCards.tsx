@@ -40,7 +40,7 @@ export function SolutionCards({
   items: WorkspaceSolutionItem[];
 }) {
   return (
-    <section className="soty-solutions-grid" aria-label="Решения">
+    <section className="biznesoty-solutions-grid" aria-label="Решения">
       {items.map((item) => {
         const copy = DASHBOARD_SOLUTION_COPY[item.code] ?? {
           title: item.solution.name,
@@ -58,20 +58,20 @@ export function SolutionCards({
           <Link
             key={item.code}
             href={href}
-            className={`soty-solution-card soty-solution-card--${tone}`}
+            className={`biznesoty-solution-card biznesoty-solution-card--${tone}`}
           >
-            <div className="soty-solution-card__art">
+            <div className="biznesoty-solution-card__art">
               <SolutionIcon solution={item.code} variant="hero" />
             </div>
-            <div className="soty-solution-card__body">
+            <div className="biznesoty-solution-card__body">
               <h3>{copy.title}</h3>
               <p>{copy.subtitle}</p>
-              <div className={`soty-solution-card__status is-${status.tone}`}>
-                <span className="soty-solution-card__dot" aria-hidden />
+              <div className={`biznesoty-solution-card__status is-${status.tone}`}>
+                <span className="biznesoty-solution-card__dot" aria-hidden />
                 {status.text}
               </div>
             </div>
-            <ChevronRight className="soty-solution-card__chevron" size={18} />
+            <ChevronRight className="biznesoty-solution-card__chevron" size={18} />
           </Link>
         );
       })}

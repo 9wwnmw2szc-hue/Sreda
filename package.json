@@ -1,10 +1,10 @@
 {
-  "name": "sreda",
+  "name": "biznesoty",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "next build --webpack",
+    "build": "NODE_ENV=production next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
@@ -51,5 +51,8 @@
   },
   "engines": {
     "node": ">=22.18.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

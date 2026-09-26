@@ -23,7 +23,8 @@ interface BusinessContextValue {
 }
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 export function BusinessProvider({ children, user }: { children: ReactNode; user: User }) {
-  const storageKey = "sreda.currentBusinessId:" + user.id;
+  const storageKey = "biznesoty.currentBusinessId:" + user.id;
+  const legacyStorageKey = "sreda.currentBusinessId:" + user.id;
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [currentBusinessId, setCurrentBusinessIdState] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -38,14 +39,21 @@ export function BusinessProvider({ children, user }: { children: ReactNode; user
       const list = await getBusinesses();
       if (!mounted.current || request !== sequence.current) return;
       let stored: string | null = null;
-      try { stored = localStorage.getItem(storageKey); } catch { /* optional preference */ }
+      try {
+        stored =
+          localStorage.getItem(storageKey) ||
+          localStorage.getItem(legacyStorageKey);
+      } catch { /* optional preference */ }
       const candidates = [preferredId, selected.current, stored];
       const id = candidates.find((candidate) => list.some((item) => item.id === candidate)) ?? list[0]?.id ?? "";
       selected.current = id;
       setBusinesses(list);
       setCurrentBusinessIdState(id);
       setError(list.length ? null : "У вас пока нет бизнесов.");
-      try { localStorage.setItem(storageKey, id); } catch { /* optional preference */ }
+      try {
+        localStorage.setItem(storageKey, id);
+        localStorage.removeItem(legacyStorageKey);
+      } catch { /* optional preference */ }
     } catch (cause) {
       if (!mounted.current || request !== sequence.current) return;
       // Do not continue showing cached rights after a failed access refresh.
@@ -56,7 +64,7 @@ export function BusinessProvider({ children, user }: { children: ReactNode; user
     } finally {
       if (mounted.current && request === sequence.current) setIsLoading(false);
     }
-  }, [storageKey]);
+  }, [storageKey, legacyStorageKey]);
   useEffect(() => {
     mounted.current = true;
     const refresh = () => { if (document.visibilityState === "visible") void refreshBusinesses().catch(() => undefined); };

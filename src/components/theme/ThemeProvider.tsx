@@ -27,8 +27,19 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function readStored(): ThemePreference {
   if (typeof window === "undefined") return "system";
-  const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  const raw =
+    window.localStorage.getItem(THEME_STORAGE_KEY) ??
+    window.localStorage.getItem("soty.theme");
+  if (raw === "light" || raw === "dark" || raw === "system") {
+    if (window.localStorage.getItem(THEME_STORAGE_KEY) !== raw) {
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, raw);
+      } catch {
+        /* ignore */
+      }
+    }
+    return raw;
+  }
   return "system";
 }
 

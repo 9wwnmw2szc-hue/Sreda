@@ -14,10 +14,10 @@ deploy/compose.yml запускает PostgreSQL, приложение, Caddy д
 ## Однократная подготовка владельцем инфраструктуры
 1. Выбрать российский регион, VM Linux x86_64, приватный Container Registry и домен с DNS на IP VM.
    Начальную память выбирать по измерениям; сборка идёт в GitHub, VM только запускает готовые контейнеры.
-2. Установить Docker Engine/Compose, yc, curl и aws CLI. Создать /opt/sreda/deploy и /opt/sreda/backups.
+2. Установить Docker Engine/Compose, yc, curl и aws CLI. Создать /opt/biznesoty/deploy и /opt/biznesoty/backups.
 3. Назначить VM сервисную учётную запись с чтением нужного registry, настроить yc под этой учётной записью.
    Аккаунту сборки GitHub дать запись только в нужный registry. Отдельные ограниченные права нужны для резервных копий.
-4. Подготовить /opt/sreda/app.env, db.env, caddy.env по deploy/*.env.example с правами 0600.
+4. Подготовить /opt/biznesoty/app.env, db.env, caddy.env по deploy/*.env.example с правами 0600.
    Случайный пароль БД (hex) одинаков в app.env и db.env, BETTER_AUTH_SECRET случайный >=32 символов.
    Нельзя менять этот секрет без плана перешифровки токенов: текущая версия использует его и для шифрования.
 5. Настроить SSH пользователя развёртывания. Членство в docker group фактически даёт root-доступ к VM:

@@ -1,5 +1,5 @@
 /**
- * Single-origin public host policy for «Соты».
+ * Single-origin public host policy for «БизнеСоты».
  *
  * Source of truth for the public origin is APP_URL (exact HTTPS origin).
  * Alias brand hosts and (after cutover) the Railway technical hostname
@@ -11,6 +11,7 @@
 export const PUBLIC_ALIAS_HOSTS = Object.freeze(
   new Set([
     "biznesoty.online",
+    "www.biznesoty.online",
     // бизнесоты.рф
     "xn--90aifd0ahuj5f.xn--p1ai",
     "www.biznesoty.ru",
@@ -40,8 +41,16 @@ export function normalizeHostname(raw: string | null | undefined): string {
   const first = raw.split(",")[0]?.trim().toLowerCase() ?? "";
   if (!first) return "";
   // Strip :port (IPv6 in brackets is not used for our public hosts).
-  if (first.startsWith("[")) return first;
-  return first.replace(/:\d+$/, "");
+  let host = first.startsWith("[") ? first : first.replace(/:\d+$/, "");
+  // Unicode brand hosts (e.g. бизнесоты.рф) → punycode ASCII form.
+  if (/[^\x00-\x7f]/.test(host)) {
+    try {
+      host = new URL(`http://${host}`).hostname.toLowerCase();
+    } catch {
+      /* keep original */
+    }
+  }
+  return host;
 }
 
 /**

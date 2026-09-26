@@ -34,14 +34,14 @@ try {
     });
     const page = await context.newPage();
     await page.addInitScript((theme) => {
-      localStorage.setItem("soty.theme", theme);
+      localStorage.setItem("biznesoty.theme", theme);
       document.documentElement.setAttribute("data-theme", theme);
     }, shot.theme);
     const res = await page.goto(base + shot.route, { waitUntil: "networkidle", timeout: 60000 });
     await page.waitForTimeout(400);
     await page.evaluate((theme) => {
       document.documentElement.setAttribute("data-theme", theme);
-      localStorage.setItem("soty.theme", theme);
+      localStorage.setItem("biznesoty.theme", theme);
     }, shot.theme);
     await page.waitForTimeout(200);
     if (shot.drawer) {

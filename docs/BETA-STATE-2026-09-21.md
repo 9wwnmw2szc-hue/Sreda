@@ -4,7 +4,7 @@
 `429e21d60090671b541f41d1eb72d3a8ac503e2a` (PR #53 merged)
 
 ## HARDENING_BRANCH
-`cursor/soty-beta-v1-hardening-258e`
+`cursor/biznesoty-beta-v1-hardening-258e`
 
 ## OPEN_PRS
 Draft legacy only (#6–#13, Sep 12–13). Not merge candidates for Beta.
@@ -15,7 +15,7 @@ Draft legacy only (#6–#13, Sep 12–13). Not merge candidates for Beta.
 ## CURRENT_TEST_COUNT
 ~43 test files; 318+ passing on last full run (11 skip).
 
-## CURRENT_SERVICES (Sreda-staging)
+## CURRENT_SERVICES (Biznebiznesoty-staging)
 web, telegram-worker, vk-worker, Postgres, S3 bucket.
 
 ## CURRENT_SOLUTIONS

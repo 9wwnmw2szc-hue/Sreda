@@ -27,7 +27,7 @@ export function createAuthHandler(options: { db: Kysely<Database>; auth: Identit
       safeBody = { username, password: body.password };
       // Better Auth requires an email field internally. Reserved .invalid domain:
       // never a contact address, never exposed, never used for mail or recovery.
-      if (signup) safeBody = { ...safeBody, name: username, email: `${username}@accounts.sreda.invalid` };
+      if (signup) safeBody = { ...safeBody, name: username, email: `${username}@accounts.biznesoty.invalid` };
     }
     const headers = new Headers(request.headers);
     headers.delete("content-length");

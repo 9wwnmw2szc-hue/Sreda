@@ -15,7 +15,7 @@ export function AccountFrame({ children }: { children: React.ReactNode }) {
           </h1>
           <p>
             Заявки, заказы, запись, сообщения и публикации — в одном рабочем
-            пространстве Соты.
+            пространстве БизнеСоты.
           </p>
         </div>
         <Image

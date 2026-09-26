@@ -2,18 +2,18 @@ services:
   db:
     image: postgres:17-bookworm
     restart: unless-stopped
-    env_file: /opt/sreda/db.env
+    env_file: /opt/biznesoty/db.env
     volumes:
       - postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sreda -d sreda"]
+      test: ["CMD-SHELL", "pg_isready -U biznesoty -d biznesoty"]
       interval: 10s
       timeout: 5s
       retries: 10
   app:
     image: ${SREDA_IMAGE:?Set immutable image tag}
     restart: unless-stopped
-    env_file: /opt/sreda/app.env
+    env_file: /opt/biznesoty/app.env
     depends_on:
       db:
         condition: service_healthy
@@ -26,7 +26,7 @@ services:
   telegram-worker:
     image: ${SREDA_IMAGE:?Set immutable image tag}
     restart: unless-stopped
-    env_file: /opt/sreda/app.env
+    env_file: /opt/biznesoty/app.env
     command: ["node", "--import", "tsx", "scripts/telegram-worker.mts"]
     profiles: ["telegram"]
     depends_on:
@@ -35,7 +35,7 @@ services:
   vk-worker:
     image: ${SREDA_IMAGE:?Set immutable image tag}
     restart: unless-stopped
-    env_file: /opt/sreda/app.env
+    env_file: /opt/biznesoty/app.env
     command: ["node", "--import", "tsx", "scripts/vk-worker.mts"]
     profiles: ["vk"]
     depends_on:
@@ -43,7 +43,7 @@ services:
         condition: service_healthy
   migrate:
     image: ${SREDA_IMAGE:?Set immutable image tag}
-    env_file: /opt/sreda/app.env
+    env_file: /opt/biznesoty/app.env
     command: ["node", "--import", "tsx", "scripts/db-migrate.mts"]
     profiles: ["tools"]
     depends_on:
@@ -52,7 +52,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    env_file: /opt/sreda/caddy.env
+    env_file: /opt/biznesoty/caddy.env
     ports: ["80:80", "443:443"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

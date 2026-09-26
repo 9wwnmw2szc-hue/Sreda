@@ -549,7 +549,7 @@ export async function routeChannelAdmin(
       await queue(
         base
           ? `Сайт кабинета:\n${base}`
-          : "Откройте кабинет Soty в браузере.",
+          : "Откройте кабинет Biznesoty в браузере.",
         homeButtons(await activeSolutions(tx, admin.businessId)),
       );
       return true;

@@ -114,7 +114,7 @@ export function BusinessDeletionPanel({
       <h2 className="text-section-title">Опасная зона бизнеса</h2>
       <p className="account-footnote">
         Бизнес и связанные с ним данные будут удалены. Это действие может быть
-        необратимым. Аккаунт «Соты» при этом сохранится.
+        необратимым. Аккаунт «БизнеСоты» при этом сохранится.
       </p>
       <button
         type="button"
@@ -157,7 +157,7 @@ export function BusinessDeletionPanel({
                   Будет удалён бизнес «{businessName}». Сотрудники, клиенты,
                   заявки, заказы, записи, сообщения, публикации и подключённые
                   Telegram/VK этого бизнеса станут недоступны. Ваш личный
-                  аккаунт «Соты» не удаляется.
+                  аккаунт «БизнеСоты» не удаляется.
                 </p>
                 {error ? (
                   <p className="account-error" role="alert">

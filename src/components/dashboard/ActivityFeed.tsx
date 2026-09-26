@@ -248,9 +248,9 @@ export function ActivityFeed({ businessId }: { businessId: string }) {
   const shown = activeId === businessId ? items : null;
 
   return (
-    <section className="panel soty-activity" aria-labelledby="soty-activity-title">
+    <section className="panel biznesoty-activity" aria-labelledby="biznesoty-activity-title">
       <div className="panel-heading">
-        <h2 id="soty-activity-title">Лента активности</h2>
+        <h2 id="biznesoty-activity-title">Лента активности</h2>
         <Link href="/clients" className="text-link">
           История клиентов
           <ChevronRight size={16} />
@@ -259,17 +259,17 @@ export function ActivityFeed({ businessId }: { businessId: string }) {
       {shown == null ? (
         <p className="text-body-sm">Загрузка…</p>
       ) : shown.length ? (
-        <ul className="soty-activity__list">
+        <ul className="biznesoty-activity__list">
           {shown.map((item) => (
             <li key={item.id}>
               <Link
                 href={item.href}
-                className={`soty-activity__row soty-activity__row--${toneOf(item.type)}`}
+                className={`biznesoty-activity__row biznesoty-activity__row--${toneOf(item.type)}`}
               >
-                <span className="soty-activity__icon" aria-hidden>
+                <span className="biznesoty-activity__icon" aria-hidden>
                   <IconFor type={item.type} />
                 </span>
-                <span className="soty-activity__body">
+                <span className="biznesoty-activity__body">
                   <strong>{item.title}</strong>
                   {item.detail ? <span>{item.detail}</span> : null}
                 </span>

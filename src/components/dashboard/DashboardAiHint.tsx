@@ -20,16 +20,16 @@ export function DashboardAiHint({
     "Короткий пост о новинке или акции помогает клиентам быстрее откликнуться.";
 
   return (
-    <section className="soty-ai" aria-labelledby="soty-ai-title">
-      <div className="soty-ai__mark" aria-hidden>
+    <section className="biznesoty-ai" aria-labelledby="biznesoty-ai-title">
+      <div className="biznesoty-ai__mark" aria-hidden>
         <Sparkles size={22} strokeWidth={1.7} />
       </div>
-      <div className="soty-ai__body">
-        <h2 id="soty-ai-title">
+      <div className="biznesoty-ai__body">
+        <h2 id="biznesoty-ai-title">
           {fromContext ? "💡 Подсказка по настройке" : "✨ Идея для продвижения"}
         </h2>
         <p>{text}</p>
-        <div className="soty-ai__actions">
+        <div className="biznesoty-ai__actions">
           <Link href={primaryHref} className="button button--primary button--sm">
             {primaryLabel}
           </Link>
