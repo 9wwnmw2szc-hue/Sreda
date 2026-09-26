@@ -22,13 +22,34 @@ docker compose "${args[@]}" pull app
 docker compose "${args[@]}" up -d db
 docker compose "${args[@]}" run --rm migrate
 docker compose "${args[@]}" up -d --remove-orphans
+# 1) App must be up (web+DB). 2) If telegram/vk profiles are on, wait for full /api/health.
+web_ok=0
 for attempt in {1..30}; do
-  if docker compose "${args[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
-    printf 'SREDA_IMAGE=%s\n' "$image" > /opt/sreda/deploy/.env
-    echo 'Release is healthy'
-    exit 0
+  if docker compose "${args[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health/web').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+    web_ok=1
+    break
   fi
   sleep 2
 done
-echo 'Health check failed; inspect service health and use a schema-compatible previous image'
-exit 1
+if [[ "$web_ok" -ne 1 ]]; then
+  echo 'Web health check failed; inspect app/db and use a schema-compatible previous image'
+  exit 1
+fi
+need_full=0
+grep -q '^TELEGRAM_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env && need_full=1
+grep -q '^VK_WEBHOOKS_ENABLED=true$' /opt/sreda/app.env && need_full=1
+if [[ "$need_full" -eq 1 ]]; then
+  for attempt in {1..30}; do
+    if docker compose "${args[@]}" exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; then
+      printf 'SREDA_IMAGE=%s\n' "$image" > /opt/sreda/deploy/.env
+      echo 'Release is healthy (web + required workers)'
+      exit 0
+    fi
+    sleep 2
+  done
+  echo 'Full health check failed; inspect telegram/vk workers and heartbeats'
+  exit 1
+fi
+printf 'SREDA_IMAGE=%s\n' "$image" > /opt/sreda/deploy/.env
+echo 'Release is healthy (web)'
+exit 0
