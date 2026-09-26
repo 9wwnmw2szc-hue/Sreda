@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useBusinessContext } from "@/hooks/useBusinessContext";
 import { apiRequest } from "@/lib/apiClient";
 import { platformLabel } from "@/lib/labels";
@@ -98,6 +98,10 @@ function Connections({ id }: { id: string }) {
         accessToken: string;
       }[]
     >([]);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirmTitleId = useId();
+  const confirmDescId = useId();
   const base = `/api/v1/businesses/${id}`;
   useEffect(() => {
     let alive = true;
@@ -117,6 +121,21 @@ function Connections({ id }: { id: string }) {
       alive = false;
     };
   }, [base]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (confirmation) {
+      if (!dialog.open) dialog.showModal();
+      cancelRef.current?.focus();
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+    if (dialog.open) dialog.close();
+  }, [confirmation]);
 
   async function refresh() {
     setConnections(await apiRequest<Connection[]>(base + "/connections"));
@@ -431,7 +450,7 @@ function Connections({ id }: { id: string }) {
         <h1>Подключения</h1>
         <p>Один бот бизнеса для заявок, общения и онлайн-записи.</p>
       </header>
-      {error && (
+      {error && !confirmation && (
         <p role="alert" className="account-error">
           {error}
         </p>
@@ -480,6 +499,8 @@ function Connections({ id }: { id: string }) {
                   <button
                     className="button button--outline"
                     disabled={busy}
+                    aria-haspopup="dialog"
+                    aria-expanded={confirmation === platform}
                     onClick={() => setConfirmation(platform)}
                   >
                     Отключить
@@ -583,6 +604,8 @@ function Connections({ id }: { id: string }) {
                   <button
                     className="button button--outline"
                     disabled={busy}
+                    aria-haspopup="dialog"
+                    aria-expanded={confirmation === platform}
                     onClick={() => setConfirmation(platform)}
                   >
                     Отключить
@@ -626,38 +649,60 @@ function Connections({ id }: { id: string }) {
           </ul>
         </section>
       )}
-      {confirmation && (
-        <section
-          className="panel crm-panel"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Отключение интеграции"
+      {confirmation ? (
+        <dialog
+          ref={dialogRef}
+          className="sign-out-dialog"
+          aria-labelledby={confirmTitleId}
+          aria-describedby={confirmDescId}
+          onCancel={(event) => {
+            event.preventDefault();
+            if (!busy) setConfirmation(null);
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !busy)
+              setConfirmation(null);
+          }}
         >
-          <h2>Отключить {platformLabel(confirmation as Platform)}?</h2>
-          <p>
-            Приём и отправка сообщений остановятся. Для повторного подключения
-            понадобится авторизация заново.
-          </p>
-          <button
-            className="button button--primary"
-            disabled={busy}
-            onClick={() =>
-              void (confirmation === "telegram" || confirmation === "vk"
-                ? act(confirmation, "disconnect")
-                : metaDisconnect(confirmation))
-            }
-          >
-            Да, отключить
-          </button>
-          <button
-            className="button button--outline"
-            disabled={busy}
-            onClick={() => setConfirmation(null)}
-          >
-            Назад
-          </button>
-        </section>
-      )}
+          <div className="sign-out-dialog__inner">
+            <h2 id={confirmTitleId}>
+              Отключить {platformLabel(confirmation as Platform)}?
+            </h2>
+            <p id={confirmDescId}>
+              Приём и отправка сообщений остановятся. Для повторного подключения
+              понадобится авторизация заново.
+            </p>
+            {error ? (
+              <p className="account-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <div className="sign-out-dialog__actions">
+              <button
+                ref={cancelRef}
+                type="button"
+                className="button button--outline"
+                disabled={busy}
+                onClick={() => setConfirmation(null)}
+              >
+                Назад
+              </button>
+              <button
+                type="button"
+                className="button button--primary sign-out-dialog__confirm"
+                disabled={busy}
+                onClick={() =>
+                  void (confirmation === "telegram" || confirmation === "vk"
+                    ? act(confirmation, "disconnect")
+                    : metaDisconnect(confirmation))
+                }
+              >
+                {busy ? "Отключаем…" : "Да, отключить"}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      ) : null}
     </div>
   );
 }
