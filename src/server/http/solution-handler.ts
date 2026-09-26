@@ -24,10 +24,15 @@ export function createSolutionHandler(options: {
   vkEnabled?: boolean;
   telegram?: TelegramService;
 }) {
+  const telegramEnabled =
+    options.telegramEnabled ??
+    process.env.TELEGRAM_WEBHOOKS_ENABLED === "true";
+  const vkEnabled =
+    options.vkEnabled ?? process.env.VK_WEBHOOKS_ENABLED === "true";
   const solutions = new SolutionService(
     options.db,
-    options.telegramEnabled,
-    options.vkEnabled,
+    telegramEnabled,
+    vkEnabled,
   );
   return (
     request: Request,
@@ -141,7 +146,7 @@ export function createSolutionHandler(options: {
             options.db,
             options.secret,
             options.origin,
-            !!options.telegramEnabled,
+            telegramEnabled,
           )
         ).start(session.user.id, id),
       );

@@ -178,10 +178,22 @@ export class ConnectionService {
         status = "connected";
       } catch (error) {
         if (error instanceof AppError) throw error;
+        const name =
+          error instanceof Error
+            ? error.name
+            : typeof error === "object" &&
+                error &&
+                "name" in error &&
+                typeof (error as { name: unknown }).name === "string"
+              ? (error as { name: string }).name
+              : "";
+        const timedOut = name === "AbortError" || name === "TimeoutError";
         throw new AppError(
           503,
           "CHANNEL_UNAVAILABLE",
-          "Telegram временно недоступен. Попробуйте позже.",
+          timedOut
+            ? "Telegram не ответил вовремя. Проверьте сеть сервера и повторите."
+            : "Telegram временно недоступен. Попробуйте позже.",
         );
       } finally {
         clearTimeout(timer);

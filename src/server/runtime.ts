@@ -9,6 +9,9 @@ import { LeadService } from "./leads/service";
 import { InvitationService } from "./invitations/service";
 import { ConnectionService } from "./connections/service";
 import { CommunicationService } from "./communications/service";
+import { preferIpv4Dns } from "./net/ipv4-first";
+
+preferIpv4Dns();
 
 function initialize() {
   const config = runtimeConfig();

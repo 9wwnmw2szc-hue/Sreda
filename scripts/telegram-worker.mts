@@ -1,3 +1,4 @@
+import { preferIpv4Dns } from "../src/server/net/ipv4-first.ts";
 import { queueNotification } from "../src/server/notifications/worker.ts";
 import {
   queueScheduledPost,
@@ -13,6 +14,8 @@ import { MetaChannelService } from "../src/server/meta/service.ts";
 import { CommunicationService } from "../src/server/communications/service.ts";
 import { runtimeConfig } from "../src/server/identity/config.ts";
 import type { Database } from "../src/server/db/schema.ts";
+
+preferIpv4Dns();
 const config = runtimeConfig();
 if (process.env.TELEGRAM_WEBHOOKS_ENABLED !== "true")
   throw new Error("Explicitly enable Telegram after deployment checks");

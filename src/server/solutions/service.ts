@@ -139,11 +139,21 @@ function legacyStatusFromLifecycle(
 export { cancelSetupDraft, resolveSetupNotifications } from "./setup-draft.ts";
 
 export class SolutionService {
+  private readonly telegramEnabled: boolean;
+  private readonly vkEnabled: boolean;
+
   constructor(
     private readonly db: Kysely<Database>,
-    private readonly telegramEnabled = false,
-    private readonly vkEnabled = false,
-  ) {}
+    telegramEnabled?: boolean,
+    vkEnabled?: boolean,
+  ) {
+    // Prefer explicit runtime flags; fall back to env so callers that omit
+    // args (e.g. new SolutionService(tx)) do not silently disable channels.
+    this.telegramEnabled =
+      telegramEnabled ?? process.env.TELEGRAM_WEBHOOKS_ENABLED === "true";
+    this.vkEnabled =
+      vkEnabled ?? process.env.VK_WEBHOOKS_ENABLED === "true";
+  }
   async business(userId: string, publicId: string, write = false) {
     if (write) {
       const b = await requireBusiness(

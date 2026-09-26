@@ -1,3 +1,4 @@
+import { preferIpv4Dns } from "../src/server/net/ipv4-first.ts";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { VKService } from "../src/server/vk/service.ts";
@@ -5,6 +6,7 @@ import { CommunicationService } from "../src/server/communications/service.ts";
 import { runtimeConfig } from "../src/server/identity/config.ts";
 import type { Database } from "../src/server/db/schema.ts";
 
+preferIpv4Dns();
 const config = runtimeConfig();
 if (process.env.VK_WEBHOOKS_ENABLED !== "true")
   throw new Error("Explicitly enable VK after deployment checks");
